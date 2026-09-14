@@ -1,0 +1,10 @@
+# Build artifacts
+*.zip
+build/
+
+# System / editor files
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
