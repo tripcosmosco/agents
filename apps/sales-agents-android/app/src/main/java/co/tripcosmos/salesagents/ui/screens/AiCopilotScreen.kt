@@ -107,6 +107,7 @@ fun AiCopilotContent(
 ) {
     val context = LocalContext.current
     var inputText by remember { mutableStateOf("") }
+    var showQuoteBuilder by remember { mutableStateOf(false) }
 
     var messages by remember {
         mutableStateOf(
@@ -121,6 +122,7 @@ fun AiCopilotContent(
     }
 
     val promptSuggestions = listOf(
+        "📜 Instant Tour Quote Builder",
         "✨ 3D2N Varanasi Quote",
         "🚗 Ayodhya Cab Rates",
         "🙏 Kashi Darshan FAQ",
@@ -130,6 +132,10 @@ fun AiCopilotContent(
 
     fun handleSend(query: String) {
         if (query.isBlank()) return
+        if (query.contains("Quote Builder", ignoreCase = true) || query.contains("Open Quote", ignoreCase = true)) {
+            showQuoteBuilder = true
+            return
+        }
         val userMsg = ChatMessage(text = query, isFromUser = true)
         messages = messages + userMsg
 
@@ -394,5 +400,12 @@ fun AiCopilotContent(
                 }
             }
         }
+    }
+
+    if (showQuoteBuilder) {
+        TourQuoteDialog(
+            initialTravelerName = "Traveler",
+            onDismiss = { showQuoteBuilder = false }
+        )
     }
 }

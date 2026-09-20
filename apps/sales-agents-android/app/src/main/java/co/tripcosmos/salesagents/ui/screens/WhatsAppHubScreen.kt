@@ -22,24 +22,34 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import co.tripcosmos.salesagents.data.api.TripCosmosApiService
+import co.tripcosmos.salesagents.data.model.AssignLeadPayload
 import co.tripcosmos.salesagents.data.model.WhatsAppLead
 import co.tripcosmos.salesagents.telephony.DialerManager
 import co.tripcosmos.salesagents.ui.theme.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WhatsAppHubScreen() {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    val apiService = remember { TripCosmosApiService.create() }
 
     var selectedFilter by remember { mutableStateOf("All") }
     var searchQuery by remember { mutableStateOf("") }
     var activeAssignLead by remember { mutableStateOf<WhatsAppLead?>(null) }
+    var activeQuoteLead by remember { mutableStateOf<WhatsAppLead?>(null) }
+    var isRefreshing by remember { mutableStateOf(false) }
 
-    // Sample active WhatsApp inbound inquiries received on webhook
+    // Sample fallback active WhatsApp inbound inquiries
     var leadsList by remember {
         mutableStateOf(
             listOf(
                 WhatsAppLead(
+                    id = "101",
                     customerName = "Sunil Agarwal",
                     phone = "+919839012345",
                     lastMessage = "Namaste! We are 4 adults planning for Kashi Vishwanath VIP Darshan + evening Ganga Aarti boat cruise on 26th. Please share pricing.",
@@ -52,6 +62,7 @@ fun WhatsAppHubScreen() {
                     status = "new"
                 ),
                 WhatsAppLead(
+                    id = "102",
                     customerName = "Pooja Hegde",
                     phone = "+919741289012",
                     lastMessage = "Need AC Innova Crysta for Varanasi to Ayodhya Ram Mandir return trip for senior citizens. Are wheelchairs available at temple?",
@@ -64,6 +75,7 @@ fun WhatsAppHubScreen() {
                     status = "new"
                 ),
                 WhatsAppLead(
+                    id = "103",
                     customerName = "Rajiv Menon",
                     phone = "+919845019283",
                     lastMessage = "Thanks for the initial brochure. Can we customize the hotel to 4-star near Dashashwamedh Ghat? Please update quote.",
@@ -76,6 +88,7 @@ fun WhatsAppHubScreen() {
                     status = "assigned"
                 ),
                 WhatsAppLead(
+                    id = "104",
                     customerName = "Deepak Chawla",
                     phone = "+919811823901",
                     lastMessage = "Looking for Prayagraj Sangam Snan cab package + Varanasi hotel for 6 pax next week.",
@@ -88,6 +101,7 @@ fun WhatsAppHubScreen() {
                     status = "assigned"
                 ),
                 WhatsAppLead(
+                    id = "105",
                     customerName = "Ananya Roy",
                     phone = "+919051283746",
                     lastMessage = "Hi, need airport pickup at 8 AM and drop at Assi Ghat hotel tomorrow morning.",
@@ -101,6 +115,36 @@ fun WhatsAppHubScreen() {
                 )
             )
         )
+    }
+
+    // Fetch live WhatsApp leads from TripCosmos WordPress REST API
+    fun fetchLiveLeads(showToast: Boolean = false) {
+        coroutineScope.launch {
+            isRefreshing = true
+            try {
+                val res = withContext(Dispatchers.IO) { apiService.getWhatsAppLeads() }
+                if (res.isSuccessful && res.body()?.ok == true) {
+                    val liveLeads = res.body()!!.leads
+                    if (liveLeads.isNotEmpty()) {
+                        // Merge live server leads with fallback list
+                        val liveIds = liveLeads.map { it.id }.toSet()
+                        val combined = liveLeads + leadsList.filter { it.id !in liveIds }
+                        leadsList = combined
+                        if (showToast) {
+                            Toast.makeText(context, "Synced ${liveLeads.size} live leads from server!", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                // Graceful fallback to cached state
+            } finally {
+                isRefreshing = false
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        fetchLiveLeads(showToast = false)
     }
 
     val unassignedCount = leadsList.count { it.assignedManager == null }
@@ -154,6 +198,15 @@ fun WhatsAppHubScreen() {
                                 }
                             }
                             Text("Admin Dispatch & Manager Routing", fontSize = 11.sp, color = TextSecondary)
+                        }
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { fetchLiveLeads(showToast = true) }) {
+                        if (isRefreshing) {
+                            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = SuperfoneBlue)
+                        } else {
+                            Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = TextPrimary)
                         }
                     }
                 },
@@ -264,6 +317,7 @@ fun WhatsAppHubScreen() {
                     WhatsAppLeadCard(
                         lead = lead,
                         onAssignClick = { activeAssignLead = lead },
+                        onQuoteClick = { activeQuoteLead = lead },
                         onChatTraveler = {
                             DialerManager.openWhatsAppChat(
                                 context,
@@ -302,6 +356,26 @@ fun WhatsAppHubScreen() {
                 }
                 activeAssignLead = null
 
+                // Sync assignment to backend REST API
+                val leadIdNum = leadToAssign.id.toLongOrNull() ?: 0L
+                if (leadIdNum > 0) {
+                    coroutineScope.launch {
+                        try {
+                            withContext(Dispatchers.IO) {
+                                apiService.assignLead(
+                                    payload = AssignLeadPayload(
+                                        leadId = leadIdNum,
+                                        managerName = selectedManager,
+                                        notifyManager = notifyManagerOnWhatsApp
+                                    )
+                                )
+                            }
+                        } catch (e: Exception) {
+                            // Ignored
+                        }
+                    }
+                }
+
                 if (notifyManagerOnWhatsApp) {
                     val alertText = "🚨 *New Traveler Assigned to you ($selectedManager)*\n" +
                             "• *Traveler:* ${leadToAssign.customerName}\n" +
@@ -317,12 +391,23 @@ fun WhatsAppHubScreen() {
             }
         )
     }
+
+    // Modal Sheet: Instant Dynamic Tour Quotation & Itinerary Generator (Option B)
+    activeQuoteLead?.let { quoteLead ->
+        TourQuoteDialog(
+            initialTravelerName = quoteLead.customerName,
+            initialPhone = quoteLead.phone,
+            initialDestination = quoteLead.tourInterest,
+            onDismiss = { activeQuoteLead = null }
+        )
+    }
 }
 
 @Composable
 fun WhatsAppLeadCard(
     lead: WhatsAppLead,
     onAssignClick: () -> Unit,
+    onQuoteClick: () -> Unit,
     onChatTraveler: () -> Unit,
     onAlertManager: () -> Unit
 ) {
@@ -481,7 +566,19 @@ fun WhatsAppLeadCard(
                 }
 
                 // WhatsApp Action Buttons
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    // Fast Tour Quote Generator (Option B)
+                    OutlinedButton(
+                        onClick = onQuoteClick,
+                        shape = RoundedCornerShape(10.dp),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, OrangePrimary)
+                    ) {
+                        Icon(Icons.Default.Calculate, contentDescription = "Instant Quote", tint = OrangePrimary, modifier = Modifier.size(15.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Quote", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = OrangePrimary)
+                    }
+
                     // Alert Manager button
                     if (lead.assignedManager != null) {
                         FilledTonalIconButton(
@@ -497,7 +594,7 @@ fun WhatsAppLeadCard(
                         onClick = onChatTraveler,
                         colors = ButtonDefaults.buttonColors(containerColor = WhatsAppGreen),
                         shape = RoundedCornerShape(10.dp),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
                     ) {
                         Icon(Icons.Default.Chat, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(4.dp))

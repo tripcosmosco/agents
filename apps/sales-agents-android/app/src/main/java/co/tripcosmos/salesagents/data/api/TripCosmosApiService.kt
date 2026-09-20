@@ -35,6 +35,23 @@ interface TripCosmosApiService {
         @Body payload: QuickActionPayload
     ): Response<ApiResponse<Any>>
 
+    @GET("mobile/whatsapp-leads")
+    suspend fun getWhatsAppLeads(
+        @Header("X-Mobile-Token") token: String = "test"
+    ): Response<WhatsAppLeadsResponse>
+
+    @POST("mobile/assign-lead")
+    suspend fun assignLead(
+        @Header("X-Mobile-Token") token: String = "test",
+        @Body payload: AssignLeadPayload
+    ): Response<ApiResponse<Any>>
+
+    @POST("mobile/generate-quote")
+    suspend fun generateQuote(
+        @Header("X-Mobile-Token") token: String = "test",
+        @Body payload: GenerateQuotePayload
+    ): Response<QuoteResponse>
+
     companion object {
         private const val DEFAULT_BASE_URL = "https://tripcosmos.co/wp-json/tc-agents/v1/"
 

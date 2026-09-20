@@ -34,6 +34,7 @@ fun LeadDetailDialog(
     var currentOwner by remember { mutableStateOf(lead.owner) }
     var stageMenuExpanded by remember { mutableStateOf(false) }
     var ownerMenuExpanded by remember { mutableStateOf(false) }
+    var showQuoteDialog by remember { mutableStateOf(false) }
     var newNoteText by remember { mutableStateOf("") }
     var notesList by remember {
         mutableStateOf(
@@ -224,6 +225,17 @@ fun LeadDetailDialog(
                         Icon(Icons.Default.Chat, contentDescription = "WhatsApp", tint = Color.White)
                     }
 
+                    // Dynamic Tour Package Quote Generator (Option B)
+                    Button(
+                        onClick = { showQuoteDialog = true },
+                        colors = ButtonDefaults.buttonColors(containerColor = OrangeLight),
+                        shape = CircleShape,
+                        modifier = Modifier.size(54.dp),
+                        contentPadding = PaddingValues(0.dp)
+                    ) {
+                        Icon(Icons.Default.Calculate, contentDescription = "Instant Quote", tint = OrangePrimary)
+                    }
+
                     // Team WhatsApp Dispatch (Sends lead details to assigned agent via WhatsApp)
                     Button(
                         onClick = {
@@ -352,6 +364,15 @@ fun LeadDetailDialog(
                 }
             }
         }
+    }
+
+    if (showQuoteDialog) {
+        TourQuoteDialog(
+            initialTravelerName = lead.name,
+            initialPhone = lead.phone,
+            initialDestination = lead.destination ?: "varanasi_3d2n",
+            onDismiss = { showQuoteDialog = false }
+        )
     }
 }
 

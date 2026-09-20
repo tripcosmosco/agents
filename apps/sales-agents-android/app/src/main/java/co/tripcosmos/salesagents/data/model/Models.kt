@@ -106,14 +106,43 @@ data class AiCallSummary(
 // Superfone WhatsApp Lead & Manager Assignment Model
 data class WhatsAppLead(
     val id: String = java.util.UUID.randomUUID().toString(),
-    val customerName: String,
+    @SerializedName("customer_name") val customerName: String,
     val phone: String,
-    val lastMessage: String,
-    val timeAgo: String,
-    val unreadCount: Int = 0,
-    val tourInterest: String = "Varanasi Spiritual Tour",
-    val estimatedBudget: Double = 15000.0,
-    val assignedManager: String? = null, // null if unassigned
-    val leadScore: Int = 75, // 0-100
+    @SerializedName("last_message") val lastMessage: String,
+    @SerializedName("time_ago") val timeAgo: String,
+    @SerializedName("unread_count") val unreadCount: Int = 0,
+    @SerializedName("tour_interest") val tourInterest: String = "Varanasi Spiritual Tour",
+    @SerializedName("estimated_budget") val estimatedBudget: Double = 15000.0,
+    @SerializedName("assigned_manager") val assignedManager: String? = null, // null if unassigned
+    @SerializedName("lead_score") val leadScore: Int = 75, // 0-100
     val status: String = "new" // new, assigned, quoted, converted
+)
+
+data class WhatsAppLeadsResponse(
+    val ok: Boolean = true,
+    val leads: List<WhatsAppLead> = emptyList()
+)
+
+data class AssignLeadPayload(
+    @SerializedName("lead_id") val leadId: Long,
+    @SerializedName("manager_name") val managerName: String,
+    @SerializedName("notify_manager") val notifyManager: Boolean = true
+)
+
+data class GenerateQuotePayload(
+    val destination: String,
+    val tier: String = "deluxe",
+    val pax: Int = 2,
+    @SerializedName("customer_name") val customerName: String = "Traveler",
+    val dates: String = "Upcoming Weekend"
+)
+
+data class QuoteResponse(
+    val ok: Boolean = true,
+    val destination: String = "",
+    @SerializedName("package_title") val packageTitle: String = "",
+    val pax: Int = 2,
+    val pricing: Double = 0.0,
+    @SerializedName("advance_required") val advanceRequired: Double = 0.0,
+    @SerializedName("quote_text") val quoteText: String = ""
 )

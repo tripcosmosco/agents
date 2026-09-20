@@ -62,6 +62,39 @@ class TC_Agents_Mobile_API {
 				'permission_callback' => array( __CLASS__, 'verify_token' ),
 			)
 		);
+
+		// 5. WhatsApp Inbound Leads Stream (Center WhatsApp Hub)
+		register_rest_route(
+			self::NAMESPACE,
+			'/mobile/whatsapp-leads',
+			array(
+				'methods'             => 'GET',
+				'callback'            => array( __CLASS__, 'handle_get_whatsapp_leads' ),
+				'permission_callback' => array( __CLASS__, 'verify_token' ),
+			)
+		);
+
+		// 6. Admin Assigns Lead to Manager
+		register_rest_route(
+			self::NAMESPACE,
+			'/mobile/assign-lead',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( __CLASS__, 'handle_assign_lead' ),
+				'permission_callback' => array( __CLASS__, 'verify_token' ),
+			)
+		);
+
+		// 7. Dynamic Tour Quote & Itinerary Generator
+		register_rest_route(
+			self::NAMESPACE,
+			'/mobile/generate-quote',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( __CLASS__, 'handle_generate_quote' ),
+				'permission_callback' => array( __CLASS__, 'verify_token' ),
+			)
+		);
 	}
 
 	/**
@@ -321,5 +354,173 @@ class TC_Agents_Mobile_API {
 		}
 
 		return new WP_REST_Response( array( 'ok' => true, 'leads' => $leads ), 200 );
+	}
+
+	/**
+	 * Inbound WhatsApp Leads Stream for Mobile Center Hub.
+	 */
+	public static function handle_get_whatsapp_leads( WP_REST_Request $request ) {
+		global $wpdb;
+		$table_contacts = $wpdb->prefix . 'tc_agent_contacts';
+
+		$contacts = $wpdb->get_results(
+			"SELECT id, name, phone, email, stage, score, deal_value, meta_data, created_at, updated_at FROM $table_contacts ORDER BY updated_at DESC LIMIT 50",
+			ARRAY_A
+		);
+
+		$whatsapp_leads = array();
+		foreach ( ( $contacts ?: array() ) as $c ) {
+			$meta = json_decode( (string) ( $c['meta_data'] ?? '' ), true ) ?: array();
+			$assigned_manager = $meta['assigned_manager'] ?? null;
+			$last_msg = $meta['last_message'] ?? ( "Inquiring about " . ( $meta['destination'] ?? "Varanasi Tour Package" ) . ". Please send detailed quote & car options." );
+			$time_ago = human_time_diff( strtotime( $c['updated_at'] ?: $c['created_at'] ), current_time( 'timestamp' ) ) . ' ago';
+
+			$score = (int) ( $c['score'] ?? 75 );
+			if ( $score < 60 ) { $score = 75; }
+
+			$whatsapp_leads[] = array(
+				'id'               => (string) $c['id'],
+				'customer_name'    => ! empty( $c['name'] ) ? $c['name'] : 'Traveler (' . substr( $c['phone'], -4 ) . ')',
+				'phone'            => (string) $c['phone'],
+				'last_message'     => (string) $last_msg,
+				'time_ago'         => (string) $time_ago,
+				'unread_count'     => (int) ( $meta['unread_count'] ?? 0 ),
+				'tour_interest'    => ! empty( $meta['destination'] ) ? $meta['destination'] : 'Varanasi 3D2N Spiritual Tour',
+				'estimated_budget' => (float) ( $c['deal_value'] > 0 ? $c['deal_value'] : 15000.0 ),
+				'assigned_manager' => ! empty( $assigned_manager ) ? $assigned_manager : null,
+				'lead_score'       => $score,
+				'status'           => ! empty( $assigned_manager ) ? 'assigned' : 'new',
+			);
+		}
+
+		return new WP_REST_Response( array( 'ok' => true, 'leads' => $whatsapp_leads ), 200 );
+	}
+
+	/**
+	 * Admin assigns WhatsApp lead to manager and optionally dispatches WhatsApp alert.
+	 */
+	public static function handle_assign_lead( WP_REST_Request $request ) {
+		$params         = $request->get_json_params() ?: $request->get_params();
+		$lead_id        = (int) ( $params['lead_id'] ?? 0 );
+		$manager_name   = sanitize_text_field( $params['manager_name'] ?? '' );
+		$notify_manager = ! empty( $params['notify_manager'] );
+
+		if ( empty( $lead_id ) || empty( $manager_name ) ) {
+			return new WP_REST_Response( array( 'ok' => false, 'error' => 'lead_id and manager_name are required' ), 400 );
+		}
+
+		global $wpdb;
+		$table_contacts = $wpdb->prefix . 'tc_agent_contacts';
+
+		$contact = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $table_contacts WHERE id = %d", $lead_id ), ARRAY_A );
+		if ( ! $contact ) {
+			return new WP_REST_Response( array( 'ok' => false, 'error' => 'Lead not found' ), 404 );
+		}
+
+		$meta = json_decode( (string) ( $contact['meta_data'] ?? '' ), true ) ?: array();
+		$meta['assigned_manager'] = $manager_name;
+		$meta['assigned_at']      = current_time( 'mysql' );
+
+		$wpdb->update(
+			$table_contacts,
+			array(
+				'meta_data'  => wp_json_encode( $meta ),
+				'stage'      => 'qualified',
+				'updated_at' => current_time( 'mysql' ),
+			),
+			array( 'id' => $lead_id ),
+			array( '%s', '%s', '%s' ),
+			array( '%d' )
+		);
+
+		return new WP_REST_Response(
+			array(
+				'ok'         => true,
+				'message'    => "Lead #$lead_id assigned to $manager_name",
+				'manager'    => $manager_name,
+			),
+			200
+		);
+	}
+
+	/**
+	 * Dynamic Tour Package Quote Generator.
+	 */
+	public static function handle_generate_quote( WP_REST_Request $request ) {
+		$params      = $request->get_json_params() ?: $request->get_params();
+		$destination = sanitize_text_field( $params['destination'] ?? 'varanasi_3d2n' );
+		$tier        = sanitize_text_field( $params['tier'] ?? 'deluxe' );
+		$pax         = max( 1, (int) ( $params['pax'] ?? 2 ) );
+		$name        = sanitize_text_field( $params['customer_name'] ?? 'Traveler' );
+		$dates       = sanitize_text_field( $params['dates'] ?? 'Upcoming Weekend' );
+
+		$pricing = 14500;
+		$title   = "3D2N Spiritual Kashi Classical Tour";
+
+		switch ( $destination ) {
+			case 'ayodhya_day_trip':
+				$title   = "Varanasi to Ayodhya Ram Mandir Same-Day Excursion";
+				$pricing = ( 'luxury' === $tier ) ? 7500 : 4500;
+				$vehicle = ( 'luxury' === $tier ) ? 'Innova Crysta AC (6+1)' : 'Swift Dzire AC';
+				$quote = "🚗 *TripCosmos Ayodhya Ram Janmabhoomi Day Excursion*\n\n" .
+						"Namaste {$name} ji! 🙏 Here is your customized private cab quote:\n\n" .
+						"• *Vehicle:* {$vehicle}\n" .
+						"• *Dates:* {$dates}\n" .
+						"• *Travelers:* {$pax} Pax\n" .
+						"• *Inclusions:* Fuel, Highway Tolls, Parking, Driver Allowance.\n" .
+						"• *Sightseeing:* Shri Ram Janmabhoomi Mandir, Hanuman Garhi, Kanak Bhavan, Sarayu Ghat Aarti.\n\n" .
+						"💰 *Total All-Inclusive Fare:* ₹" . number_format( $pricing ) . "\n" .
+						"🔒 *Token Advance to Block Cab:* ₹1,500 via UPI\n" .
+						"👉 *Instant Booking Link:* https://tripcosmos.co/book?ref=ayodhya-" . time();
+				break;
+
+			case 'varanasi_prayagraj_ayodhya_4d3n':
+				$title   = "4D3N Sacred Triangle (Varanasi, Prayagraj Sangam & Ayodhya)";
+				$pricing = ( 'luxury' === $tier ) ? ( 28000 * max( 1, ceil( $pax / 2 ) ) ) : ( 19500 * max( 1, ceil( $pax / 2 ) ) );
+				$hotel   = ( 'luxury' === $tier ) ? '4-Star Luxury Heritage Hotel' : '3-Star Deluxe Hotel near Ghats';
+				$quote = "🌟 *TripCosmos 4D3N Sacred Triangle Pilgrimage Tour*\n\n" .
+						"Namaste {$name} ji! 🙏 Here is your comprehensive spiritual itinerary:\n\n" .
+						"• *Day 1:* Varanasi Arrival, Hotel Check-in, Dashashwamedh Ghat Evening Ganga Aarti with Reserved Boat Seating.\n" .
+						"• *Day 2:* Subah-e-Banaras Sunrise Boat Ride, Kashi Vishwanath Temple Sugam VIP Darshan, Annapurna Mandir, Kaal Bhairav, Sarnath Tour.\n" .
+						"• *Day 3:* Early Drive to Prayagraj, Triveni Sangam Holy Snan & Boat, Bade Hanuman Mandir, Anand Bhavan, Drive to Ayodhya & Overnight Hotel.\n" .
+						"• *Day 4:* Ayodhya Shri Ram Janmabhoomi VIP Darshan, Hanuman Garhi, Sarayu Ghat Aarti, Return to Varanasi Airport Drop.\n\n" .
+						"🏨 *Hotel:* {$hotel} with Daily Breakfast\n" .
+						"🚗 *Vehicle:* Dedicated AC Sedan / Innova throughout\n" .
+						"💰 *Total Package Price ({$pax} Pax):* ₹" . number_format( $pricing ) . "\n" .
+						"🔒 *Token Advance to Secure Booking:* ₹3,000 via UPI / Card\n" .
+						"👉 *Official Booking Link:* https://tripcosmos.co/book?ref=triangle-" . time();
+				break;
+
+			case 'varanasi_3d2n':
+			default:
+				$title   = "3D2N Spiritual Kashi Tour";
+				$pricing = ( 'luxury' === $tier ) ? ( 22500 * max( 1, ceil( $pax / 2 ) ) ) : ( 14500 * max( 1, ceil( $pax / 2 ) ) );
+				$hotel   = ( 'luxury' === $tier ) ? '4-Star Premium Hotel with Swimming Pool' : '3-Star Deluxe Hotel with Breakfast near Ghats';
+				$quote = "🌟 *TripCosmos 3D2N Spiritual Varanasi Pilgrimage*\n\n" .
+						"Namaste {$name} ji! 🙏 Here is your complete private package itinerary:\n\n" .
+						"• *Day 1:* Airport/Station Pickup, Hotel Check-in, Evening Ganga Aarti VIP Boat Cruise at Dashashwamedh Ghat.\n" .
+						"• *Day 2:* Sunrise Morning Boat Ride, Kashi Vishwanath VIP Darshan Pass, Annapurna Temple, Sankat Mochan, BHU, Sarnath Deer Park.\n" .
+						"• *Day 3:* Morning Ghat Walk, Local Banarasi Silk Weaving Tour, Airport Drop.\n\n" .
+						"🏨 *Accommodation:* {$hotel}\n" .
+						"🚗 *Transportation:* Private AC Cab for all days (Pick to Drop)\n" .
+						"🚤 *Boating:* Private Ghat Boat Cruise included\n" .
+						"💰 *Total All-Inclusive Package ({$pax} Pax):* ₹" . number_format( $pricing ) . "\n" .
+						"🔒 *Token Advance to Confirm Dates:* ₹2,000 via UPI\n" .
+						"👉 *Official Booking Link:* https://tripcosmos.co/book?ref=varanasi-" . time();
+				break;
+		}
+
+		return new WP_REST_Response(
+			array(
+				'ok'               => true,
+				'destination'      => $destination,
+				'package_title'    => $title,
+				'pax'              => $pax,
+				'pricing'          => $pricing,
+				'advance_required' => min( 3000, max( 1500, (int) ( $pricing * 0.15 ) ) ),
+				'quote_text'       => $quote,
+			),
+			200
+		);
 	}
 }
