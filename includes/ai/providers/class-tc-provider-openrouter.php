@@ -35,6 +35,51 @@ class TC_Provider_OpenRouter implements TC_AI_Provider_Interface {
 		return ! empty( $this->get_api_key() );
 	}
 
+	/**
+	 * Live OpenRouter catalogue (/api/v1/models), cached 12h.
+	 *
+	 * @return array[] Each: ['id','name']
+	 */
+	public function get_models() {
+		$cached = get_transient( 'tc_models_openrouter' );
+		if ( is_array( $cached ) && ! empty( $cached ) ) {
+			return $cached;
+		}
+		$models = $this->fetch_live_models();
+		if ( ! empty( $models ) ) {
+			set_transient( 'tc_models_openrouter', $models, 12 * HOUR_IN_SECONDS );
+			update_option( 'tc_agents_openrouter_models_cache', $models, false );
+			update_option( 'tc_agents_openrouter_models_synced_at', current_time( 'mysql' ), false );
+		}
+		return $models;
+	}
+
+	public function fetch_live_models() {
+		if ( ! $this->is_configured() ) {
+			return array();
+		}
+		$res = wp_remote_get(
+			'https://openrouter.ai/api/v1/models',
+			array(
+				'timeout'   => 10,
+				'sslverify' => true,
+				'headers'   => array( 'Authorization' => 'Bearer ' . $this->get_api_key() ),
+			)
+		);
+		if ( is_wp_error( $res ) || wp_remote_retrieve_response_code( $res ) >= 400 ) {
+			return array();
+		}
+		$body = json_decode( wp_remote_retrieve_body( $res ), true );
+		$out  = array();
+		foreach ( (array) ( $body['data'] ?? array() ) as $m ) {
+			if ( empty( $m['id'] ) ) {
+				continue;
+			}
+			$out[] = array( 'id' => $m['id'], 'name' => $m['name'] ?? $m['id'] );
+		}
+		return $out;
+	}
+
 	public function check_health() {
 		$start = microtime( true );
 

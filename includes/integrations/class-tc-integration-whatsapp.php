@@ -22,6 +22,10 @@ class TC_Integration_WhatsApp {
 
 
 	public static function is_configured() {
+		$mode = get_option( 'tc_agents_whatsapp_mode', 'legacy' );
+		if ( 'evolution' === $mode ) {
+			return class_exists( 'TC_Integration_Evolution' ) && TC_Integration_Evolution::is_configured();
+		}
 		return ! empty( self::get_api_url() ) && ! empty( self::get_token() );
 	}
 
@@ -60,9 +64,21 @@ class TC_Integration_WhatsApp {
 			$data = $request->get_params();
 		}
 
-		// Normalize sender and text across common gateway schemas
-		$sender_phone = $data['from'] ?? $data['sender'] ?? $data['phone'] ?? ( $data['entry'][0]['changes'][0]['value']['messages'][0]['from'] ?? '' );
-		$message_text = $data['body'] ?? $data['message'] ?? $data['text'] ?? ( $data['entry'][0]['changes'][0]['value']['messages'][0]['text']['body'] ?? '' );
+		// Normalize sender/text: Evolution messages.upsert first, then legacy schemas.
+		$sender_phone = '';
+		$message_text = '';
+		$sender_name = $data['name'] ?? '';
+		if ( class_exists( 'TC_Integration_Evolution' ) ) {
+			$norm = TC_Integration_Evolution::normalize_inbound( is_array( $data ) ? $data : array() );
+			$sender_phone = $norm['from'] ?? '';
+			$message_text = $norm['text'] ?? '';
+			$sender_name = $norm['name'] ?? $sender_name;
+		}
+		if ( empty( $sender_phone ) || empty( $message_text ) ) {
+			$sender_phone = $sender_phone ?: ( $data['from'] ?? $data['sender'] ?? $data['phone'] ?? ( $data['entry'][0]['changes'][0]['value']['messages'][0]['from'] ?? '' ) );
+			$raw_text = $data['body'] ?? $data['message'] ?? $data['text'] ?? ( $data['entry'][0]['changes'][0]['value']['messages'][0]['text']['body'] ?? '' );
+			$message_text = $message_text ?: ( is_array( $raw_text ) ? '' : (string) $raw_text );
+		}
 
 		if ( empty( $sender_phone ) || empty( $message_text ) ) {
 			return new WP_REST_Response( array( 'status' => 'ignored', 'reason' => 'No message or sender' ), 200 );
@@ -73,7 +89,7 @@ class TC_Integration_WhatsApp {
 		$session_id   = 'wa_' . $sender_phone;
 
 		// Unify or lookup contact
-		self::ensure_whatsapp_contact( $sender_phone, $data['name'] ?? '' );
+		self::ensure_whatsapp_contact( $sender_phone, $sender_name );
 
 		// Pass to Agent Orchestrator
 		$result = TC_Agent_Orchestrator::handle_message(
@@ -115,6 +131,16 @@ class TC_Integration_WhatsApp {
 		if ( is_wp_error( $guard ) ) {
 			TC_Agents_Logger::log( 'whatsapp_outbound_blocked', 'warning', array( 'reason' => $guard->get_error_message() ), '', 'whatsapp' );
 			return false;
+		}
+
+		// Evolution API mode (preferred for new setups).
+		if ( 'evolution' === get_option( 'tc_agents_whatsapp_mode', 'legacy' ) && class_exists( 'TC_Integration_Evolution' ) ) {
+			$res = TC_Integration_Evolution::send_message( $recipient_phone, $message );
+			if ( is_wp_error( $res ) ) {
+				TC_Agents_Logger::log( 'whatsapp_send_error', 'error', array( 'error' => $res->get_error_message(), 'mode' => 'evolution' ), '', 'whatsapp' );
+				return false;
+			}
+			return true;
 		}
 
 		if ( ! self::is_configured() ) {

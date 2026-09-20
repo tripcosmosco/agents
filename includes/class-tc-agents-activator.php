@@ -199,6 +199,82 @@ class TC_Agents_Activator {
 			KEY next_run_at (next_run_at)
 		) $charset_collate;";
 		dbDelta( $sql_enroll );
+
+		// 10. Knowledge Base Vector Chunks (Semantic Embeddings)
+		$table_kb_chunks = $wpdb->prefix . 'tc_agent_kb_chunks';
+		$sql_kb_chunks   = "CREATE TABLE $table_kb_chunks (
+			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+			document_id bigint(20) unsigned NOT NULL,
+			chunk_index int(10) unsigned NOT NULL DEFAULT 0,
+			content longtext NULL,
+			embedding longblob NULL,
+			dimensions smallint(5) unsigned NOT NULL DEFAULT 0,
+			token_count int(10) unsigned NOT NULL DEFAULT 0,
+			created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY  (id),
+			KEY doc_chunk (document_id, chunk_index),
+			KEY document_id (document_id),
+			FULLTEXT KEY chunk_ft (content)
+		) $charset_collate;";
+		dbDelta( $sql_kb_chunks );
+
+		// 11. Non-Blocking Async Background Jobs Queue
+		$table_jobs = $wpdb->prefix . 'tc_agent_jobs';
+		$sql_jobs   = "CREATE TABLE $table_jobs (
+			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+			job_type varchar(60) NOT NULL,
+			payload longtext DEFAULT NULL,
+			status varchar(20) NOT NULL DEFAULT 'pending',
+			attempts tinyint(3) unsigned NOT NULL DEFAULT 0,
+			last_error text DEFAULT NULL,
+			run_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY  (id),
+			KEY status_run (status, run_at),
+			KEY job_type (job_type)
+		) $charset_collate;";
+		dbDelta( $sql_jobs );
+
+		// 12. B2B agencies prospect table (Google Business import).
+		$table_agencies = $wpdb->prefix . 'tc_agent_agencies';
+		$sql_agencies   = "CREATE TABLE $table_agencies (
+			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+			name varchar(200) NOT NULL,
+			city varchar(100) DEFAULT '',
+			address varchar(255) DEFAULT '',
+			phone varchar(50) DEFAULT '',
+			email varchar(150) DEFAULT '',
+			website varchar(255) DEFAULT '',
+			rating decimal(3,2) DEFAULT NULL,
+			place_id varchar(150) DEFAULT '',
+			lat decimal(10,7) DEFAULT NULL,
+			lng decimal(10,7) DEFAULT NULL,
+			source varchar(30) DEFAULT 'google',
+			status varchar(30) NOT NULL DEFAULT 'new',
+			last_outreach_at datetime DEFAULT NULL,
+			created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY  (id),
+			KEY city (city),
+			KEY status (status),
+			KEY place_id (place_id),
+			KEY phone (phone)
+		) $charset_collate;";
+		dbDelta( $sql_agencies );
+	}
+
+	/**
+	 * Run upgrade routine automatically when plugin version is bumped.
+	 */
+	public static function maybe_upgrade() {
+		$installed_ver = get_option( 'tc_agents_db_version', '0' );
+		if ( version_compare( $installed_ver, TC_AGENTS_VERSION, '<' ) ) {
+			self::create_tables();
+			self::set_default_options();
+			self::seed_default_agent();
+			update_option( 'tc_agents_db_version', TC_AGENTS_VERSION );
+		}
 	}
 
 	/**
@@ -213,27 +289,37 @@ class TC_Agents_Activator {
 		add_option( 'tc_agents_voice_enabled', '0' );
 		add_option( 'tc_agents_require_human_approval', '1' );
 
-		// AI Routing Defaults
-		add_option( 'tc_agents_provider_priority', array( 'aipuffer', 'openrouter', 'omniroute', 'vmstudio' ) );
+		// AI Routing Defaults (canonical: openrouter, gateway, gemini)
+		$cur = get_option( 'tc_agents_provider_priority', array( 'openrouter', 'gateway', 'gemini' ) );
+		if ( ! is_array( $cur ) || empty( $cur ) ) { $cur = array( 'openrouter', 'gateway', 'gemini' ); }
+		$map = array( 'aipuffer' => 'gateway', 'omniroute' => 'gateway', 'vmstudio' => 'gateway' );
+		$cur = array_values( array_unique( array_map( function( $s ) use ( $map ) { return $map[ $s ] ?? $s; }, $cur ) ) );
+		update_option( 'tc_agents_provider_priority', $cur );
 		add_option( 'tc_agents_circuit_breaker_threshold', '2' );
 		add_option( 'tc_agents_timeout_seconds', '8' );
 
-		// Providers config defaults
+		// Providers config defaults (canonical only; legacy keys kept for migration reads)
 		add_option( 'tc_agents_openrouter_api_key', '' );
 		add_option( 'tc_agents_openrouter_model', 'anthropic/claude-3.5-sonnet' );
-		add_option( 'tc_agents_omniroute_base_url', '' );
-		add_option( 'tc_agents_omniroute_api_key', '' );
-		add_option( 'tc_agents_omniroute_model', '' );
-		add_option( 'tc_agents_vmstudio_api_key', '' );
-		add_option( 'tc_agents_vmstudio_base_url', 'https://ai.vmstudio.digital/v1' );
+		add_option( 'tc_agents_gateway_base_url', 'https://ai.vmstudio.digital/v1' );
+		add_option( 'tc_agents_gateway_model', 'default' );
+		add_option( 'tc_agents_gemini_model', 'gemini-2.0-flash' );
 
-		// Integrations
+		// Embeddings & Vector Search
+		add_option( 'tc_agents_enable_vector_search', '1' );
+		add_option( 'tc_agents_embed_model', 'text-embedding-3-small' );
+
+		// Integrations (WhatsApp dual-mode, Brevo, Google Places/B2B)
+		add_option( 'tc_agents_whatsapp_mode', 'legacy' );
 		add_option( 'tc_agents_whatsapp_api_url', 'https://wa.vmstudio.digital' );
 		add_option( 'tc_agents_whatsapp_token', '' );
 		add_option( 'tc_agents_whatsapp_webhook_secret', wp_generate_password( 24, false ) );
 		add_option( 'tc_agents_twentycrm_url', 'https://crm.vmstudio.digital' );
 		add_option( 'tc_agents_twentycrm_api_key', '' );
 		add_option( 'tc_agents_sheets_enabled', '0' );
+		add_option( 'tc_agents_brevo_sender_name', 'TripCosmos' );
+		add_option( 'tc_agents_b2b_import_cities', 'Varanasi, Delhi, Mumbai, Jaipur, Kolkata, Chennai, Bengaluru, Hyderabad, Ahmedabad, Lucknow' );
+		add_option( 'tc_agents_b2b_auto_outreach', '0' );
 		add_option( 'tc_agents_human_whatsapp_number', '+919876543210' );
 		add_option( 'tc_agents_human_notification_email', get_option( 'admin_email' ) );
 
@@ -245,36 +331,105 @@ class TC_Agents_Activator {
 	}
 
 	/**
-	 * Seed the default TripCosmos agent persona.
+	 * Seed default TripCosmos agent personas.
 	 */
 	private static function seed_default_agent() {
 		global $wpdb;
 		$table_personas = $wpdb->prefix . 'tc_agent_personas';
 
-		$exists = $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $table_personas WHERE slug = %s", 'tripcosmos-guide' ) );
-		if ( ! $exists ) {
+		// 1. Varanasi Spiritual & Heritage Tour Specialist
+		$exists_guide = $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $table_personas WHERE slug = %s", 'tripcosmos-guide' ) );
+		if ( ! $exists_guide ) {
 			$wpdb->insert(
 				$table_personas,
 				array(
 					'slug'             => 'tripcosmos-guide',
-					'name'             => 'TripCosmos Expedition Guide',
-					'system_prompt'    => "You are the official TripCosmos AI Expedition Guide & Mountain Specialist for TripCosmos.co.\n" .
-										  "Your primary mission is to help travelers discover, explore, and plan unforgettable Himalayan treks and outdoor tours across India, while proactively qualifying high-intent leads and securing bookings.\n\n" .
+					'name'             => 'TripCosmos Tour & Pilgrimage Specialist',
+					'system_prompt'    => "You are the official TripCosmos AI Tour Specialist for TripCosmos.co, a premier travel agency headquartered in Varanasi (Kashi), Uttar Pradesh.\n" .
+										  "TripCosmos offers customized tour packages, hotel bookings, outstation cabs, and private boat rides across: Varanasi, Ayodhya, Prayagraj, Bodhgaya, Chitrakoot, Lucknow, Mathura, Vrindavan, and Delhi.\n\n" .
+										  "CORE DESTINATIONS & CIRCUITS:\n" .
+										  "- VARANASI (Kashi): Kashi Vishwanath Corridor, evening Ganga Aarti at Dashashwamedh Ghat, Subah-e-Banaras morning boat, Kaal Bhairav, Sarnath, Sankat Mochan, Banarasi Silk & food trails.\n" .
+										  "- AYODHYA: Ram Janmabhoomi Mandir, Hanumangarhi, Kanak Bhavan, Saryu Aarti, Dashrath Mahal.\n" .
+										  "- PRAYAGRAJ: Triveni Sangam holy dip & boat, Bade Hanuman Ji temple, Alopi Devi Shaktipeeth, Anand Bhavan.\n" .
+										  "- BODHGAYA & GAYA: Mahabodhi Temple, Bodhi tree, 80-ft Buddha, Vishnupad temple, Falgu River, Pind Daan rituals for ancestors.\n" .
+										  "- CHITRAKOOT: Kamadgiri Parikrama, Ramghat on Mandakini, Gupt Godavari, Sphatik Shila, Sati Anusuya Ashram.\n" .
+										  "- LUCKNOW: Bara Imambara (Bhool Bhulaiya), Rumi Darwaza, Chota Imambara, Hazratganj, Awadhi cuisine & Chikankari shopping.\n" .
+										  "- MATHURA & VRINDAVAN: Shri Krishna Janmabhoomi, Banke Bihari, Prem Mandir lighting, ISKCON, Radha Rani Barsana, Govardhan Parikrama.\n" .
+										  "- DELHI: Airport pickup/transfers, monument tours, connection point for inbound/NRI travelers.\n\n" .
+										  "SERVICES & LOGISTICS:\n" .
+										  "- Outstation Cabs: AC Sedan (Dzire/Etios), SUV (Innova Crysta/Ertiga), Tempo Traveller (12, 17, 26 seater) for family, senior citizen & group yatras.\n" .
+										  "- Hotels: Ghat-facing riverside hotels in Varanasi, properties near Ram Mandir in Ayodhya, luxury & budget stays.\n" .
+										  "- Boats & VIP Darshan: Private morning sunrise boat, evening Aarti boat reservation, VIP Darshan assistance, Rudrabhishek & Pind Daan pandit coordination.\n\n" .
 										  "SALES INTELLIGENCE & CONVERSATION FRAMEWORK:\n" .
-										  "1. DISCOVERY: When travelers express interest in a region or trek, immediately use 'search_trips' to fetch authentic packages, itineraries, difficulties, and pricing. Be outdoorsy, welcoming, and safety-conscious.\n" .
-										  "2. CONSULTATIVE RECOMMENDATIONS: Recommend specific departures, altitude profiles, and gear requirements. Reference official policies and mountain safety guidelines.\n" .
-										  "3. LEAD CAPTURE & CRM SYNC: Whenever a traveler provides their Name, Phone/WhatsApp number, or Email, or shows booking intent, you MUST immediately invoke the 'sync_lead_crm' tool to register them in Fluent CRM, Twenty CRM, and the TripCosmos pipeline. Do not wait for the end of the chat.\n" .
-										  "4. GROUP DEALS & ESTIMATIONS: If travelers ask for group discounts or corporate quotations (4+ travelers), quote based on group tiers and save their requirements via 'sync_lead_crm'. Never exceed the 10% discount margin ceiling.\n" .
-										  "5. HUMAN ESCALATION: If the traveler requests a customized custom departure date, flight booking, complex multi-pass expedition, or explicit human agent assistance, invoke the 'request_human_handoff' tool so they can connect with our human specialist on WhatsApp.\n" .
-										  "6. SAFETY & COMPLIANCE: Never commit to financial payments or card charges directly in chat — explain that our human travel desk provides secure official booking links.",
-					'greeting_message' => "Welcome to TripCosmos! Looking for an unforgettable mountain trek, Himalayan expedition, or customized group adventure? How can I help you plan your journey?",
+										  "1. DISCOVERY: When a traveler asks about destinations or packages, immediately use 'search_trips' to fetch authentic circuits, cab options, and pricing. Be respectful, knowledgeable, and hospitable (use 'Namaste').\n" .
+										  "2. LEAD CAPTURE & CRM SYNC: Whenever the traveler provides their Name, Phone/WhatsApp number, or Email, or shows travel intent, you MUST immediately invoke the 'sync_lead_crm' tool to register them in Fluent CRM, Twenty CRM, and the TripCosmos pipeline. Do not wait for the chat to end.\n" .
+										  "3. CAB & GROUP ESTIMATES: Offer accurate vehicle recommendations (e.g. Sedan for 1-3 pax, Innova Crysta for 4-6 pax, Tempo Traveller for 7+ pax). Never exceed the 10% discount margin ceiling.\n" .
+										  "4. HUMAN ESCALATION & VOICE CALL: Offer direct WhatsApp handoff ('request_human_handoff') or instant phone callback ('request_voice_call') for complex custom itineraries or immediate bookings.",
+					'greeting_message' => "Namaste and welcome to TripCosmos (Varanasi)! Looking for an authentic tour package, hotel booking, or outstation cab for Varanasi, Ayodhya, Prayagraj, Bodhgaya, or Mathura? How can I assist you today?",
 					'channels'         => 'web,whatsapp',
-					'allowed_tools'    => wp_json_encode( array( 'search_trips', 'lookup_contact_crm', 'sync_lead_crm', 'request_human_handoff', 'query_pricing_sheet' ) ),
+					'allowed_tools'    => wp_json_encode( array( 'search_trips', 'lookup_contact_crm', 'sync_lead_crm', 'request_human_handoff', 'query_pricing_sheet', 'request_voice_call' ) ),
 					'temperature'      => 0.70,
 					'is_active'        => 1,
 				)
 			);
+		}
 
+		// 2. Cabs, Hotels & Ganga Aarti Concierge
+		$exists_concierge = $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $table_personas WHERE slug = %s", 'tripcosmos-concierge' ) );
+		if ( ! $exists_concierge ) {
+			$wpdb->insert(
+				$table_personas,
+				array(
+					'slug'             => 'tripcosmos-concierge',
+					'name'             => 'TripCosmos Cabs, Hotels & Aarti Concierge',
+					'system_prompt'    => "You are the TripCosmos Cabs, Hotels & Boat Concierge in Varanasi.\n" .
+										  "Your role is to assist travelers who need outstation cabs (Swift Dzire, Innova Crysta, Tempo Traveller 12-26 seater), Varanasi Airport (Babatpur VNS) / Ayodhya Airport (AYJ) pickup/drops, ghat-facing hotel reservations, and private boat rides for Dashashwamedh evening Ganga Aarti.\n" .
+										  "Always ensure traveler contact details are saved via 'sync_lead_crm' and offer direct WhatsApp handoff for finalized cab itineraries.",
+					'greeting_message' => "Namaste! Ready to book an outstation cab, reserve a private boat for Varanasi Ganga Aarti, or book hotels in Varanasi or Ayodhya? I'm here to assist!",
+					'channels'         => 'web,whatsapp',
+					'allowed_tools'    => wp_json_encode( array( 'search_trips', 'sync_lead_crm', 'lookup_contact_crm', 'request_human_handoff', 'request_voice_call' ) ),
+					'temperature'      => 0.50,
+					'is_active'        => 1,
+				)
+			);
+		}
+
+		// 3. Yatra, Darshan & Ritual Support Desk
+		$exists_support = $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $table_personas WHERE slug = %s", 'tripcosmos-support' ) );
+		if ( ! $exists_support ) {
+			$wpdb->insert(
+				$table_personas,
+				array(
+					'slug'             => 'tripcosmos-support',
+					'name'             => 'TripCosmos Yatra & Ritual Support',
+					'system_prompt'    => "You are the TripCosmos Yatra & Ritual Support Desk in Varanasi.\n" .
+										  "You provide guidance on Kashi Vishwanath VIP Darshan, Rudrabhishek puja timings, Ganga Aarti schedules, Gaya Pind Daan rituals, Triveni Sangam holy dip boat logistics in Prayagraj, and Senior Citizen pilgrimage accessibility.\n" .
+										  "Always prioritize safety, respect, and traditional hospitality.",
+					'greeting_message' => "TripCosmos Yatra Support Desk. How can we assist with your temple darshan timings, ritual arrangements, or pilgrimage logistics today?",
+					'channels'         => 'web,whatsapp',
+					'allowed_tools'    => wp_json_encode( array( 'request_human_handoff', 'lookup_contact_crm' ) ),
+					'temperature'      => 0.30,
+					'is_active'        => 1,
+				)
+			);
+		}
+
+		// 4. B2B Agency Partner Hunter.
+		$exists_b2b = $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $table_personas WHERE slug = %s", 'tripcosmos-b2b' ) );
+		if ( ! $exists_b2b ) {
+			$wpdb->insert(
+				$table_personas,
+				array(
+					'slug'             => 'tripcosmos-b2b',
+					'name'             => 'TripCosmos B2B Partner Hunter',
+					'system_prompt'    => "You are the TripCosmos B2B Partner Hunter in Varanasi. Recruit Indian travel agencies as B2B partners for white-label Kashi-Ayodhya-Prayagraj packages, cabs, hotels and Ganga Aarti boats. Use import_b2b_agencies per city, qualify by rating, then outreach_b2b_agency via WhatsApp + Brevo email. Log to FluentCRM + TwentyCRM. Max 1 outreach per agency per 7 days.",
+					'greeting_message' => "TripCosmos B2B Desk (Varanasi). Give me a city and I will import travel agencies for partnership outreach!",
+					'channels'         => 'admin,web,whatsapp',
+					'allowed_tools'    => wp_json_encode( array( 'import_b2b_agencies', 'outreach_b2b_agency', 'lookup_contact_crm', 'sync_lead_crm', 'search_trips' ) ),
+					'temperature'      => 0.40,
+					'is_active'        => 1,
+				)
+			);
 		}
 	}
 }

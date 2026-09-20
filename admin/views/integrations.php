@@ -67,16 +67,16 @@ $secret_token  = get_option( 'tc_agents_whatsapp_webhook_secret', '' );
 			</table>
 		</div>
 
-		<!-- 3. WhatsApp Gateway -->
+		<!-- 3. WhatsApp Gateway (dual-mode) -->
 		<div class="tc-card">
-			<h3>3. WhatsApp Gateway (wa.vmstudio.digital)</h3>
-			<p class="description">Inbound webhook receiver and outbound messaging bridge connecting your official WhatsApp business numbers.</p>
+			<h3>3. WhatsApp Gateway (Legacy + Evolution API)</h3>
+			<p class="description">Dual-mode outbound bridge. Keep legacy wa.vmstudio.digital or switch to Evolution API. One shared inbound webhook handles both.</p>
 			<table class="form-table">
 				<tr>
 					<th scope="row"><label>Inbound Webhook Endpoint</label></th>
 					<td>
 						<code><?php echo esc_html( $webhook_url ); ?></code>
-						<p class="description">Configure this URL in your WhatsApp gateway (wa.vmstudio.digital) webhook settings.</p>
+						<p class="description">Configure this URL in your WhatsApp gateway webhook settings (legacy or Evolution).</p>
 					</td>
 				</tr>
 				<tr>
@@ -87,16 +87,44 @@ $secret_token  = get_option( 'tc_agents_whatsapp_webhook_secret', '' );
 					</td>
 				</tr>
 				<tr>
-					<th scope="row"><label for="whatsapp_api_url">Outbound Gateway URL</label></th>
+					<th scope="row"><label for="whatsapp_mode">Active Mode</label></th>
+					<td>
+						<select name="whatsapp_mode" id="whatsapp_mode">
+							<option value="legacy" <?php selected( get_option( 'tc_agents_whatsapp_mode', 'legacy' ), 'legacy' ); ?>>Legacy wa.vmstudio.digital</option>
+							<option value="evolution" <?php selected( get_option( 'tc_agents_whatsapp_mode', 'legacy' ), 'evolution' ); ?>>Evolution API</option>
+						</select>
+					</td>
+				</tr>
+				<tr>
+					<th scope="row"><label for="whatsapp_api_url">Legacy Outbound Gateway URL</label></th>
 					<td>
 						<input type="text" name="whatsapp_api_url" id="whatsapp_api_url" class="regular-text" value="<?php echo esc_attr( get_option( 'tc_agents_whatsapp_api_url', 'https://wa.vmstudio.digital' ) ); ?>" />
 					</td>
 				</tr>
 				<tr>
-					<th scope="row"><label for="whatsapp_token">Gateway Authorization Token</label></th>
+					<th scope="row"><label for="whatsapp_token">Legacy Gateway Token</label></th>
 					<td>
 						<input type="password" name="whatsapp_token" id="whatsapp_token" class="regular-text" value="" placeholder="<?php echo esc_attr( TC_Agents_Vault::hint( 'whatsapp_token' ) ?: '••••••••••••' ); ?>" autocomplete="new-password" />
 						<?php if ( TC_Agents_Vault::has( 'whatsapp_token' ) ) : ?><span class="dashicons dashicons-yes-alt" style="color:#10b981;"></span> <small>Encrypted in Vault</small><?php endif; ?>
+					</td>
+				</tr>
+				<tr>
+					<th scope="row"><label for="evolution_base_url">Evolution API Base URL</label></th>
+					<td>
+						<input type="text" name="evolution_base_url" id="evolution_base_url" class="regular-text" value="<?php echo esc_attr( get_option( 'tc_agents_evolution_base_url', '' ) ); ?>" placeholder="https://evo.yourdomain.com" />
+					</td>
+				</tr>
+				<tr>
+					<th scope="row"><label for="evolution_instance">Evolution Instance Name</label></th>
+					<td>
+						<input type="text" name="evolution_instance" id="evolution_instance" class="regular-text" value="<?php echo esc_attr( get_option( 'tc_agents_evolution_instance', 'tripcosmos' ) ); ?>" />
+					</td>
+				</tr>
+				<tr>
+					<th scope="row"><label for="evolution_api_key">Evolution API Key</label></th>
+					<td>
+						<input type="password" name="evolution_api_key" id="evolution_api_key" class="regular-text" value="" placeholder="<?php echo esc_attr( TC_Agents_Vault::hint( 'evolution_api_key' ) ?: '••••••••••••' ); ?>" autocomplete="new-password" />
+						<?php if ( TC_Agents_Vault::has( 'evolution_api_key' ) ) : ?><span class="dashicons dashicons-yes-alt" style="color:#10b981;"></span> <small>Encrypted in Vault</small><?php endif; ?>
 					</td>
 				</tr>
 			</table>
@@ -125,10 +153,57 @@ $secret_token  = get_option( 'tc_agents_whatsapp_webhook_secret', '' );
 			</table>
 		</div>
 
-		<!-- 5. Voice Telephony -->
+		<!-- 5. Brevo (email + push-style marketing) -->
+		<div class="tc-card">
+			<h3>5. Brevo — Transactional & B2B Marketing Email</h3>
+			<p class="description">Sends B2B partnership pitches via Brevo SMTP API. FluentCRM email templates remain the B2C nurture channel; Brevo powers B2B outreach.</p>
+			<table class="form-table">
+				<tr>
+					<th scope="row"><label for="brevo_api_key">Brevo API Key</label></th>
+					<td>
+						<input type="password" name="brevo_api_key" id="brevo_api_key" class="regular-text" value="" placeholder="<?php echo esc_attr( TC_Agents_Vault::hint( 'brevo_api_key' ) ?: 'xkeysib-...' ); ?>" autocomplete="new-password" />
+						<?php if ( TC_Agents_Vault::has( 'brevo_api_key' ) ) : ?><span class="dashicons dashicons-yes-alt" style="color:#10b981;"></span> <small>Encrypted in Vault</small><?php endif; ?>
+					</td>
+				</tr>
+				<tr>
+					<th scope="row"><label for="brevo_sender_email">Sender Email</label></th>
+					<td><input type="email" name="brevo_sender_email" id="brevo_sender_email" class="regular-text" value="<?php echo esc_attr( get_option( 'tc_agents_brevo_sender_email', get_option( 'admin_email' ) ) ); ?>" /></td>
+				</tr>
+				<tr>
+					<th scope="row"><label for="brevo_sender_name">Sender Name</label></th>
+					<td><input type="text" name="brevo_sender_name" id="brevo_sender_name" class="regular-text" value="<?php echo esc_attr( get_option( 'tc_agents_brevo_sender_name', 'TripCosmos' ) ); ?>" /></td>
+				</tr>
+			</table>
+		</div>
+
+		<!-- 6. Google Business / B2B Agency Import -->
+		<div class="tc-card">
+			<h3>6. Google Business — B2B Travel Agency Import (India)</h3>
+			<p class="description">Daily cron imports travel agencies via Google Places Text Search into the B2B prospect table, with optional auto-outreach via WhatsApp + Brevo.</p>
+			<table class="form-table">
+				<tr>
+					<th scope="row"><label for="google_places_api_key">Google Places API Key</label></th>
+					<td>
+						<input type="password" name="google_places_api_key" id="google_places_api_key" class="regular-text" value="" placeholder="<?php echo esc_attr( TC_Agents_Vault::hint( 'google_places_api_key' ) ?: 'AIza...' ); ?>" autocomplete="new-password" />
+						<?php if ( TC_Agents_Vault::has( 'google_places_api_key' ) ) : ?><span class="dashicons dashicons-yes-alt" style="color:#10b981;"></span> <small>Encrypted in Vault</small><?php endif; ?>
+					</td>
+				</tr>
+				<tr>
+					<th scope="row"><label for="b2b_import_cities">Import Cities (comma-separated)</label></th>
+					<td><input type="text" name="b2b_import_cities" id="b2b_import_cities" class="large-text" value="<?php echo esc_attr( get_option( 'tc_agents_b2b_import_cities', 'Varanasi, Delhi, Mumbai, Jaipur' ) ); ?>" /></td>
+				</tr>
+				<tr>
+					<th scope="row"><label for="b2b_auto_outreach">Auto-Outreach</label></th>
+					<td><label><input type="checkbox" name="b2b_auto_outreach" id="b2b_auto_outreach" value="1" <?php checked( '1', get_option( 'tc_agents_b2b_auto_outreach', '0' ) ); ?> /> Auto-send WhatsApp + Brevo pitch to newly imported agencies (rate-limited by guardrails)</label>
+					<p class="description">Last import: <code><?php echo esc_html( get_option( 'tc_agents_b2b_last_import', 'never' ) ); ?></code></p></td>
+				</tr>
+			</table>
+		</div>
+
+		<!-- 7. Voice Telephony -->
 		<div class="tc-card">
 			<div class="tc-card-header">
-				<h3>5. Voice Telephony & Agent Calling</h3>
+				<h3>7. Voice Telephony & Agent Calling</h3>
 				<span class="tc-indicator-badge <?php echo '1' === get_option( 'tc_agents_voice_enabled', '0' ) ? 'tc-status-healthy' : 'tc-status-down'; ?>">
 					<?php echo '1' === get_option( 'tc_agents_voice_enabled', '0' ) ? 'VOICE ENABLED' : 'VOICE DISABLED (SAFE)'; ?>
 				</span>

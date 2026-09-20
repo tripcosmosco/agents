@@ -178,4 +178,21 @@ class TC_Integration_Voice {
 
 		return new WP_REST_Response( array( 'received' => true ), 200 );
 	}
+
+	/**
+	 * Automatically dispatch follow-up call if lead is high value and voice is enabled.
+	 *
+	 * @param array $lead
+	 * @return array|WP_Error|false
+	 */
+	public static function maybe_dispatch_call( array $lead ) {
+		if ( ! self::is_enabled() || empty( $lead['phone'] ) ) {
+			return false;
+		}
+
+		$customer_name = ! empty( $lead['name'] ) ? $lead['name'] : 'Explorer';
+		$reason        = sprintf( 'Following up on your %s inquiry with TripCosmos', ! empty( $lead['stage'] ) ? $lead['stage'] : 'expedition' );
+
+		return self::place_call( $lead['phone'], $customer_name, $reason );
+	}
 }

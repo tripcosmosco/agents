@@ -16,6 +16,10 @@ class TC_Agents_Admin {
 		add_action( 'admin_enqueue_scripts', array( __CLASS__, 'enqueue_assets' ) );
 		add_action( 'admin_init', array( __CLASS__, 'handle_settings_save' ) );
 		add_action( 'wp_ajax_tc_get_lead_memory', array( __CLASS__, 'ajax_get_lead_memory' ) );
+		add_action( 'wp_ajax_tc_update_lead_stage', array( __CLASS__, 'ajax_update_lead_stage' ) );
+		add_action( 'wp_ajax_tc_sync_catalog_kb', array( __CLASS__, 'ajax_sync_catalog_kb' ) );
+		add_action( 'wp_ajax_tc_sync_aipuffer_bots', array( __CLASS__, 'ajax_sync_aipuffer_bots' ) );
+		add_action( 'wp_ajax_tc_sync_provider_models', array( __CLASS__, 'ajax_sync_provider_models' ) );
 	}
 
 	/**
@@ -113,6 +117,16 @@ class TC_Agents_Admin {
 			array( __CLASS__, 'render_routing_page' )
 		);
 
+		// 8b. B2B Agencies (India import + outreach)
+		add_submenu_page(
+			'tripcosmos-agents',
+			__( 'B2B Agencies', 'tripcosmos-agents' ),
+			__( 'B2B Agencies', 'tripcosmos-agents' ),
+			'manage_options',
+			'tc-agents-b2b',
+			array( __CLASS__, 'render_b2b_page' )
+		);
+
 		// 9. Integrations & Plumbings
 		add_submenu_page(
 			'tripcosmos-agents',
@@ -162,6 +176,10 @@ class TC_Agents_Admin {
 			return;
 		}
 
+		if ( strpos( $hook, 'tc-agents-settings' ) !== false ) {
+			wp_enqueue_media();
+		}
+
 		wp_enqueue_style(
 			'tc-agents-admin-css',
 			TC_AGENTS_URL . 'admin/css/tc-agents-admin.css',
@@ -182,7 +200,9 @@ class TC_Agents_Admin {
 			'tcAgentsAdmin',
 			array(
 				'restUrl'    => esc_url_raw( rest_url( 'tc-agents/v1/' ) ),
+				'ajaxUrl'    => admin_url( 'admin-ajax.php' ),
 				'nonce'      => wp_create_nonce( 'wp_rest' ),
+				'adminNonce' => wp_create_nonce( 'tc_agents_admin_nonce' ),
 				'killSwitch' => get_option( 'tc_agents_kill_switch', '0' ),
 			)
 		);
@@ -245,6 +265,13 @@ class TC_Agents_Admin {
 	}
 
 	/**
+	 * Render B2B Agencies page.
+	 */
+	public static function render_b2b_page() {
+		require_once TC_AGENTS_PATH . 'admin/views/b2b-agencies.php';
+	}
+
+	/**
 	 * Render Integrations page.
 	 */
 	public static function render_integrations_page() {
@@ -298,6 +325,127 @@ class TC_Agents_Admin {
 			'preferences'      => TC_Agent_Memory::decode_list( $mem->preferences ),
 			'objections'       => TC_Agent_Memory::decode_list( $mem->objections ),
 			'next_best_action' => $mem->next_best_action,
+		) );
+	}
+
+	/**
+	 * AJAX endpoint to update lead pipeline stage (Kanban drag-and-drop).
+	 */
+	public static function ajax_update_lead_stage() {
+		check_ajax_referer( 'tc_agents_admin_nonce', 'nonce' );
+
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( array( 'message' => 'Unauthorized' ), 403 );
+		}
+
+		$lead_id = absint( $_POST['lead_id'] ?? 0 );
+		$stage   = sanitize_key( $_POST['stage'] ?? '' );
+
+		$valid_stages = array( 'inquiry', 'qualified', 'proposal', 'negotiation', 'won', 'lost' );
+		if ( ! $lead_id || ! in_array( $stage, $valid_stages, true ) ) {
+			wp_send_json_error( array( 'message' => 'Invalid parameters' ), 400 );
+		}
+
+		global $wpdb;
+		$table_contacts = $wpdb->prefix . 'tc_agent_contacts';
+
+		$wpdb->update(
+			$table_contacts,
+			array(
+				'stage'      => $stage,
+				'updated_at' => current_time( 'mysql' ),
+			),
+			array( 'id' => $lead_id ),
+			array( '%s', '%s' ),
+			array( '%d' )
+		);
+
+		// If won or qualified, trigger automated voice hook or sequence if enabled
+		if ( 'won' === $stage || 'proposal' === $stage ) {
+			$lead_row = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $table_contacts WHERE id = %d", $lead_id ), ARRAY_A );
+			if ( $lead_row && '1' === (string) get_option( 'tc_agents_voice_enabled', '0' ) ) {
+				TC_Agents_Queue::push( 'voice_trigger', array( 'lead' => $lead_row ) );
+			}
+		}
+
+		wp_send_json_success( array( 'lead_id' => $lead_id, 'stage' => $stage ) );
+	}
+
+	/**
+	 * AJAX endpoint to trigger 1-click sync of WordPress treks and posts into KB.
+	 */
+	public static function ajax_sync_catalog_kb() {
+		check_ajax_referer( 'tc_agents_admin_nonce', 'nonce' );
+
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( array( 'message' => 'Unauthorized' ), 403 );
+		}
+
+		$count = TC_Agent_Knowledge::sync_wordpress_catalog();
+		wp_send_json_success( array(
+			'count'   => $count,
+			'message' => sprintf( __( 'Successfully indexed %d catalog items and content into knowledge base.', 'tripcosmos-agents' ), $count ),
+		) );
+	}
+
+	/**
+	 * AJAX endpoint to discover/sync bots from local/remote AI Puffer (AIPKit).
+	 */
+	public static function ajax_sync_aipuffer_bots() {
+		check_ajax_referer( 'tc_agents_admin_nonce', 'nonce' );
+
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( array( 'message' => 'Unauthorized' ), 403 );
+		}
+
+		$base_url = isset( $_POST['base_url'] ) ? esc_url_raw( $_POST['base_url'] ) : null;
+		$api_key  = isset( $_POST['api_key'] ) ? sanitize_text_field( $_POST['api_key'] ) : null;
+
+		if ( null !== $base_url ) {
+			update_option( 'tc_agents_aipuffer_base_url', $base_url );
+		}
+		if ( ! empty( $api_key ) ) {
+			TC_Agents_Vault::put( 'aipuffer_api_key', $api_key );
+		}
+
+		$bots = TC_Provider_AIPuffer::discover_bots( $base_url, $api_key );
+		if ( empty( $bots ) ) {
+			$msg = __( 'No chatbots found locally or on the remote AIPKit host. You can enter a manual Bot ID below.', 'tripcosmos-agents' );
+			wp_send_json_error( array( 'message' => $msg, 'bots' => array() ) );
+		}
+
+		wp_send_json_success( array(
+			'bots'    => $bots,
+			'message' => sprintf( __( 'Discovered %d bot(s) successfully.', 'tripcosmos-agents' ), count( $bots ) ),
+		) );
+	}
+
+	/**
+	 * AJAX endpoint to live-sync model catalogue for a specific provider.
+	 */
+	public static function ajax_sync_provider_models() {
+		check_ajax_referer( 'tc_agents_admin_nonce', 'nonce' );
+
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( array( 'message' => 'Unauthorized' ), 403 );
+		}
+
+		$provider_slug = sanitize_key( $_POST['provider'] ?? '' );
+		$router        = TC_AI_Router::get_instance();
+		$provider      = $router->get_provider( $provider_slug );
+
+		if ( ! $provider ) {
+			wp_send_json_error( array( 'message' => 'Provider not found.' ) );
+		}
+
+		delete_transient( 'tc_models_' . $provider->get_slug() );
+		$models = method_exists( $provider, 'get_models' ) ? $provider->get_models() : array();
+
+		wp_send_json_success( array(
+			'provider' => $provider_slug,
+			'models'   => $models,
+			'count'    => count( $models ),
+			'message'  => sprintf( __( 'Synced %d models for %s.', 'tripcosmos-agents' ), count( $models ), $provider->get_name() ),
 		) );
 	}
 
@@ -451,9 +599,13 @@ class TC_Agents_Admin {
 			exit;
 		}
 
-		// 4. AI Routing
+		// 4. AI Routing (canonical: openrouter, gateway, aipuffer, gemini)
 		if ( 'save_routing' === $action ) {
 			$priority = array_map( 'sanitize_text_field', (array) ( $_POST['provider_priority'] ?? array() ) );
+			// Migrate any retired slugs submitted by stale forms.
+			$map = array( 'omniroute' => 'gateway', 'vmstudio' => 'gateway' );
+			$priority = array_values( array_unique( array_map( function( $s ) use ( $map ) { return $map[ $s ] ?? $s; }, $priority ) ) );
+			if ( empty( $priority ) ) { $priority = array( 'openrouter', 'gateway', 'aipuffer', 'gemini' ); }
 			update_option( 'tc_agents_provider_priority', $priority );
 			update_option( 'tc_agents_circuit_breaker_threshold', absint( $_POST['circuit_breaker_threshold'] ?? 2 ) );
 			update_option( 'tc_agents_timeout_seconds', absint( $_POST['timeout_seconds'] ?? 8 ) );
@@ -464,25 +616,38 @@ class TC_Agents_Admin {
 			}
 			update_option( 'tc_agents_openrouter_model', sanitize_text_field( $_POST['openrouter_model'] ?? 'anthropic/claude-3.5-sonnet' ) );
 
-			// Omniroute
-			update_option( 'tc_agents_omniroute_base_url', esc_url_raw( $_POST['omniroute_base_url'] ?? '' ) );
-			if ( ! empty( $_POST['omniroute_api_key'] ) ) {
-				TC_Agents_Vault::put( 'omniroute_api_key', sanitize_text_field( $_POST['omniroute_api_key'] ) );
+			// Unified Gateway (replaces omniroute / vmstudio)
+			update_option( 'tc_agents_gateway_base_url', esc_url_raw( $_POST['gateway_base_url'] ?? $_POST['vmstudio_base_url'] ?? $_POST['omniroute_base_url'] ?? 'https://ai.vmstudio.digital/v1' ) );
+			if ( ! empty( $_POST['gateway_api_key'] ) ) {
+				TC_Agents_Vault::put( 'gateway_api_key', sanitize_text_field( $_POST['gateway_api_key'] ) );
+			} elseif ( ! empty( $_POST['vmstudio_api_key'] ) ) {
+				TC_Agents_Vault::put( 'gateway_api_key', sanitize_text_field( $_POST['vmstudio_api_key'] ) );
+			} elseif ( ! empty( $_POST['omniroute_api_key'] ) ) {
+				TC_Agents_Vault::put( 'gateway_api_key', sanitize_text_field( $_POST['omniroute_api_key'] ) );
 			}
-			update_option( 'tc_agents_omniroute_model', sanitize_text_field( $_POST['omniroute_model'] ?? '' ) );
+			update_option( 'tc_agents_gateway_model', sanitize_text_field( $_POST['gateway_model'] ?? $_POST['omniroute_model'] ?? 'default' ) );
 
-			// VMStudio
-			if ( ! empty( $_POST['vmstudio_api_key'] ) ) {
-				TC_Agents_Vault::put( 'vmstudio_api_key', sanitize_text_field( $_POST['vmstudio_api_key'] ) );
-			}
-			update_option( 'tc_agents_vmstudio_base_url', esc_url_raw( $_POST['vmstudio_base_url'] ?? 'https://ai.vmstudio.digital/v1' ) );
-
-			// AI Puffer overrides if specified
+			// AI Puffer (AIPKit / AI Power)
 			if ( isset( $_POST['aipuffer_base_url'] ) ) {
 				update_option( 'tc_agents_aipuffer_base_url', esc_url_raw( $_POST['aipuffer_base_url'] ) );
 			}
 			if ( ! empty( $_POST['aipuffer_api_key'] ) ) {
 				TC_Agents_Vault::put( 'aipuffer_api_key', sanitize_text_field( $_POST['aipuffer_api_key'] ) );
+			}
+			$ap_bot_id = sanitize_text_field( ! empty( $_POST['aipuffer_bot_id_manual'] ) ? $_POST['aipuffer_bot_id_manual'] : ( $_POST['aipuffer_bot_id'] ?? '' ) );
+			if ( '' !== $ap_bot_id ) {
+				update_option( 'tc_agents_aipuffer_bot_id', $ap_bot_id );
+			}
+
+			// Gemini
+			if ( ! empty( $_POST['gemini_api_key'] ) ) {
+				TC_Agents_Vault::put( 'gemini_api_key', sanitize_text_field( $_POST['gemini_api_key'] ) );
+			}
+			update_option( 'tc_agents_gemini_model', sanitize_text_field( $_POST['gemini_model'] ?? 'gemini-2.0-flash' ) );
+
+			// Live model sync on save (best effort, non-blocking failures OK).
+			if ( class_exists( 'TC_AI_Router' ) ) {
+				try { TC_AI_Router::get_instance()->sync_all_models( true ); } catch ( Exception $e ) {}
 			}
 
 			wp_safe_redirect( add_query_arg( array( 'page' => 'tc-agents-routing', 'saved' => '1' ), admin_url( 'admin.php' ) ) );
@@ -505,16 +670,33 @@ class TC_Agents_Admin {
 			exit;
 		}
 
-		// 6. Integrations
+		// 6. Integrations (WhatsApp dual-mode + CRM + Brevo + Google Places + Voice)
 		if ( 'save_integrations' === $action ) {
+			update_option( 'tc_agents_whatsapp_mode', in_array( $_POST['whatsapp_mode'] ?? 'legacy', array( 'legacy', 'evolution' ), true ) ? $_POST['whatsapp_mode'] : 'legacy' );
 			update_option( 'tc_agents_whatsapp_api_url', esc_url_raw( $_POST['whatsapp_api_url'] ?? '' ) );
 			if ( ! empty( $_POST['whatsapp_token'] ) ) {
 				TC_Agents_Vault::put( 'whatsapp_token', sanitize_text_field( $_POST['whatsapp_token'] ) );
 			}
+			update_option( 'tc_agents_evolution_base_url', esc_url_raw( $_POST['evolution_base_url'] ?? '' ) );
+			update_option( 'tc_agents_evolution_instance', sanitize_text_field( $_POST['evolution_instance'] ?? 'tripcosmos' ) );
+			if ( ! empty( $_POST['evolution_api_key'] ) ) {
+				TC_Agents_Vault::put( 'evolution_api_key', sanitize_text_field( $_POST['evolution_api_key'] ) );
+			}
+			update_option( 'tc_agents_whatsapp_webhook_secret', sanitize_text_field( $_POST['whatsapp_webhook_secret'] ?? '' ) );
 			update_option( 'tc_agents_twentycrm_url', esc_url_raw( $_POST['twentycrm_url'] ?? '' ) );
 			if ( ! empty( $_POST['twentycrm_api_key'] ) ) {
 				TC_Agents_Vault::put( 'twentycrm_api_key', sanitize_text_field( $_POST['twentycrm_api_key'] ) );
 			}
+			if ( ! empty( $_POST['brevo_api_key'] ) ) {
+				TC_Agents_Vault::put( 'brevo_api_key', sanitize_text_field( $_POST['brevo_api_key'] ) );
+			}
+			update_option( 'tc_agents_brevo_sender_email', sanitize_email( $_POST['brevo_sender_email'] ?? '' ) );
+			update_option( 'tc_agents_brevo_sender_name', sanitize_text_field( $_POST['brevo_sender_name'] ?? 'TripCosmos' ) );
+			if ( ! empty( $_POST['google_places_api_key'] ) ) {
+				TC_Agents_Vault::put( 'google_places_api_key', sanitize_text_field( $_POST['google_places_api_key'] ) );
+			}
+			update_option( 'tc_agents_b2b_import_cities', sanitize_text_field( $_POST['b2b_import_cities'] ?? '' ) );
+			update_option( 'tc_agents_b2b_auto_outreach', ! empty( $_POST['b2b_auto_outreach'] ) ? '1' : '0' );
 			update_option( 'tc_agents_sheets_enabled', ! empty( $_POST['sheets_enabled'] ) ? '1' : '0' );
 			update_option( 'tc_agents_sheets_webhook_url', esc_url_raw( $_POST['sheets_webhook_url'] ?? '' ) );
 
@@ -533,9 +715,16 @@ class TC_Agents_Admin {
 		// 7. Settings
 		if ( 'save_settings' === $action ) {
 			update_option( 'tc_agents_widget_enabled', ! empty( $_POST['widget_enabled'] ) ? '1' : '0' );
-			update_option( 'tc_agents_widget_title', sanitize_text_field( $_POST['widget_title'] ?? '' ) );
+			update_option( 'tc_agents_widget_title', sanitize_text_field( $_POST['widget_title'] ?? 'TripCosmos Travel Desk' ) );
+			update_option( 'tc_agents_widget_subtitle', sanitize_text_field( $_POST['widget_subtitle'] ?? 'Online • Varanasi Desk ✓' ) );
+			update_option( 'tc_agents_bot_avatar', esc_url_raw( $_POST['widget_avatar'] ?? '' ) );
+			update_option( 'tc_agents_bot_avatar_emoji', sanitize_text_field( $_POST['widget_avatar_emoji'] ?? '🛕' ) );
 			update_option( 'tc_agents_widget_greeting', sanitize_textarea_field( $_POST['widget_greeting'] ?? '' ) );
-			update_option( 'tc_agents_widget_primary_color', sanitize_hex_color( $_POST['widget_primary_color'] ?? '#0ea5e9' ) );
+			update_option( 'tc_agents_launcher_teaser_text', sanitize_text_field( $_POST['launcher_teaser_text'] ?? '' ) );
+			update_option( 'tc_agents_widget_side', in_array( $_POST['widget_side'] ?? 'right', array( 'right', 'left' ), true ) ? $_POST['widget_side'] : 'right' );
+			update_option( 'tc_agents_widget_primary_color', sanitize_hex_color( $_POST['widget_primary_color'] ?? '#ea580c' ) );
+			update_option( 'tc_agents_widget_secondary_color', sanitize_hex_color( $_POST['widget_secondary_color'] ?? '#9333ea' ) );
+			update_option( 'tc_agents_starter_prompts', sanitize_textarea_field( $_POST['starter_prompts'] ?? '' ) );
 			update_option( 'tc_agents_human_whatsapp_number', sanitize_text_field( $_POST['human_whatsapp_number'] ?? '' ) );
 			update_option( 'tc_agents_human_notification_email', sanitize_email( $_POST['human_notification_email'] ?? '' ) );
 
@@ -543,13 +732,15 @@ class TC_Agents_Admin {
 			exit;
 		}
 
-		// 8. Personas
+		// 8. Personas (migrate retired routing overrides to gateway)
 		if ( 'save_agent' === $action ) {
 			global $wpdb;
 			$table = $wpdb->prefix . 'tc_agent_personas';
 			$agent_id = absint( $_POST['agent_id'] ?? 0 );
 
 			$tools = array_map( 'sanitize_text_field', (array) ( $_POST['allowed_tools'] ?? array() ) );
+			$routing_override = sanitize_text_field( $_POST['routing_override'] ?? '' );
+			if ( in_array( $routing_override, array( 'aipuffer', 'omniroute', 'vmstudio' ), true ) ) { $routing_override = 'gateway'; }
 
 			$data = array(
 				'name'             => sanitize_text_field( $_POST['name'] ?? '' ),
@@ -558,7 +749,7 @@ class TC_Agents_Admin {
 				'channels'         => sanitize_text_field( $_POST['channels'] ?? 'web,whatsapp' ),
 				'allowed_tools'    => wp_json_encode( $tools ),
 				'temperature'      => floatval( $_POST['temperature'] ?? 0.7 ),
-				'routing_override' => sanitize_text_field( $_POST['routing_override'] ?? '' ),
+				'routing_override' => $routing_override,
 			);
 
 			if ( $agent_id > 0 ) {

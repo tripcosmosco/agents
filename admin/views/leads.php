@@ -213,16 +213,16 @@ $conversion_rate = $total_leads > 0 ? round( ( $won_count / $total_leads ) * 100
 						</div>
 					</div>
 
-					<div class="tc-kanban-cards">
+					<div class="tc-kanban-cards" data-stage="<?php echo esc_attr( $st_key ); ?>">
 						<?php if ( empty( $st_data['items'] ) ) : ?>
-							<div class="tc-kanban-empty"><?php esc_html_e( 'No leads in this stage', 'tripcosmos-agents' ); ?></div>
+							<div class="tc-kanban-empty"><?php esc_html_e( 'No leads in this stage (drag cards here)', 'tripcosmos-agents' ); ?></div>
 						<?php else : ?>
 							<?php foreach ( $st_data['items'] as $card ) : ?>
-								<div class="tc-kanban-card">
+								<div class="tc-kanban-card" draggable="true" data-lead-id="<?php echo esc_attr( $card['id'] ); ?>" data-stage="<?php echo esc_attr( $st_key ); ?>" data-val="<?php echo esc_attr( $card['deal_value'] ); ?>">
 									<div class="tc-card-top">
 										<span class="tc-channel-badge tc-channel-<?php echo esc_attr( $card['source_channel'] ); ?>"><?php echo esc_html( ucfirst( $card['source_channel'] ) ); ?></span>
 										<span class="tc-score-badge" style="background: <?php echo $card['score'] >= 70 ? '#dcfce7' : ( $card['score'] >= 40 ? '#fef3c7' : '#fee2e2' ); ?>; color: <?php echo $card['score'] >= 70 ? '#15803d' : ( $card['score'] >= 40 ? '#b45309' : '#991b1b' ); ?>; font-weight:700; padding: 2px 6px; border-radius: 8px; font-size: 10px;">
-											★ <?php echo esc_html( $card['score'] ); ?>
+											⚡ <?php echo esc_html( $card['score'] ); ?>
 										</span>
 									</div>
 									<div class="tc-card-name">
@@ -231,7 +231,7 @@ $conversion_rate = $total_leads > 0 ? round( ( $won_count / $total_leads ) * 100
 									<?php if ( ! empty( $card['phone'] ) || ! empty( $card['email'] ) ) : ?>
 										<div class="tc-card-contact">
 											<?php if ( ! empty( $card['phone'] ) ) : ?>
-												<div>📞 <?php echo esc_html( $card['phone'] ); ?></div>
+												<div>📱 <?php echo esc_html( $card['phone'] ); ?></div>
 											<?php endif; ?>
 											<?php if ( ! empty( $card['email'] ) ) : ?>
 												<div>✉️ <?php echo esc_html( $card['email'] ); ?></div>
@@ -243,17 +243,23 @@ $conversion_rate = $total_leads > 0 ? round( ( $won_count / $total_leads ) * 100
 										₹<?php echo esc_html( number_format( (float) $card['deal_value'], 2 ) ); ?>
 									</div>
 
-									<div class="tc-card-footer">
-										<form method="post" action="<?php echo esc_url( admin_url( 'admin.php' ) ); ?>" style="margin: 0;">
+									<div class="tc-card-footer" style="display: flex; gap: 6px; align-items: center;">
+										<form method="post" action="<?php echo esc_url( admin_url( 'admin.php' ) ); ?>" style="margin: 0; flex: 1;">
 											<?php wp_nonce_field( 'tc_agents_admin_save', 'tc_agents_nonce' ); ?>
 											<input type="hidden" name="tc_agents_action" value="update_lead_stage" />
 											<input type="hidden" name="lead_id" value="<?php echo esc_attr( $card['id'] ); ?>" />
-											<select name="stage" onchange="this.form.submit();" class="tc-stage-quick-select">
+											<select name="stage" onchange="this.form.submit();" class="tc-stage-quick-select" style="width: 100%; font-size: 11px;">
 												<?php foreach ( $stages as $k => $d ) : ?>
 													<option value="<?php echo esc_attr( $k ); ?>" <?php selected( $st_key, $k ); ?>><?php echo esc_html( $d['label'] ); ?></option>
 												<?php endforeach; ?>
 											</select>
 										</form>
+
+										<?php if ( ! empty( $card['phone'] ) ) : ?>
+											<a href="https://wa.me/<?php echo esc_attr( preg_replace( '/[^0-9]/', '', $card['phone'] ) ); ?>?text=<?php echo rawurlencode( 'Namaste ' . ( $card['name'] ?: 'Traveler' ) . ', this is TripCosmos (Varanasi) regarding your tour & cab inquiry!' ); ?>" target="_blank" class="button button-small" title="<?php esc_attr_e( 'Chat on WhatsApp', 'tripcosmos-agents' ); ?>" style="background: #22c55e; color: #fff; border-color: #16a34a; padding: 0 6px; font-weight: bold; line-height: 24px; height: 26px;">
+												WA
+											</a>
+										<?php endif; ?>
 
 										<button type="button" class="button button-small" onclick="viewMemory(<?php echo esc_attr( $card['id'] ); ?>, '<?php echo esc_js( $card['name'] ?: 'Traveler' ); ?>')" title="<?php esc_attr_e( 'View Traveler AI Memory Engine', 'tripcosmos-agents' ); ?>">
 											🧠

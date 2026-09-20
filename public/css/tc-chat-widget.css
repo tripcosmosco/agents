@@ -1,75 +1,289 @@
 /**
- * TripCosmos Public AI Chat Widget Styles
- * Scoped under #tc-agent-widget-root for theme and Elementor isolation.
+ * TripCosmos Public AI Chat Widget — Ultra Premium Radiant Gradient & Glassmorphism Design Engine
+ * Domain: Varanasi, Ayodhya, Prayagraj, Bodhgaya, Chitrakoot, Lucknow, Mathura & Delhi Tours & Cabs.
+ * Complete Strict CSS Isolation against all WordPress block themes, Elementor, and Divi.
  */
 
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Outfit:wght@500;600;700;800&display=swap');
+
+/* ==========================================================================
+   0. Strict Root & Theme CSS Isolation
+   ========================================================================== */
 #tc-agent-widget-root {
-	position: fixed;
-	bottom: 24px;
-	right: 24px;
-	z-index: 999999;
-	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-	-webkit-font-smoothing: antialiased;
-	-moz-osx-font-smoothing: grayscale;
+	all: initial !important;
+	position: fixed !important;
+	bottom: 24px !important;
+	right: 24px !important;
+	z-index: 2147483647 !important;
+	display: flex !important;
+	flex-direction: column !important;
+	align-items: flex-end !important;
+	pointer-events: none !important;
+	font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+	-webkit-font-smoothing: antialiased !important;
+	-moz-osx-font-smoothing: grayscale !important;
+	margin: 0 !important;
+	padding: 0 !important;
+	border: none !important;
+	background: transparent !important;
+	box-shadow: none !important;
+
+	/* --- Dynamic Colors from Admin Settings with Fallbacks --- */
+	--tc-primary-color: #ea580c;
+	--tc-secondary-color: #9333ea;
+
+	/* --- Radiant Gradient & Glass Tokens --- */
+	--tc-g-brand: linear-gradient(135deg, #f59e0b 0%, var(--tc-primary-color) 45%, var(--tc-secondary-color) 90%, #6366f1 100%);
+	--tc-g-aurora: linear-gradient(135deg, #fbbf24 0%, var(--tc-primary-color) 40%, var(--tc-secondary-color) 100%);
+	--tc-g-user: linear-gradient(135deg, #f59e0b 0%, var(--tc-primary-color) 42%, var(--tc-secondary-color) 100%);
+	--tc-g-accent: linear-gradient(135deg, var(--tc-primary-color) 0%, var(--tc-secondary-color) 100%);
+	--tc-g-mesh: radial-gradient(at 0% 0%, rgba(245, 158, 11, 0.14) 0%, transparent 50%),
+	             radial-gradient(at 100% 0%, rgba(234, 88, 12, 0.12) 0%, transparent 50%),
+	             radial-gradient(at 100% 100%, rgba(147, 51, 234, 0.14) 0%, transparent 50%),
+	             radial-gradient(at 0% 100%, rgba(99, 102, 241, 0.10) 0%, transparent 50%);
+
+	--tc-glass-bg: rgba(255, 255, 255, 0.94);
+	--tc-glass-header: linear-gradient(145deg, rgba(30, 27, 75, 0.98) 0%, rgba(15, 23, 42, 0.98) 100%);
+	--tc-glass-border: rgba(255, 255, 255, 0.7);
+	--tc-shadow-xl: 0 24px 60px -12px rgba(15, 23, 42, 0.28), 0 8px 24px -4px rgba(234, 88, 12, 0.16);
+	--tc-shadow-fab: 0 12px 32px rgba(234, 88, 12, 0.42), 0 4px 12px rgba(147, 51, 234, 0.25);
+
+	--tc-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+	--tc-smooth: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Floating Action Button (FAB) */
-#tc-agent-widget-root .tc-widget-fab {
-	width: 60px;
-	height: 60px;
-	border-radius: 50%;
-	background: var(--tc-primary-color, linear-gradient(135deg, #0284c7 0%, #0369a1 100%));
-	color: #ffffff;
-	border: none;
-	box-shadow: 0 8px 24px rgba(2, 132, 199, 0.4);
+/* Left-sided positioning override if configured */
+#tc-agent-widget-root.tc-side-left {
+	right: auto !important;
+	left: 24px !important;
+	align-items: flex-start !important;
+}
 
-	cursor: pointer;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-	position: relative;
-	outline: none;
+#tc-agent-widget-root.tc-side-left .tc-widget-window {
+	right: auto !important;
+	left: 0 !important;
+	transform-origin: bottom left !important;
+}
+
+#tc-agent-widget-root.tc-side-left .tc-widget-teaser {
+	right: auto !important;
+	left: 0 !important;
+}
+
+#tc-agent-widget-root .tc-avatar-circle img,
+#tc-agent-widget-root .tc-voice-ring img {
+	width: 100% !important;
+	height: 100% !important;
+	object-fit: cover !important;
+	display: block !important;
+}
+
+#tc-agent-widget-root > * {
+	pointer-events: auto !important;
+}
+
+#tc-agent-widget-root * {
+	box-sizing: border-box !important;
+	font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+	-webkit-font-smoothing: antialiased !important;
+	letter-spacing: normal !important;
+}
+
+/* ==========================================================================
+   1. Proactive Teaser Balloon
+   ========================================================================== */
+#tc-agent-widget-root .tc-widget-teaser {
+	position: absolute !important;
+	bottom: 78px !important;
+	right: 0 !important;
+	background: var(--tc-glass-bg) !important;
+	backdrop-filter: blur(24px) saturate(190%) !important;
+	-webkit-backdrop-filter: blur(24px) saturate(190%) !important;
+	border: 1px solid rgba(245, 158, 11, 0.4) !important;
+	border-radius: 20px !important;
+	padding: 12px 36px 12px 16px !important;
+	box-shadow: 0 16px 36px -8px rgba(15, 23, 42, 0.2), 0 4px 14px rgba(245, 158, 11, 0.18) !important;
+	min-width: 270px !important;
+	max-width: 320px !important;
+	cursor: pointer !important;
+	animation: tcTeaserFloat 5s ease-in-out infinite alternate !important;
+	transition: all 0.3s var(--tc-spring) !important;
+	z-index: 2 !important;
+}
+
+#tc-agent-widget-root .tc-widget-teaser:hover {
+	transform: translateY(-4px) scale(1.02) !important;
+	box-shadow: 0 20px 42px -6px rgba(15, 23, 42, 0.24), 0 6px 18px rgba(234, 88, 12, 0.28) !important;
+	border-color: rgba(234, 88, 12, 0.6) !important;
+}
+
+@keyframes tcTeaserFloat {
+	0% { transform: translateY(0); }
+	100% { transform: translateY(-7px); }
+}
+
+#tc-agent-widget-root .tc-teaser-close {
+	position: absolute !important;
+	top: 8px !important;
+	right: 10px !important;
+	background: transparent !important;
+	border: none !important;
+	font-size: 18px !important;
+	color: #94a3b8 !important;
+	cursor: pointer !important;
+	line-height: 1 !important;
+	padding: 2px !important;
+	transition: color 0.2s !important;
+}
+
+#tc-agent-widget-root .tc-teaser-close:hover {
+	color: #ea580c !important;
+}
+
+#tc-agent-widget-root .tc-teaser-body {
+	display: flex !important;
+	align-items: center !important;
+	gap: 10px !important;
+}
+
+#tc-agent-widget-root .tc-teaser-icon {
+	font-size: 22px !important;
+	filter: drop-shadow(0 2px 6px rgba(245, 158, 11, 0.4)) !important;
+	flex-shrink: 0 !important;
+}
+
+#tc-agent-widget-root .tc-teaser-text {
+	font-size: 12.5px !important;
+	font-weight: 600 !important;
+	color: #1e293b !important;
+	line-height: 1.45 !important;
+}
+
+/* ==========================================================================
+   2. Floating Action Button (Launcher FAB)
+   ========================================================================== */
+#tc-agent-widget-root .tc-widget-fab {
+	width: 62px !important;
+	height: 62px !important;
+	border-radius: 20px !important;
+	background: var(--tc-g-brand) !important;
+	color: #ffffff !important;
+	border: none !important;
+	box-shadow: var(--tc-shadow-fab) !important;
+	cursor: pointer !important;
+	display: flex !important;
+	align-items: center !important;
+	justify-content: center !important;
+	transition: all 0.38s var(--tc-spring) !important;
+	position: relative !important;
+	outline: none !important;
+	animation: tcFabBreathing 4s ease-in-out infinite !important;
+	overflow: visible !important;
+}
+
+@keyframes tcFabBreathing {
+	0%, 100% { transform: translateY(0); }
+	50% { transform: translateY(-5px); }
+}
+
+/* When chat window is open, stop bounce to keep perfectly docked */
+#tc-agent-widget-root.tc-window-open .tc-widget-fab {
+	animation: none !important;
+	transform: scale(0.96) !important;
+	box-shadow: 0 6px 18px rgba(15, 23, 42, 0.25) !important;
+}
+
+#tc-agent-widget-root .tc-widget-fab::before {
+	content: '';
+	position: absolute;
+	inset: -4px;
+	border-radius: 24px;
+	background: var(--tc-g-aurora);
+	opacity: 0;
+	z-index: -1;
+	transition: opacity 0.35s ease, transform 0.35s var(--tc-spring);
+	transform: scale(0.9);
 }
 
 #tc-agent-widget-root .tc-widget-fab:hover {
-	transform: scale(1.08);
-	box-shadow: 0 12px 28px rgba(2, 132, 199, 0.5);
+	transform: scale(1.06) rotate(3deg) !important;
+	box-shadow: 0 16px 38px rgba(234, 88, 12, 0.5), 0 6px 16px rgba(147, 51, 234, 0.35) !important;
+}
+
+#tc-agent-widget-root .tc-widget-fab:hover::before {
+	opacity: 0.45;
+	transform: scale(1.05);
+}
+
+#tc-agent-widget-root .tc-fab-icon-chat {
+	display: flex !important;
+	align-items: center !important;
+	justify-content: center !important;
+	transition: transform 0.32s var(--tc-spring) !important;
+}
+
+#tc-agent-widget-root .tc-fab-icon-close {
+	display: none !important;
+	align-items: center !important;
+	justify-content: center !important;
+	transition: transform 0.32s var(--tc-spring) !important;
+}
+
+#tc-agent-widget-root.tc-window-open .tc-fab-icon-chat {
+	display: none !important;
+}
+
+#tc-agent-widget-root.tc-window-open .tc-fab-icon-close {
+	display: flex !important;
 }
 
 #tc-agent-widget-root .tc-status-pulse {
-	position: absolute;
-	top: 2px;
-	right: 2px;
-	width: 14px;
-	height: 14px;
-	background: #10b981;
-	border: 2px solid #ffffff;
-	border-radius: 50%;
+	position: absolute !important;
+	top: -2px !important;
+	right: -2px !important;
+	width: 16px !important;
+	height: 16px !important;
+	background: #10b981 !important;
+	border: 3px solid #ffffff !important;
+	border-radius: 50% !important;
+	box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6) !important;
+	animation: tcPing 2.2s infinite !important;
 }
 
-/* Chat Window Box */
+@keyframes tcPing {
+	0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+	70% { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
+	100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+
+/* ==========================================================================
+   3. Chat Window Dialog (Glassmorphism & Gradients)
+   ========================================================================== */
 #tc-agent-widget-root .tc-widget-window {
-	position: absolute;
-	bottom: 75px;
-	right: 0;
-	width: 380px;
-	height: 560px;
-	max-height: calc(100vh - 120px);
-	background: #ffffff;
-	border-radius: 20px;
-	box-shadow: 0 16px 40px rgba(15, 23, 42, 0.18), 0 0 1px rgba(15, 23, 42, 0.2);
-	display: flex;
-	flex-direction: column;
-	overflow: hidden;
-	animation: tcSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-	border: 1px solid rgba(226, 232, 240, 0.8);
+	position: absolute !important;
+	bottom: 74px !important;
+	right: 0 !important;
+	width: 415px !important;
+	height: 640px !important;
+	max-height: calc(100vh - 105px) !important;
+	background: var(--tc-glass-bg) !important;
+	backdrop-filter: blur(28px) saturate(190%) !important;
+	-webkit-backdrop-filter: blur(28px) saturate(190%) !important;
+	border-radius: 26px !important;
+	box-shadow: var(--tc-shadow-xl) !important;
+	display: flex !important;
+	flex-direction: column !important;
+	overflow: hidden !important;
+	animation: tcWindowSpring 0.4s var(--tc-spring) forwards !important;
+	border: 1px solid rgba(255, 255, 255, 0.8) !important;
+	transform-origin: bottom right !important;
+	z-index: 10 !important;
 }
 
-@keyframes tcSlideUp {
+@keyframes tcWindowSpring {
 	from {
 		opacity: 0;
-		transform: translateY(20px) scale(0.95);
+		transform: translateY(28px) scale(0.94);
 	}
 	to {
 		opacity: 1;
@@ -77,571 +291,1071 @@
 	}
 }
 
-/* Window Header */
+/* Shimmer Top Stripe */
+#tc-agent-widget-root .tc-header-stripe {
+	position: absolute !important;
+	top: 0 !important;
+	left: 0 !important;
+	right: 0 !important;
+	height: 3px !important;
+	background: var(--tc-g-brand) !important;
+	overflow: hidden !important;
+	z-index: 4 !important;
+}
+
+#tc-agent-widget-root .tc-header-stripe::after {
+	content: '' !important;
+	position: absolute !important;
+	inset: 0 !important;
+	background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.85) 50%, transparent 100%) !important;
+	animation: tcShimmer 3s ease-in-out infinite !important;
+}
+
+@keyframes tcShimmer {
+	0% { transform: translateX(-100%); }
+	100% { transform: translateX(100%); }
+}
+
+/* Header */
 #tc-agent-widget-root .tc-widget-header {
-	background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-	color: #ffffff;
-	padding: 16px 20px;
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
+	background: var(--tc-glass-header) !important;
+	color: #ffffff !important;
+	padding: 16px 18px 14px !important;
+	display: flex !important;
+	align-items: center !important;
+	justify-content: space-between !important;
+	position: relative !important;
+	overflow: hidden !important;
+	flex-shrink: 0 !important;
+}
+
+#tc-agent-widget-root .tc-widget-header::before {
+	content: '' !important;
+	position: absolute !important;
+	inset: 0 !important;
+	background: var(--tc-g-mesh) !important;
+	opacity: 0.7 !important;
+	pointer-events: none !important;
 }
 
 #tc-agent-widget-root .tc-header-info {
-	display: flex;
-	align-items: center;
-	gap: 12px;
+	display: flex !important;
+	align-items: center !important;
+	gap: 12px !important;
+	position: relative !important;
+	z-index: 2 !important;
 }
 
 #tc-agent-widget-root .tc-avatar-circle {
-	width: 40px;
-	height: 40px;
-	border-radius: 50%;
-	background: rgba(255, 255, 255, 0.15);
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	font-size: 20px;
-	box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+	width: 42px !important;
+	height: 42px !important;
+	border-radius: 14px !important;
+	background: linear-gradient(135deg, rgba(245, 158, 11, 0.3) 0%, rgba(147, 51, 234, 0.4) 100%) !important;
+	border: 1.5px solid rgba(245, 158, 11, 0.5) !important;
+	display: flex !important;
+	align-items: center !important;
+	justify-content: center !important;
+	font-size: 21px !important;
+	box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25) !important;
+	flex-shrink: 0 !important;
+	overflow: hidden !important;
+	animation: tcAvatarGlow 3s ease-in-out infinite alternate !important;
+}
+
+@keyframes tcAvatarGlow {
+	0% { box-shadow: 0 0 8px rgba(245, 158, 11, 0.3); }
+	100% { box-shadow: 0 0 18px rgba(234, 88, 12, 0.6); }
 }
 
 #tc-agent-widget-root .tc-header-info h3 {
-	margin: 0;
-	font-size: 15px;
-	font-weight: 700;
-	color: #ffffff;
-	line-height: 1.2;
+	margin: 0 !important;
+	font-family: 'Outfit', sans-serif !important;
+	font-size: 15.5px !important;
+	font-weight: 700 !important;
+	color: #ffffff !important;
+	letter-spacing: -0.015em !important;
+	line-height: 1.25 !important;
 }
 
 #tc-agent-widget-root .tc-online-status {
-	font-size: 11px;
-	color: #94a3b8;
-	display: flex;
-	align-items: center;
-	gap: 5px;
-	margin-top: 3px;
+	font-size: 11px !important;
+	font-weight: 500 !important;
+	color: #cbd5e1 !important;
+	display: flex !important;
+	align-items: center !important;
+	gap: 5px !important;
+	margin-top: 3px !important;
 }
 
 #tc-agent-widget-root .tc-dot {
-	width: 7px;
-	height: 7px;
-	border-radius: 50%;
-	background: #10b981;
-	box-shadow: 0 0 6px #10b981;
+	width: 7px !important;
+	height: 7px !important;
+	border-radius: 50% !important;
+	background: #10b981 !important;
+	box-shadow: 0 0 8px #10b981 !important;
+	display: inline-block !important;
+}
+
+#tc-agent-widget-root .tc-verified-check {
+	display: inline-flex !important;
+	align-items: center !important;
+	justify-content: center !important;
+	width: 13px !important;
+	height: 13px !important;
+	border-radius: 50% !important;
+	background: linear-gradient(135deg, #f59e0b 0%, #ea580c 100%) !important;
+	color: #fff !important;
+	font-size: 8.5px !important;
+	font-weight: 800 !important;
+	margin-left: 2px !important;
 }
 
 #tc-agent-widget-root .tc-header-controls {
-	display: flex;
-	align-items: center;
-	gap: 6px;
+	display: flex !important;
+	align-items: center !important;
+	gap: 7px !important;
+	position: relative !important;
+	z-index: 2 !important;
 }
 
 #tc-agent-widget-root .tc-btn-icon {
-	background: rgba(255, 255, 255, 0.1);
-	border: none;
-	color: #ffffff;
-	width: 32px;
-	height: 32px;
-	border-radius: 50%;
-	cursor: pointer;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	transition: background 0.2s;
-	text-decoration: none;
+	background: rgba(255, 255, 255, 0.12) !important;
+	border: 1px solid rgba(255, 255, 255, 0.18) !important;
+	color: #ffffff !important;
+	width: 32px !important;
+	height: 32px !important;
+	border-radius: 10px !important;
+	cursor: pointer !important;
+	display: flex !important;
+	align-items: center !important;
+	justify-content: center !important;
+	transition: all 0.2s var(--tc-spring) !important;
+	text-decoration: none !important;
+	backdrop-filter: blur(8px) !important;
+	padding: 0 !important;
 }
 
 #tc-agent-widget-root .tc-btn-icon:hover {
-	background: rgba(255, 255, 255, 0.25);
+	background: rgba(255, 255, 255, 0.26) !important;
+	transform: scale(1.08) !important;
+	color: #ffffff !important;
 }
 
-/* Messages Area */
+/* ==========================================================================
+   Panel Container Engine: Only .tc-panel.active is shown
+   ========================================================================== */
+#tc-agent-widget-root .tc-panel {
+	display: none !important;
+	flex: 1 !important;
+	min-height: 0 !important;
+	overflow-y: auto !important;
+	flex-direction: column !important;
+}
+
+#tc-agent-widget-root .tc-panel.active {
+	display: flex !important;
+}
+
+/* ==========================================================================
+   5. Messages Container & Dynamic Bubbles
+   ========================================================================== */
 #tc-agent-widget-root .tc-messages-container {
-	flex: 1;
-	padding: 18px 16px;
-	overflow-y: auto;
-	background: #f8fafc;
-	display: flex;
-	flex-direction: column;
-	gap: 12px;
+	padding: 18px 16px 14px !important;
+	background: #f8fafc !important;
+	background-image: var(--tc-g-mesh) !important;
+	gap: 12px !important;
+	scroll-behavior: smooth !important;
+}
+
+#tc-agent-widget-root .tc-messages-container::-webkit-scrollbar {
+	width: 4px !important;
+}
+#tc-agent-widget-root .tc-messages-container::-webkit-scrollbar-thumb {
+	background: rgba(203, 213, 225, 0.8) !important;
+	border-radius: 6px !important;
 }
 
 #tc-agent-widget-root .tc-chat-bubble {
-	max-width: 82%;
-	padding: 12px 16px;
-	font-size: 13.5px;
-	line-height: 1.48;
-	word-break: break-word;
-	box-sizing: border-box;
+	max-width: 88% !important;
+	padding: 12px 16px !important;
+	font-size: 13.5px !important;
+	line-height: 1.6 !important;
+	word-break: break-word !important;
+	box-sizing: border-box !important;
+	animation: tcMsgIn 0.28s var(--tc-spring) both !important;
 }
 
+@keyframes tcMsgIn {
+	from {
+		opacity: 0;
+		transform: translateY(10px) scale(0.96);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0) scale(1);
+	}
+}
+
+/* Bot Message Bubble (Frosted Pearl White) */
 #tc-agent-widget-root .tc-bubble-bot {
-	align-self: flex-start;
-	background: #ffffff;
-	color: #1e293b;
-	border-radius: 16px 16px 16px 4px;
-	border: 1px solid #e2e8f0;
-	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+	align-self: flex-start !important;
+	background: rgba(255, 255, 255, 0.96) !important;
+	color: #1e293b !important;
+	border-radius: 4px 20px 20px 20px !important;
+	border: 1px solid rgba(226, 232, 240, 0.9) !important;
+	box-shadow: 0 4px 16px rgba(15, 23, 42, 0.05), 0 1px 3px rgba(0, 0, 0, 0.02) !important;
+	position: relative !important;
 }
 
+/* User Message Bubble (Radiant Sunset Gradient) */
 #tc-agent-widget-root .tc-bubble-user {
-	align-self: flex-end;
-	background: #0284c7;
-	color: #ffffff;
-	border-radius: 16px 16px 4px 16px;
-	box-shadow: 0 2px 6px rgba(2, 132, 199, 0.25);
+	align-self: flex-end !important;
+	background: var(--tc-g-user) !important;
+	color: #ffffff !important;
+	border-radius: 20px 20px 4px 20px !important;
+	box-shadow: 0 8px 22px rgba(234, 88, 12, 0.3), 0 2px 6px rgba(124, 58, 237, 0.18) !important;
+	font-weight: 500 !important;
 }
 
+#tc-agent-widget-root .tc-bubble-user a {
+	color: #fef08a !important;
+	text-decoration: underline !important;
+}
+
+/* Markdown typography inside Bot Bubbles */
+#tc-agent-widget-root .tc-bubble-bot strong {
+	font-weight: 700 !important;
+	color: #0f172a !important;
+}
+
+#tc-agent-widget-root .tc-bubble-bot em {
+	font-style: italic !important;
+	color: #475569 !important;
+}
+
+#tc-agent-widget-root .tc-bubble-bot ul {
+	margin: 6px 0 6px 18px !important;
+	padding: 0 !important;
+}
+
+#tc-agent-widget-root .tc-bubble-bot li {
+	margin-bottom: 4px !important;
+	font-size: 13px !important;
+	color: #334155 !important;
+}
+
+#tc-agent-widget-root .tc-bubble-bot h4,
+#tc-agent-widget-root .tc-bubble-bot h5 {
+	font-family: 'Outfit', sans-serif !important;
+	font-weight: 700 !important;
+	color: #0f172a !important;
+	margin: 8px 0 4px !important;
+}
+
+#tc-agent-widget-root .tc-bubble-bot code {
+	background: #f1f5f9 !important;
+	color: #ea580c !important;
+	padding: 2px 6px !important;
+	border-radius: 6px !important;
+	font-size: 12px !important;
+}
+
+/* Loading Dots */
 #tc-agent-widget-root .tc-bubble-loading {
-	align-self: flex-start;
-	background: #ffffff;
-	border: 1px solid #e2e8f0;
-	border-radius: 16px 16px 16px 4px;
-	display: flex;
-	gap: 4px;
-	padding: 14px 18px;
+	align-self: flex-start !important;
+	background: rgba(255, 255, 255, 0.95) !important;
+	border: 1px solid rgba(226, 232, 240, 0.9) !important;
+	border-radius: 4px 18px 18px 18px !important;
+	display: flex !important;
+	gap: 5px !important;
+	padding: 12px 18px !important;
+	box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04) !important;
 }
 
 #tc-agent-widget-root .tc-typing-dot {
-	width: 6px;
-	height: 6px;
-	border-radius: 50%;
-	background: #94a3b8;
-	animation: tcBlink 1.4s infinite both;
+	width: 7px !important;
+	height: 7px !important;
+	border-radius: 50% !important;
+	background: var(--tc-g-brand) !important;
+	animation: tcBlink 1.4s infinite both !important;
 }
 
-#tc-agent-widget-root .tc-typing-dot:nth-child(2) { animation-delay: 0.2s; }
-#tc-agent-widget-root .tc-typing-dot:nth-child(3) { animation-delay: 0.4s; }
+#tc-agent-widget-root .tc-typing-dot:nth-child(2) { animation-delay: 0.2s !important; }
+#tc-agent-widget-root .tc-typing-dot:nth-child(3) { animation-delay: 0.4s !important; }
 
 @keyframes tcBlink {
-	0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
-	40% { opacity: 1; transform: scale(1.2); }
+	0%, 80%, 100% { opacity: 0.3; transform: scale(0.85); }
+	40% { opacity: 1; transform: scale(1.3); }
 }
 
-/* Trip Cards inside chat */
-#tc-agent-widget-root .tc-trip-card {
-	background: #f1f5f9;
-	border: 1px solid #cbd5e1;
-	border-radius: 10px;
-	padding: 10px 12px;
-	margin-top: 8px;
-}
-
-#tc-agent-widget-root .tc-trip-card h4 {
-	margin: 0 0 4px 0;
-	font-size: 13px;
-	color: #0f172a;
-}
-
-#tc-agent-widget-root .tc-trip-meta {
-	font-size: 11.5px;
-	color: #475569;
-	display: flex;
-	justify-content: space-between;
-	margin-top: 4px;
-}
-
-#tc-agent-widget-root .tc-trip-btn {
-	display: inline-block;
-	margin-top: 6px;
-	background: #0284c7;
-	color: #ffffff;
-	font-size: 11.5px;
-	padding: 4px 10px;
-	border-radius: 6px;
-	text-decoration: none;
-	font-weight: 600;
-}
-
-/* Handoff CTA Box */
-#tc-agent-widget-root .tc-handoff-cta {
-	background: #ecfdf5;
-	border: 1px solid #a7f3d0;
-	border-radius: 10px;
-	padding: 12px;
-	margin-top: 6px;
-	text-align: center;
-}
-
-#tc-agent-widget-root .tc-whatsapp-btn {
-	display: inline-flex;
-	align-items: center;
-	gap: 6px;
-	background: #16a34a;
-	color: #ffffff !important;
-	padding: 8px 14px;
-	border-radius: 8px;
-	text-decoration: none;
-	font-size: 12.5px;
-	font-weight: 700;
-	margin-top: 6px;
-	box-shadow: 0 2px 6px rgba(22, 163, 74, 0.3);
-}
-
-/* Starter Chips */
+/* ==========================================================================
+   6. Quick Action Starter Chips (Radiant Sheen & Lift)
+   ========================================================================== */
 #tc-agent-widget-root .tc-chips-container {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 6px;
-	margin-top: 4px;
+	display: flex !important;
+	flex-wrap: wrap !important;
+	gap: 7px !important;
+	margin-top: 4px !important;
 }
 
 #tc-agent-widget-root .tc-chip {
-	background: #ffffff;
-	border: 1px solid #cbd5e1;
-	color: #334155;
-	padding: 6px 12px;
-	border-radius: 14px;
-	font-size: 12px;
-	cursor: pointer;
-	transition: all 0.2s;
+	background: linear-gradient(135deg, rgba(254, 243, 199, 0.9) 0%, rgba(255, 237, 213, 0.9) 100%) !important;
+	backdrop-filter: blur(8px) !important;
+	border: 1px solid rgba(245, 158, 11, 0.4) !important;
+	color: #9a3412 !important;
+	font-size: 12px !important;
+	font-weight: 600 !important;
+	padding: 7px 13px !important;
+	border-radius: 12px !important;
+	cursor: pointer !important;
+	transition: all 0.25s var(--tc-spring) !important;
+	display: inline-flex !important;
+	align-items: center !important;
+	gap: 5px !important;
+	box-shadow: 0 2px 8px rgba(245, 158, 11, 0.12) !important;
+	line-height: 1.2 !important;
 }
 
 #tc-agent-widget-root .tc-chip:hover {
-	background: #e0f2fe;
-	border-color: #38bdf8;
-	color: #0369a1;
+	background: var(--tc-g-brand) !important;
+	color: #ffffff !important;
+	transform: translateY(-2px) scale(1.03) !important;
+	box-shadow: 0 8px 20px rgba(234, 88, 12, 0.35) !important;
+	border-color: transparent !important;
 }
 
-/* Footer & Input */
-#tc-agent-widget-root .tc-widget-footer {
-	padding: 12px 14px 10px 14px;
-	background: #ffffff;
-	border-top: 1px solid #e2e8f0;
+/* ==========================================================================
+   7. Tour & Cab Cards Carousel (Spiritual Circuit Showcase)
+   ========================================================================== */
+#tc-agent-widget-root .tc-trip-cards-container {
+	display: flex !important;
+	gap: 12px !important;
+	overflow-x: auto !important;
+	padding: 6px 2px 12px !important;
+	margin-top: 6px !important;
+	scroll-snap-type: x mandatory !important;
 }
 
-#tc-agent-widget-root #tc-widget-form {
-	display: flex;
-	align-items: center;
-	gap: 8px;
-	background: #f8fafc;
-	border: 1px solid #cbd5e1;
-	border-radius: 24px;
-	padding: 4px 6px 4px 14px;
-	transition: border-color 0.2s;
+#tc-agent-widget-root .tc-trip-cards-container::-webkit-scrollbar {
+	height: 4px !important;
+}
+#tc-agent-widget-root .tc-trip-cards-container::-webkit-scrollbar-thumb {
+	background: rgba(234, 88, 12, 0.4) !important;
+	border-radius: 4px !important;
 }
 
-#tc-agent-widget-root #tc-widget-form:focus-within {
-	border-color: #0284c7;
-	box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.15);
+#tc-agent-widget-root .tc-trip-card {
+	flex: 0 0 240px !important;
+	scroll-snap-align: start !important;
+	background: #ffffff !important;
+	border: 1px solid rgba(226, 232, 240, 0.9) !important;
+	border-radius: 16px !important;
+	overflow: hidden !important;
+	box-shadow: 0 8px 22px rgba(15, 23, 42, 0.08) !important;
+	transition: all 0.3s var(--tc-spring) !important;
+	display: flex !important;
+	flex-direction: column !important;
 }
 
-#tc-agent-widget-root #tc-widget-input {
-	flex: 1;
-	border: none;
-	background: transparent;
-	font-size: 13.5px;
-	color: #0f172a;
-	outline: none;
-	padding: 6px 0;
+#tc-agent-widget-root .tc-trip-card:hover {
+	transform: translateY(-4px) !important;
+	box-shadow: 0 14px 30px rgba(234, 88, 12, 0.22) !important;
+	border-color: rgba(245, 158, 11, 0.5) !important;
 }
 
-#tc-agent-widget-root #tc-widget-send {
-	background: #0284c7;
-	color: #ffffff;
-	border: none;
-	width: 32px;
-	height: 32px;
-	border-radius: 50%;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	cursor: pointer;
-	transition: background 0.2s;
+#tc-agent-widget-root .tc-trip-card img {
+	width: 100% !important;
+	height: 110px !important;
+	object-fit: cover !important;
+	display: block !important;
 }
 
-#tc-agent-widget-root #tc-widget-send:hover {
-	background: #0369a1;
+#tc-agent-widget-root .tc-trip-content {
+	padding: 12px 14px !important;
+	display: flex !important;
+	flex-direction: column !important;
+	flex: 1 !important;
 }
 
-#tc-agent-widget-root .tc-footer-subtext {
-	display: flex;
-	justify-content: space-between;
-	align-items: center;
-	margin-top: 8px;
-	font-size: 10.5px;
-	color: #94a3b8;
+#tc-agent-widget-root .tc-trip-badge {
+	align-self: flex-start !important;
+	font-size: 9.5px !important;
+	font-weight: 700 !important;
+	text-transform: uppercase !important;
+	letter-spacing: 0.04em !important;
+	color: #ea580c !important;
+	background: rgba(254, 243, 199, 0.9) !important;
+	padding: 3px 8px !important;
+	border-radius: 6px !important;
+	margin-bottom: 6px !important;
 }
 
-#tc-agent-widget-root .tc-footer-subtext a {
-	color: #0284c7;
-	text-decoration: none;
-	font-weight: 600;
+#tc-agent-widget-root .tc-trip-card h4 {
+	margin: 0 0 4px 0 !important;
+	font-family: 'Outfit', sans-serif !important;
+	font-size: 13.5px !important;
+	font-weight: 700 !important;
+	color: #0f172a !important;
+	line-height: 1.3 !important;
 }
 
-/* Proactive Teaser Balloon */
-#tc-agent-widget-root .tc-widget-teaser {
-	position: absolute;
-	bottom: 72px;
-	right: 0;
-	background: #ffffff;
-	border: 1px solid #e2e8f0;
-	box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.15);
-	border-radius: 14px;
-	padding: 10px 14px;
-	width: 250px;
-	animation: tcSlideUp 0.3s ease-out;
-	cursor: pointer;
-	z-index: 999998;
+#tc-agent-widget-root .tc-trip-excerpt {
+	font-size: 11.5px !important;
+	color: #64748b !important;
+	line-height: 1.4 !important;
+	margin-bottom: 8px !important;
+	flex: 1 !important;
 }
 
-#tc-agent-widget-root .tc-teaser-close {
-	position: absolute;
-	top: 4px;
-	right: 6px;
-	background: transparent;
-	border: none;
-	color: #94a3b8;
-	font-size: 16px;
-	cursor: pointer;
-	line-height: 1;
-	padding: 2px;
+#tc-agent-widget-root .tc-trip-footer {
+	display: flex !important;
+	align-items: center !important;
+	justify-content: space-between !important;
+	margin-top: auto !important;
+	padding-top: 8px !important;
+	border-top: 1px solid #f1f5f9 !important;
 }
 
-#tc-agent-widget-root .tc-teaser-close:hover {
-	color: #475569;
+#tc-agent-widget-root .tc-trip-price {
+	font-size: 13.5px !important;
+	font-weight: 800 !important;
+	color: #ea580c !important;
 }
 
-#tc-agent-widget-root .tc-teaser-body {
-	display: flex;
-	align-items: flex-start;
-	gap: 8px;
+#tc-agent-widget-root .tc-trip-btn {
+	background: var(--tc-g-brand) !important;
+	color: #ffffff !important;
+	font-size: 11px !important;
+	font-weight: 700 !important;
+	padding: 6px 12px !important;
+	border-radius: 8px !important;
+	text-decoration: none !important;
+	transition: transform 0.2s var(--tc-spring) !important;
+	box-shadow: 0 4px 10px rgba(234, 88, 12, 0.28) !important;
 }
 
-#tc-agent-widget-root .tc-teaser-icon {
-	font-size: 18px;
-	line-height: 1.2;
+#tc-agent-widget-root .tc-trip-btn:hover {
+	transform: scale(1.05) !important;
+	color: #ffffff !important;
 }
 
-#tc-agent-widget-root .tc-teaser-text {
-	font-size: 12px;
-	line-height: 1.4;
-	color: #1e293b;
-	font-weight: 500;
+/* ==========================================================================
+   8. In-Chat Lead Call Action Card
+   ========================================================================== */
+#tc-agent-widget-root .tc-call-action-card {
+	background: linear-gradient(135deg, rgba(254, 243, 199, 0.95) 0%, rgba(255, 237, 213, 0.95) 100%) !important;
+	border: 1.5px solid rgba(245, 158, 11, 0.5) !important;
+	border-radius: 16px !important;
+	padding: 14px 16px !important;
+	margin-top: 6px !important;
+	box-shadow: 0 8px 24px rgba(234, 88, 12, 0.15) !important;
+	animation: tcMsgIn 0.35s var(--tc-spring) !important;
 }
 
-/* Tabs Navigation */
-#tc-agent-widget-root .tc-widget-tabs {
-	display: flex;
-	background: #f1f5f9;
-	padding: 6px;
-	gap: 6px;
-	border-bottom: 1px solid #e2e8f0;
+#tc-agent-widget-root .tc-call-card-header {
+	display: flex !important;
+	align-items: center !important;
+	gap: 8px !important;
+	font-weight: 700 !important;
+	font-size: 13px !important;
+	color: #9a3412 !important;
+	margin-bottom: 4px !important;
 }
 
-#tc-agent-widget-root .tc-tab-btn {
-	flex: 1;
-	background: transparent;
-	border: none;
-	padding: 7px 12px;
-	font-size: 12px;
-	font-weight: 600;
-	color: #64748b;
-	border-radius: 8px;
-	cursor: pointer;
-	transition: all 0.2s ease;
+#tc-agent-widget-root .tc-call-card-desc {
+	font-size: 11.5px !important;
+	color: #7c2d12 !important;
+	line-height: 1.4 !important;
+	margin-bottom: 10px !important;
 }
 
-#tc-agent-widget-root .tc-tab-btn.active {
-	background: #ffffff;
-	color: #0f172a;
-	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+#tc-agent-widget-root .tc-btn-instant-call {
+	width: 100% !important;
+	background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+	color: #ffffff !important;
+	font-weight: 700 !important;
+	font-size: 12.5px !important;
+	padding: 9px 14px !important;
+	border-radius: 10px !important;
+	border: none !important;
+	cursor: pointer !important;
+	display: flex !important;
+	align-items: center !important;
+	justify-content: center !important;
+	gap: 6px !important;
+	box-shadow: 0 6px 18px rgba(16, 185, 129, 0.32) !important;
+	transition: all 0.25s var(--tc-spring) !important;
 }
 
-#tc-agent-widget-root .tc-tab-btn:hover:not(.active) {
-	color: #334155;
-	background: rgba(255, 255, 255, 0.5);
+#tc-agent-widget-root .tc-btn-instant-call:hover {
+	transform: translateY(-2px) !important;
+	box-shadow: 0 10px 24px rgba(16, 185, 129, 0.42) !important;
 }
 
-/* Fast Lead Capture Quote Panel */
+/* ==========================================================================
+   9. Fast Itinerary & Cab Quote Panel
+   ========================================================================== */
 #tc-agent-widget-root .tc-quote-panel {
-	flex: 1;
-	overflow-y: auto;
-	padding: 16px;
-	background: #f8fafc;
+	padding: 20px 18px !important;
+	background: #ffffff !important;
 }
 
 #tc-agent-widget-root .tc-quote-heading h4 {
-	margin: 0 0 4px 0;
-	font-size: 14px;
-	font-weight: 700;
-	color: #0f172a;
+	margin: 0 0 5px 0 !important;
+	font-family: 'Outfit', sans-serif !important;
+	font-size: 16.5px !important;
+	font-weight: 800 !important;
+	color: #0f172a !important;
 }
 
 #tc-agent-widget-root .tc-quote-heading p {
-	margin: 0 0 14px 0;
-	font-size: 12px;
-	color: #64748b;
-	line-height: 1.4;
-}
-
-#tc-agent-widget-root .tc-quote-form {
-	display: flex;
-	flex-direction: column;
-	gap: 10px;
+	margin: 0 0 16px 0 !important;
+	font-size: 12.5px !important;
+	color: #64748b !important;
+	line-height: 1.45 !important;
 }
 
 #tc-agent-widget-root .tc-form-field {
-	display: flex;
-	flex-direction: column;
-	gap: 4px;
+	margin-bottom: 12px !important;
+}
+
+#tc-agent-widget-root .tc-form-row {
+	display: flex !important;
+	gap: 10px !important;
+}
+
+#tc-agent-widget-root .tc-form-row .tc-form-field {
+	flex: 1 !important;
 }
 
 #tc-agent-widget-root .tc-form-field label {
-	font-size: 11.5px;
-	font-weight: 600;
-	color: #475569;
+	display: block !important;
+	font-size: 11.5px !important;
+	font-weight: 700 !important;
+	color: #334155 !important;
+	margin-bottom: 4px !important;
+	letter-spacing: 0.01em !important;
 }
 
 #tc-agent-widget-root .tc-form-field input,
 #tc-agent-widget-root .tc-form-field select {
-	padding: 8px 10px;
-	font-size: 12.5px;
-	border: 1px solid #cbd5e1;
-	border-radius: 8px;
-	background: #ffffff;
-	color: #0f172a;
-	outline: none;
-	transition: border-color 0.2s;
+	width: 100% !important;
+	padding: 10px 12px !important;
+	font-size: 13px !important;
+	border: 1.5px solid #e2e8f0 !important;
+	border-radius: 12px !important;
+	background: #f8fafc !important;
+	color: #0f172a !important;
+	transition: all 0.2s ease !important;
+	outline: none !important;
 }
 
 #tc-agent-widget-root .tc-form-field input:focus,
 #tc-agent-widget-root .tc-form-field select:focus {
-	border-color: #0284c7;
-	box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.15);
-}
-
-#tc-agent-widget-root .tc-form-row {
-	display: flex;
-	gap: 8px;
-}
-
-#tc-agent-widget-root .tc-form-row .tc-form-field {
-	flex: 1;
+	border-color: #ea580c !important;
+	background: #ffffff !important;
+	box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.2) !important;
 }
 
 #tc-agent-widget-root .tc-quote-submit-btn {
-	background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
-	color: #ffffff;
-	border: none;
-	border-radius: 8px;
-	padding: 10px 14px;
-	font-size: 12.5px;
-	font-weight: 700;
-	cursor: pointer;
-	margin-top: 6px;
-	transition: opacity 0.2s, transform 0.1s;
-	box-shadow: 0 2px 8px rgba(2, 132, 199, 0.3);
+	width: 100% !important;
+	background: var(--tc-g-brand) !important;
+	color: #ffffff !important;
+	font-family: 'Outfit', sans-serif !important;
+	font-size: 14px !important;
+	font-weight: 700 !important;
+	padding: 12px 16px !important;
+	border-radius: 12px !important;
+	border: none !important;
+	cursor: pointer !important;
+	box-shadow: 0 8px 22px rgba(234, 88, 12, 0.35) !important;
+	transition: all 0.3s var(--tc-spring) !important;
+	margin-top: 6px !important;
+	display: flex !important;
+	align-items: center !important;
+	justify-content: center !important;
+	gap: 6px !important;
 }
 
 #tc-agent-widget-root .tc-quote-submit-btn:hover {
-	opacity: 0.95;
-	transform: translateY(-1px);
+	transform: translateY(-2px) !important;
+	box-shadow: 0 12px 28px rgba(234, 88, 12, 0.45) !important;
 }
 
-#tc-agent-widget-root .tc-quote-success {
-	text-align: center;
-	padding: 24px 16px;
+/* ==========================================================================
+   10. Hands-Free Interactive WebCall Panel
+   ========================================================================== */
+#tc-agent-widget-root .tc-voice-panel {
+	padding: 22px 18px !important;
+	background: linear-gradient(180deg, #ffffff 0%, #fff7ed 100%) !important;
+	align-items: center !important;
+	justify-content: center !important;
+	text-align: center !important;
 }
 
-#tc-agent-widget-root .tc-success-icon {
-	width: 44px;
-	height: 44px;
-	border-radius: 50%;
-	background: #10b981;
-	color: #ffffff;
-	font-size: 22px;
-	font-weight: 700;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	margin: 0 auto 12px auto;
+#tc-agent-widget-root .tc-voice-container {
+	width: 100% !important;
+	display: flex !important;
+	flex-direction: column !important;
+	align-items: center !important;
 }
 
-#tc-agent-widget-root .tc-quote-success h5 {
-	margin: 0 0 6px 0;
-	font-size: 15px;
-	font-weight: 700;
-	color: #0f172a;
+#tc-agent-widget-root .tc-voice-avatar-wrap {
+	position: relative !important;
+	margin-bottom: 14px !important;
 }
 
-#tc-agent-widget-root .tc-quote-success p {
-	margin: 0;
-	font-size: 12px;
-	color: #64748b;
-	line-height: 1.5;
+#tc-agent-widget-root .tc-voice-ring {
+	width: 82px !important;
+	height: 82px !important;
+	border-radius: 50% !important;
+	background: var(--tc-g-brand) !important;
+	display: flex !important;
+	align-items: center !important;
+	justify-content: center !important;
+	font-size: 36px !important;
+	box-shadow: 0 12px 30px rgba(234, 88, 12, 0.36) !important;
+	position: relative !important;
+	overflow: hidden !important;
+	transition: all 0.35s var(--tc-spring) !important;
 }
 
-/* Voice Mic Button */
+#tc-agent-widget-root .tc-voice-ring.active {
+	animation: tcVoicePulse 1.6s infinite ease-out !important;
+}
+
+@keyframes tcVoicePulse {
+	0% {
+		box-shadow: 0 0 0 0 rgba(234, 88, 12, 0.6), 0 0 0 10px rgba(124, 58, 237, 0.3);
+	}
+	70% {
+		box-shadow: 0 0 0 22px rgba(234, 88, 12, 0), 0 0 0 34px rgba(124, 58, 237, 0);
+	}
+	100% {
+		box-shadow: 0 0 0 0 rgba(234, 88, 12, 0), 0 0 0 0 rgba(124, 58, 237, 0);
+	}
+}
+
+#tc-agent-widget-root #tc-voice-agent-title {
+	margin: 0 0 4px 0 !important;
+	font-family: 'Outfit', sans-serif !important;
+	font-size: 16.5px !important;
+	font-weight: 800 !important;
+	color: #0f172a !important;
+}
+
+#tc-agent-widget-root #tc-voice-status {
+	font-size: 12px !important;
+	color: #ea580c !important;
+	font-weight: 600 !important;
+	margin: 0 0 12px 0 !important;
+}
+
+#tc-agent-widget-root #tc-voice-visualizer {
+	width: 280px !important;
+	height: 55px !important;
+	border-radius: 12px !important;
+	background: rgba(15, 23, 42, 0.04) !important;
+	margin-bottom: 12px !important;
+}
+
+#tc-agent-widget-root .tc-voice-transcript {
+	font-size: 12.5px !important;
+	color: #475569 !important;
+	font-style: italic !important;
+	line-height: 1.45 !important;
+	padding: 9px 12px !important;
+	background: rgba(255, 255, 255, 0.88) !important;
+	border-radius: 12px !important;
+	border: 1px dashed rgba(234, 88, 12, 0.35) !important;
+	max-height: 65px !important;
+	overflow-y: auto !important;
+	width: 100% !important;
+	margin-bottom: 16px !important;
+}
+
+#tc-agent-widget-root .tc-voice-call-btn {
+	background: var(--tc-g-brand) !important;
+	color: #ffffff !important;
+	font-family: 'Outfit', sans-serif !important;
+	font-size: 14.5px !important;
+	font-weight: 700 !important;
+	padding: 11px 26px !important;
+	border-radius: 28px !important;
+	border: none !important;
+	cursor: pointer !important;
+	box-shadow: 0 8px 22px rgba(234, 88, 12, 0.35) !important;
+	display: inline-flex !important;
+	align-items: center !important;
+	gap: 8px !important;
+	transition: all 0.3s var(--tc-spring) !important;
+}
+
+#tc-agent-widget-root .tc-voice-call-btn:hover {
+	transform: scale(1.05) !important;
+	box-shadow: 0 12px 28px rgba(234, 88, 12, 0.45) !important;
+}
+
+#tc-agent-widget-root .tc-voice-phone-box {
+	margin-top: 18px !important;
+	width: 100% !important;
+	padding: 12px !important;
+	background: rgba(255, 255, 255, 0.92) !important;
+	border: 1px solid rgba(226, 232, 240, 0.9) !important;
+	border-radius: 14px !important;
+}
+
+#tc-agent-widget-root .tc-voice-phone-title {
+	font-size: 11.5px !important;
+	font-weight: 700 !important;
+	color: #475569 !important;
+	margin-bottom: 7px !important;
+}
+
+#tc-agent-widget-root .tc-voice-phone-input-row {
+	display: flex !important;
+	gap: 8px !important;
+}
+
+#tc-agent-widget-root .tc-voice-phone-input-row input {
+	flex: 1 !important;
+	padding: 8px 10px !important;
+	font-size: 12.5px !important;
+	border: 1px solid #cbd5e1 !important;
+	border-radius: 10px !important;
+	outline: none !important;
+}
+
+#tc-agent-widget-root .tc-btn-trigger-call {
+	background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%) !important;
+	color: #fff !important;
+	border: none !important;
+	font-size: 11.5px !important;
+	font-weight: 700 !important;
+	padding: 8px 12px !important;
+	border-radius: 10px !important;
+	cursor: pointer !important;
+	transition: all 0.2s !important;
+}
+
+/* ==========================================================================
+   11. Saved Itineraries & Past Chat History Panel (Tab 4)
+   ========================================================================== */
+#tc-agent-widget-root .tc-history-panel {
+	padding: 18px 16px !important;
+	background: #ffffff !important;
+}
+
+#tc-agent-widget-root .tc-history-header {
+	display: flex !important;
+	align-items: center !important;
+	justify-content: space-between !important;
+	margin-bottom: 14px !important;
+	padding-bottom: 10px !important;
+	border-bottom: 1px solid #f1f5f9 !important;
+}
+
+#tc-agent-widget-root .tc-history-header h4 {
+	margin: 0 !important;
+	font-family: 'Outfit', sans-serif !important;
+	font-size: 15px !important;
+	font-weight: 800 !important;
+	color: #0f172a !important;
+}
+
+#tc-agent-widget-root .tc-clear-history-btn {
+	background: transparent !important;
+	border: 1px solid #e2e8f0 !important;
+	border-radius: 8px !important;
+	font-size: 11px !important;
+	font-weight: 600 !important;
+	color: #ef4444 !important;
+	padding: 4px 10px !important;
+	cursor: pointer !important;
+	transition: all 0.2s !important;
+}
+
+#tc-agent-widget-root .tc-clear-history-btn:hover {
+	background: #fee2e2 !important;
+}
+
+#tc-agent-widget-root .tc-history-empty {
+	text-align: center !important;
+	padding: 40px 16px !important;
+	color: #94a3b8 !important;
+}
+
+#tc-agent-widget-root .tc-history-empty p {
+	margin: 10px 0 0 !important;
+	font-size: 12.5px !important;
+	line-height: 1.5 !important;
+}
+
+#tc-agent-widget-root .tc-history-item {
+	background: #f8fafc !important;
+	border: 1px solid #e2e8f0 !important;
+	border-radius: 12px !important;
+	padding: 12px 14px !important;
+	margin-bottom: 10px !important;
+	cursor: pointer !important;
+	transition: all 0.2s !important;
+}
+
+#tc-agent-widget-root .tc-history-item:hover {
+	border-color: #ea580c !important;
+	background: #fff7ed !important;
+	transform: translateY(-2px) !important;
+	box-shadow: 0 4px 12px rgba(234, 88, 12, 0.1) !important;
+}
+
+#tc-agent-widget-root .tc-history-date {
+	font-size: 10.5px !important;
+	color: #94a3b8 !important;
+	font-weight: 600 !important;
+	margin-bottom: 4px !important;
+}
+
+#tc-agent-widget-root .tc-history-snippet {
+	font-size: 12.5px !important;
+	color: #1e293b !important;
+	line-height: 1.4 !important;
+	white-space: nowrap !important;
+	overflow: hidden !important;
+	text-overflow: ellipsis !important;
+}
+
+/* ==========================================================================
+   12. Footer: Chat Input Bar + Bottom Nav Bar + Micro-Footer
+   ========================================================================== */
+#tc-agent-widget-root .tc-widget-footer {
+	padding: 10px 14px 6px !important;
+	background: rgba(255, 255, 255, 0.98) !important;
+	backdrop-filter: blur(16px) !important;
+	border-top: 1px solid rgba(226, 232, 240, 0.85) !important;
+	flex-shrink: 0 !important;
+	display: flex !important;
+	flex-direction: column !important;
+}
+
+#tc-agent-widget-root .tc-widget-input-area {
+	margin-bottom: 8px !important;
+	transition: all 0.25s ease !important;
+}
+
+#tc-agent-widget-root #tc-widget-form {
+	display: flex !important;
+	align-items: center !important;
+	background: #f1f5f9 !important;
+	border: 1.5px solid rgba(226, 232, 240, 0.9) !important;
+	border-radius: 20px !important;
+	padding: 3px 5px 3px 14px !important;
+	transition: all 0.25s ease !important;
+	margin: 0 !important;
+}
+
+#tc-agent-widget-root #tc-widget-form:focus-within {
+	background: #ffffff !important;
+	border-color: #ea580c !important;
+	box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.18) !important;
+}
+
+#tc-agent-widget-root #tc-widget-input {
+	flex: 1 !important;
+	background: transparent !important;
+	border: none !important;
+	font-size: 13px !important;
+	color: #0f172a !important;
+	outline: none !important;
+	padding: 7px 0 !important;
+	line-height: 1.4 !important;
+	margin: 0 !important;
+}
+
+#tc-agent-widget-root #tc-widget-input::placeholder {
+	color: #94a3b8 !important;
+}
+
 #tc-agent-widget-root .tc-btn-mic {
-	background: transparent;
-	border: none;
-	color: #64748b;
-	width: 32px;
-	height: 32px;
-	border-radius: 50%;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	cursor: pointer;
-	transition: all 0.2s ease;
+	background: transparent !important;
+	border: none !important;
+	color: #64748b !important;
+	cursor: pointer !important;
+	width: 30px !important;
+	height: 30px !important;
+	border-radius: 50% !important;
+	display: flex !important;
+	align-items: center !important;
+	justify-content: center !important;
+	transition: all 0.2s !important;
+	margin-right: 3px !important;
+	padding: 0 !important;
 }
 
 #tc-agent-widget-root .tc-btn-mic:hover {
-	color: #0284c7;
-	background: #e0f2fe;
+	color: #ea580c !important;
+	background: rgba(234, 88, 12, 0.1) !important;
 }
 
 #tc-agent-widget-root .tc-btn-mic.listening {
-	color: #ef4444;
-	background: #fee2e2;
-	animation: tcMicPulse 1s infinite alternate;
+	color: #ef4444 !important;
+	animation: tcVoicePulse 1.2s infinite !important;
 }
 
-@keyframes tcMicPulse {
-	from { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
-	to { transform: scale(1.1); box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
+#tc-agent-widget-root #tc-widget-send {
+	width: 34px !important;
+	height: 34px !important;
+	border-radius: 12px !important;
+	background: var(--tc-g-brand) !important;
+	color: #ffffff !important;
+	border: none !important;
+	cursor: pointer !important;
+	display: flex !important;
+	align-items: center !important;
+	justify-content: center !important;
+	box-shadow: 0 4px 12px rgba(234, 88, 12, 0.35) !important;
+	transition: all 0.22s var(--tc-spring) !important;
+	padding: 0 !important;
 }
 
-/* Rich Bubble Formatting (Markdown & Links) */
-#tc-agent-widget-root .tc-bubble-text a {
-	color: #0284c7;
-	font-weight: 600;
-	text-decoration: underline;
-	word-break: break-all;
+#tc-agent-widget-root #tc-widget-send:hover {
+	transform: scale(1.08) rotate(3deg) !important;
+	box-shadow: 0 6px 16px rgba(234, 88, 12, 0.45) !important;
 }
 
-#tc-agent-widget-root .tc-bubble-text strong {
-	font-weight: 700;
-	color: inherit;
+/* Bottom Navigation Bar (Footer Nav) */
+#tc-agent-widget-root .tc-widget-tabs {
+	display: flex !important;
+	border-top: 1px solid rgba(226, 232, 240, 0.9) !important;
+	background: #ffffff !important;
+	flex-shrink: 0 !important;
+	padding: 6px 2px 5px !important;
+	gap: 3px !important;
+	margin: 2px 0 4px !important;
+	border-radius: 12px !important;
 }
 
-#tc-agent-widget-root .tc-bubble-text ul {
-	margin: 6px 0;
-	padding-left: 18px;
+#tc-agent-widget-root .tc-tab-btn {
+	flex: 1 !important;
+	display: flex !important;
+	flex-direction: column !important;
+	align-items: center !important;
+	justify-content: center !important;
+	gap: 3px !important;
+	padding: 6px 2px 4px !important;
+	border: none !important;
+	background: transparent !important;
+	cursor: pointer !important;
+	color: #64748b !important;
+	font-size: 10px !important;
+	font-weight: 700 !important;
+	letter-spacing: 0.02em !important;
+	transition: all 0.2s var(--tc-smooth) !important;
+	position: relative !important;
+	border-radius: 10px !important;
+	line-height: 1 !important;
 }
 
-#tc-agent-widget-root .tc-bubble-text li {
-	margin-bottom: 3px;
+#tc-agent-widget-root .tc-tab-icon {
+	font-size: 16px !important;
+	line-height: 1 !important;
+	transition: transform 0.22s var(--tc-spring) !important;
 }
 
-/* Mobile Responsiveness */
+#tc-agent-widget-root .tc-tab-label {
+	font-size: 10px !important;
+	font-weight: 700 !important;
+	color: inherit !important;
+	letter-spacing: 0.01em !important;
+	line-height: 1.1 !important;
+}
+
+#tc-agent-widget-root .tc-tab-btn:hover {
+	color: #0f172a !important;
+	background: rgba(241, 245, 249, 0.8) !important;
+}
+
+#tc-agent-widget-root .tc-tab-btn.active {
+	color: #ea580c !important;
+	background: rgba(254, 243, 199, 0.45) !important;
+}
+
+#tc-agent-widget-root .tc-tab-btn.active .tc-tab-icon {
+	transform: scale(1.18) translateY(-1px) !important;
+}
+
+#tc-agent-widget-root .tc-tab-bar {
+	position: absolute !important;
+	top: 0 !important;
+	left: 50% !important;
+	transform: translateX(-50%) !important;
+	width: 0 !important;
+	height: 2.5px !important;
+	background: var(--tc-g-brand) !important;
+	border-radius: 2px !important;
+	transition: width 0.25s var(--tc-spring) !important;
+}
+
+#tc-agent-widget-root .tc-tab-btn.active .tc-tab-bar {
+	width: 26px !important;
+}
+
+/* Micro-Footer Subtext (Isolated from theme rules) */
+#tc-agent-widget-root .tc-footer-subtext {
+	display: flex !important;
+	align-items: center !important;
+	justify-content: space-between !important;
+	padding: 4px 6px 2px !important;
+	font-size: 10.5px !important;
+	line-height: 1.4 !important;
+	color: #94a3b8 !important;
+	margin: 0 !important;
+	font-weight: 500 !important;
+	border-top: 1px solid rgba(241, 245, 249, 0.9) !important;
+}
+
+#tc-agent-widget-root .tc-footer-subtext span {
+	font-size: 10.5px !important;
+	color: #94a3b8 !important;
+	font-weight: 500 !important;
+}
+
+#tc-agent-widget-root .tc-footer-subtext a {
+	color: #ea580c !important;
+	text-decoration: none !important;
+	font-weight: 700 !important;
+	font-size: 10.5px !important;
+	transition: color 0.2s ease !important;
+}
+
+#tc-agent-widget-root .tc-footer-subtext a:hover {
+	color: #c2410c !important;
+	text-decoration: underline !important;
+}
+
+/* ==========================================================================
+   13. Mobile Responsive Full-Screen Dialog
+   ========================================================================== */
 @media (max-width: 480px) {
 	#tc-agent-widget-root {
-		bottom: 16px;
-		right: 16px;
+		bottom: 16px !important;
+		right: 16px !important;
 	}
 
 	#tc-agent-widget-root .tc-widget-window {
-		position: fixed;
-		top: 0;
-		left: 0;
-		right: 0;
-		bottom: 0;
-		width: 100vw;
-		height: 100vh;
-		max-height: 100vh;
-		border-radius: 0;
-		z-index: 1000000;
+		position: fixed !important;
+		inset: 0 !important;
+		width: 100vw !important;
+		height: 100dvh !important;
+		max-height: 100dvh !important;
+		border-radius: 0 !important;
+		bottom: 0 !important;
+		right: 0 !important;
+		border: none !important;
+	}
+
+	#tc-agent-widget-root .tc-widget-teaser {
+		right: 8px !important;
+		bottom: 76px !important;
+		max-width: calc(100vw - 28px) !important;
 	}
 }

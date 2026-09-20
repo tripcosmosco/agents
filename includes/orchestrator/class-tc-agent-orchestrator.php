@@ -89,6 +89,8 @@ class TC_Agent_Orchestrator {
 
 		if ( ! empty( $conversation['contact_id'] ) ) {
 			TC_Agent_Memory::extract_heuristic_insights( (int) $conversation['contact_id'], $user_message );
+			// Non-blocking async queue for deep LLM memory synthesis
+			TC_Agents_Queue::push( 'refresh_memory', array( 'contact_id' => (int) $conversation['contact_id'] ) );
 		}
 
 		// 6. Load Agent Persona & Append Persistent Traveler Memory & Knowledge Base
@@ -121,6 +123,7 @@ class TC_Agent_Orchestrator {
 			}
 		}
 
+		// Append traveler cross-session memory
 		if ( ! empty( $conversation['contact_id'] ) ) {
 			$memory_context = TC_Agent_Memory::format_for_prompt( (int) $conversation['contact_id'] );
 			if ( ! empty( $memory_context ) ) {
@@ -128,35 +131,51 @@ class TC_Agent_Orchestrator {
 			}
 		}
 
-
-		// 7. Build Context & Message History
+		// 7. Assemble Context Messages for LLM
 		$allowed_tools    = ! empty( $persona['allowed_tools'] ) ? json_decode( $persona['allowed_tools'], true ) : array();
-		$tool_definitions = TC_Agent_Tools::get_allowed_definitions( is_array( $allowed_tools ) ? $allowed_tools : array() );
+		$tool_definitions = self::filter_tools( TC_Agent_Tools::get_definitions(), $allowed_tools );
 
-		$messages = self::build_message_chain( $conversation['id'], $system_prompt );
-
-		// 6. Invoke AI Router
-		$router  = TC_AI_Router::get_instance();
-		$options = array(
-			'temperature'      => (float) $persona['temperature'],
-			'routing_override' => $persona['routing_override'],
+		$messages = array(
+			array(
+				'role'    => 'system',
+				'content' => $system_prompt,
+			),
 		);
 
-		$ai_response = $router->chat( $messages, $tool_definitions, $options );
+		// Fetch past turns (last 10 messages)
+		$history = self::get_recent_messages( $conversation['id'], 10 );
+		foreach ( $history as $h ) {
+			$messages[] = array(
+				'role'    => $h['role'],
+				'content' => $h['content'],
+			);
+		}
 
+		// Options
+		$options = array(
+			'temperature'      => (float) $persona['temperature'],
+			'routing_override' => $persona['routing_override'] ?? '',
+		);
+
+		$router         = new TC_AI_Router();
+		$max_turns      = 3; // Max tool iteration loops
+		$current_turn   = 0;
+		$reply_content  = '';
+		$provider_used  = '';
+		$handoff_data   = null;
+		$executed_tools = array();
+
+		$ai_response = $router->chat( $messages, $tool_definitions, $options );
 		if ( is_wp_error( $ai_response ) ) {
 			return $ai_response;
 		}
 
-		$provider_used = $ai_response['provider_used'] ?? 'unknown';
-		$tool_calls    = $ai_response['tool_calls'] ?? array();
 		$reply_content = $ai_response['content'] ?? '';
-		$handoff_data  = null;
+		$provider_used = $ai_response['provider'] ?? '';
+		$tool_calls    = $ai_response['tool_calls'] ?? array();
 
-		// 7. Handle Tool Calling Loop (up to 2 tool execution steps to prevent infinite loop)
-		$loop_count = 0;
-		while ( ! empty( $tool_calls ) && $loop_count < 3 ) {
-			$loop_count++;
+		while ( ! empty( $tool_calls ) && $current_turn < $max_turns ) {
+			$current_turn++;
 
 			// Save assistant message that triggered tool call
 			self::save_message(
@@ -207,6 +226,12 @@ class TC_Agent_Orchestrator {
 						self::update_conversation_status( $conversation['id'], 'handed_off' );
 					}
 				}
+
+				$executed_tools[] = array(
+					'tool'   => $fn_name,
+					'args'   => $fn_args,
+					'output' => $tool_output,
+				);
 
 				$tool_output_str = wp_json_encode( $tool_output );
 
@@ -261,12 +286,13 @@ class TC_Agent_Orchestrator {
 		self::touch_conversation( $conversation['id'] );
 
 		return array(
-			'session_id'    => $session_id,
-			'reply'         => $reply_content,
-			'handoff'       => $handoff_data,
-			'provider_used' => $provider_used,
-			'latency_ms'    => $ai_response['latency_ms'] ?? 0,
-			'status'        => 'success',
+			'session_id'     => $session_id,
+			'reply'          => $reply_content,
+			'handoff'        => $handoff_data,
+			'executed_tools' => $executed_tools,
+			'provider_used'  => $provider_used,
+			'latency_ms'     => $ai_response['latency_ms'] ?? 0,
+			'status'         => 'success',
 		);
 	}
 

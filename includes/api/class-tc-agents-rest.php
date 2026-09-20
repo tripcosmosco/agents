@@ -50,6 +50,17 @@ class TC_Agents_REST {
 			)
 		);
 
+		// 2c. Direct AI Call Trigger (In-Chat Instant Phone Call Request)
+		register_rest_route(
+			self::NAMESPACE,
+			'/trigger-call',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( __CLASS__, 'handle_trigger_call' ),
+				'permission_callback' => '__return_true',
+			)
+		);
+
 		// 3. Health Check Endpoint
 		register_rest_route(
 			self::NAMESPACE,
@@ -118,6 +129,65 @@ class TC_Agents_REST {
 			array(
 				'methods'             => 'GET',
 				'callback'            => array( __CLASS__, 'handle_get_lead_memory' ),
+				'permission_callback' => function() {
+					return current_user_can( 'manage_options' );
+				},
+			)
+		);
+
+		// 9. Twenty CRM Inbound Webhook
+		register_rest_route(
+			self::NAMESPACE,
+			'/twentycrm-webhook',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( 'TC_Integration_TwentyCRM', 'handle_incoming_webhook' ),
+				'permission_callback' => '__return_true',
+			)
+		);
+
+		// 10. Live model catalogue sync (admin).
+		register_rest_route(
+			self::NAMESPACE,
+			'/models/sync',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( __CLASS__, 'handle_sync_models' ),
+				'permission_callback' => function() {
+					return current_user_can( 'manage_options' );
+				},
+			)
+		);
+
+		// 11. B2B agency import + outreach (admin).
+		register_rest_route(
+			self::NAMESPACE,
+			'/b2b/import',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( __CLASS__, 'handle_b2b_import' ),
+				'permission_callback' => function() {
+					return current_user_can( 'manage_options' );
+				},
+			)
+		);
+		register_rest_route(
+			self::NAMESPACE,
+			'/b2b/outreach',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( __CLASS__, 'handle_b2b_outreach' ),
+				'permission_callback' => function() {
+					return current_user_can( 'manage_options' );
+				},
+			)
+		);
+		register_rest_route(
+			self::NAMESPACE,
+			'/b2b/sync-crm',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( __CLASS__, 'handle_b2b_sync_crm' ),
 				'permission_callback' => function() {
 					return current_user_can( 'manage_options' );
 				},
@@ -412,12 +482,154 @@ class TC_Agents_REST {
 	}
 
 	/**
+	 * Handle Instant Outbound AI Call Trigger from Chat Widget.
+	 */
+	public static function handle_trigger_call( WP_REST_Request $request ) {
+		$params     = array_merge( (array) $request->get_params(), (array) $request->get_json_params() );
+		$phone      = sanitize_text_field( $params['phone'] ?? '' );
+		$name       = sanitize_text_field( $params['name'] ?? '' );
+		$reason     = sanitize_text_field( $params['reason'] ?? 'Himalayan expedition inquiry from website' );
+		$session_id = sanitize_text_field( $params['session_id'] ?? '' );
+
+		if ( empty( $phone ) ) {
+			return new WP_REST_Response( array( 'success' => false, 'error' => 'A valid phone number is required.' ), 400 );
+		}
+
+		$result = TC_Agent_Tools::execute(
+			'request_voice_call',
+			array(
+				'phone'         => $phone,
+				'traveler_name' => $name,
+				'reason'        => $reason,
+			),
+			array(
+				'channel'    => 'web_chat_widget',
+				'session_id' => $session_id,
+			)
+		);
+
+		if ( empty( $result['success'] ) ) {
+			return new WP_REST_Response( $result, 400 );
+		}
+
+		return new WP_REST_Response( $result, 200 );
+	}
+
+	/**
 	 * Handle Health Check request.
 	 */
 	public static function handle_health( WP_REST_Request $request ) {
 		$router  = TC_AI_Router::get_instance();
 		$healths = $router->check_all_health();
 		return new WP_REST_Response( array( 'providers' => $healths ), 200 );
+	}
+
+	public static function handle_sync_models( WP_REST_Request $request ) {
+		$params = array_merge( (array) $request->get_params(), (array) $request->get_json_params() );
+		$force = ! empty( $params['force'] );
+		$router = TC_AI_Router::get_instance();
+		$models = $router->sync_all_models( $force );
+		return new WP_REST_Response( array( 'success' => true, 'models' => $models, 'synced_at' => current_time( 'mysql' ) ), 200 );
+	}
+
+	public static function handle_b2b_import( WP_REST_Request $request ) {
+		$params   = array_merge( (array) $request->get_params(), (array) $request->get_json_params() );
+		$city     = sanitize_text_field( $params['city'] ?? '' );
+		$raw_list = $params['raw_list'] ?? '';
+
+		if ( ! empty( $raw_list ) ) {
+			$lines    = explode( "\n", str_replace( "\r", '', $raw_list ) );
+			$agencies = array();
+			foreach ( $lines as $line ) {
+				$line = trim( $line );
+				if ( empty( $line ) ) {
+					continue;
+				}
+				$parts = array_map( 'trim', preg_split( '/[,\t|]/', $line ) );
+				if ( count( $parts ) >= 1 && ! empty( $parts[0] ) ) {
+					$agencies[] = array(
+						'name'    => $parts[0],
+						'city'    => $parts[1] ?? ( $city ?: 'India' ),
+						'phone'   => $parts[2] ?? '',
+						'email'   => $parts[3] ?? '',
+						'source'  => 'manual',
+					);
+				}
+			}
+			if ( ! empty( $agencies ) ) {
+				$res = TC_Integration_Google_Business::upsert_agencies( $agencies, $city, 'manual' );
+				return new WP_REST_Response( array( 'success' => true, 'data' => $res ), 200 );
+			}
+		}
+
+		if ( '' !== $city ) {
+			$res = TC_Agent_Tools::execute( 'import_b2b_agencies', array( 'city' => $city, 'max_results' => 20 ) );
+			return new WP_REST_Response( array( 'success' => empty( $res['error'] ), 'data' => $res ), empty( $res['error'] ) ? 200 : 400 );
+		}
+		if ( class_exists( 'TC_Agents_Queue' ) ) { TC_Agents_Queue::push( 'import_b2b', array(), 0 ); }
+		return new WP_REST_Response( array( 'success' => true, 'queued' => true ), 200 );
+	}
+
+	public static function handle_b2b_outreach( WP_REST_Request $request ) {
+		$params = array_merge( (array) $request->get_params(), (array) $request->get_json_params() );
+		$id = absint( $params['agency_id'] ?? 0 );
+		if ( $id > 0 ) {
+			$res = TC_Agent_Tools::execute( 'outreach_b2b_agency', array( 'agency_id' => $id, 'channel' => sanitize_key( $params['channel'] ?? 'both' ) ) );
+			return new WP_REST_Response( array( 'success' => empty( $res['error'] ), 'data' => $res ), empty( $res['error'] ) ? 200 : 400 );
+		}
+		if ( class_exists( 'TC_Agents_Queue' ) ) { TC_Agents_Queue::push( 'outreach_b2b_batch', array( 'limit' => 10 ), 0 ); }
+		return new WP_REST_Response( array( 'success' => true, 'queued' => true ), 200 );
+	}
+
+	public static function handle_b2b_sync_crm( WP_REST_Request $request ) {
+		$params = array_merge( (array) $request->get_params(), (array) $request->get_json_params() );
+		$id     = absint( $params['agency_id'] ?? 0 );
+		if ( ! $id ) {
+			return new WP_REST_Response( array( 'error' => 'agency_id required' ), 400 );
+		}
+
+		global $wpdb;
+		$table  = $wpdb->prefix . 'tc_agent_agencies';
+		$agency = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $table WHERE id = %d", $id ), ARRAY_A );
+		if ( ! $agency ) {
+			return new WP_REST_Response( array( 'error' => 'Agency not found' ), 404 );
+		}
+
+		// Push to FluentCRM
+		$fluent_id = false;
+		if ( class_exists( 'TC_Integration_FluentCRM' ) && TC_Integration_FluentCRM::is_active() ) {
+			$fluent_id = TC_Integration_FluentCRM::sync_lead( array(
+				'name'        => $agency['name'],
+				'email'       => $agency['email'] ?: ( 'agency-' . $agency['id'] . '@b2b.tripcosmos.co' ),
+				'phone'       => $agency['phone'],
+				'destination' => $agency['city'] ?: 'Varanasi',
+				'channel'     => 'b2b_partner',
+				'stage'       => 'b2b_partner',
+				'score'       => 85,
+			) );
+		}
+
+		// Push to Twenty CRM
+		$twenty_id = false;
+		if ( class_exists( 'TC_Integration_TwentyCRM' ) && TC_Integration_TwentyCRM::is_configured() ) {
+			$twenty_id = TC_Integration_TwentyCRM::push_lead( array(
+				'name'         => $agency['name'],
+				'email'        => $agency['email'],
+				'phone'        => $agency['phone'],
+				'destination'  => $agency['city'],
+				'requirements' => 'B2B Travel Agent Partnership: Ground Handling, Cabs & Hotel Allotments',
+				'deal_value'   => 50000.00,
+			) );
+		}
+
+		$wpdb->update( $table, array( 'status' => 'in_crm' ), array( 'id' => $id ) );
+
+		return new WP_REST_Response( array(
+			'success'   => true,
+			'fluent_id' => $fluent_id,
+			'twenty_id' => $twenty_id,
+			'message'   => __( 'Agency synced to CRM!', 'tripcosmos-agents' ),
+		), 200 );
 	}
 
 	/**

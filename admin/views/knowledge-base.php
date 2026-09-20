@@ -36,11 +36,11 @@ if ( $edit_id > 0 ) {
 }
 
 $categories = array(
-	'faq'       => __( 'Frequently Asked Questions (FAQ)', 'tripcosmos-agents' ),
-	'policy'    => __( 'Booking & Refund Policies', 'tripcosmos-agents' ),
-	'trek_info' => __( 'Trek Briefs & Gear Checklists', 'tripcosmos-agents' ),
-	'pricing'   => __( 'Group Pricing & Discount Rules', 'tripcosmos-agents' ),
-	'logistics' => __( 'Altitude Acclimatization & Safety', 'tripcosmos-agents' ),
+	'faq'           => __( 'Frequently Asked Questions (FAQ)', 'tripcosmos-agents' ),
+	'policy'        => __( 'Booking & Cancellation Policies', 'tripcosmos-agents' ),
+	'tour_circuits' => __( 'Tour Circuits & Itineraries (Varanasi, Ayodhya, Bodhgaya)', 'tripcosmos-agents' ),
+	'cabs_hotels'   => __( 'Outstation Cab Rates & Ghat Hotel Stays', 'tripcosmos-agents' ),
+	'darshan_aarti' => __( 'Kashi Vishwanath, Ram Mandir & Ganga Aarti Logistics', 'tripcosmos-agents' ),
 );
 ?>
 
@@ -48,9 +48,12 @@ $categories = array(
 	<div class="tc-header">
 		<div>
 			<h1><span class="dashicons dashicons-book"></span> <?php esc_html_e( 'Knowledge Base & FAQ Engine', 'tripcosmos-agents' ); ?></h1>
-			<p class="description"><?php esc_html_e( 'Feed policies, trek advisories, and cancellation rules directly into the AI agent orchestrator to prevent hallucinations.', 'tripcosmos-agents' ); ?></p>
+			<p class="description"><?php esc_html_e( 'Feed packages, temple darshan guidelines, cab rate charts, and hotel policies directly into the AI agent to guarantee accurate answers.', 'tripcosmos-agents' ); ?></p>
 		</div>
 		<div class="tc-header-actions">
+			<button type="button" id="tc-sync-catalog-btn" class="button button-secondary" style="margin-right: 8px;">
+				<span class="dashicons dashicons-database-import" style="vertical-align: middle;"></span> <?php esc_html_e( 'Sync Tours & Pages to RAG', 'tripcosmos-agents' ); ?>
+			</button>
 			<a href="#new-doc" class="button button-primary" onclick="document.getElementById('tc-kb-form-card').scrollIntoView({behavior: 'smooth'});">
 				<span class="dashicons dashicons-plus-alt2" style="vertical-align: middle;"></span> <?php esc_html_e( 'New Document', 'tripcosmos-agents' ); ?>
 			</a>

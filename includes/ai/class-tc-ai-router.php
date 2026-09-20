@@ -19,6 +19,13 @@ class TC_AI_Router {
 	private $providers = array();
 
 	/**
+	 * Canonical provider slugs (after consolidation).
+	 * aipuffer is its own AIPKit bot-bridge; omniroute/vmstudio are retired aliases of gateway.
+	 */
+	const CANONICAL_SLUGS = array( 'aipuffer', 'openrouter', 'gateway', 'gemini' );
+	const RETIRED_SLUGS = array( 'omniroute', 'vmstudio' );
+
+	/**
 	 * Singleton instance.
 	 *
 	 * @var TC_AI_Router|null
@@ -43,19 +50,43 @@ class TC_AI_Router {
 	 * Instantiate and register all available provider adapters.
 	 */
 	private function register_providers() {
-		$this->providers['aipuffer']   = new TC_Provider_AIPuffer();
+		$this->providers['aipuffer'] = new TC_Provider_AIPuffer();
 		$this->providers['openrouter'] = new TC_Provider_OpenRouter();
-		$this->providers['omniroute']  = new TC_Provider_Omniroute();
-		$this->providers['vmstudio']   = new TC_Provider_VMStudio();
+		$this->providers['gateway'] = new TC_Provider_Gateway();
+		$this->providers['gemini'] = new TC_Provider_Gemini();
+		// BC aliases: omniroute/vmstudio were the same OpenAI-compat family as gateway.
+		$this->providers['omniroute'] = $this->providers['gateway'];
+		$this->providers['vmstudio'] = $this->providers['gateway'];
 	}
 
 	/**
 	 * Get all registered providers.
 	 *
+	 * Includes retired BC aliases (omniroute/vmstudio → gateway)
+	 * so old routing_overrides keep working. Use get_display_providers()
+	 * for UI rendering to avoid duplicate cards.
+	 *
 	 * @return TC_AI_Provider_Interface[]
 	 */
 	public function get_providers() {
 		return $this->providers;
+	}
+
+	/**
+	 * Get canonical providers only, deduped for display.
+	 *
+	 * @return TC_AI_Provider_Interface[]
+	 */
+	public function get_display_providers() {
+		$seen = array();
+		$out = array();
+		foreach ( $this->providers as $provider ) {
+			$oid = spl_object_hash( $provider );
+			if ( isset( $seen[ $oid ] ) ) { continue; }
+			$seen[ $oid ] = true;
+			$out[ $provider->get_slug() ] = $provider;
+		}
+		return $out;
 	}
 
 	/**
@@ -74,11 +105,42 @@ class TC_AI_Router {
 	 * @return string[]
 	 */
 	public function get_priority_chain() {
-		$chain = get_option( 'tc_agents_provider_priority', array( 'aipuffer', 'openrouter', 'omniroute', 'vmstudio' ) );
+		$chain = get_option( 'tc_agents_provider_priority', array( 'aipuffer', 'openrouter', 'gateway', 'gemini' ) );
 		if ( ! is_array( $chain ) || empty( $chain ) ) {
-			$chain = array( 'aipuffer', 'openrouter', 'omniroute', 'vmstudio' );
+			$chain = array( 'aipuffer', 'openrouter', 'gateway', 'gemini' );
 		}
-		return $chain;
+		// Migrate retired slugs (omniroute/vmstudio) to gateway (dedupe, preserve order).
+		$map = array( 'omniroute' => 'gateway', 'vmstudio' => 'gateway' );
+		$out = array();
+		foreach ( $chain as $s ) {
+			$s = $map[ $s ] ?? $s;
+			if ( ! in_array( $s, $out, true ) ) { $out[] = $s; }
+		}
+		if ( empty( $out ) ) { $out = array( 'aipuffer', 'openrouter', 'gateway', 'gemini' ); }
+		return $out;
+	}
+
+	/**
+	 * Live-sync model catalogues for all configured providers.
+	 *
+	 * @param bool $force Bypass cache.
+	 * @return array slug => models[].
+	 */
+	public function sync_all_models( $force = false ) {
+		$seen = array();
+		$result = array();
+		foreach ( $this->providers as $slug => $provider ) {
+			$oid = spl_object_hash( $provider );
+			if ( isset( $seen[ $oid ] ) ) { continue; }
+			$seen[ $oid ] = true;
+			if ( ! $provider->is_configured() ) { continue; }
+			if ( $force ) { delete_transient( 'tc_models_' . $provider->get_slug() ); }
+			if ( method_exists( $provider, 'get_models' ) ) {
+				$result[ $provider->get_slug() ] = $provider->get_models();
+			}
+		}
+		update_option( 'tc_agents_models_last_sync', current_time( 'mysql' ), false );
+		return $result;
 	}
 
 	/**
@@ -133,7 +195,13 @@ class TC_AI_Router {
 	 */
 	public function check_all_health() {
 		$results = array();
+		$seen = array();
 		foreach ( $this->providers as $slug => $provider ) {
+			// Show each canonical provider once (skip retired alias duplicates).
+			$oid = spl_object_hash( $provider );
+			if ( isset( $seen[ $oid ] ) ) { continue; }
+			$seen[ $oid ] = true;
+			$slug = $provider->get_slug();
 			$cached = get_transient( 'tc_health_' . $slug );
 			if ( false !== $cached && is_array( $cached ) ) {
 				$results[ $slug ] = $cached;
@@ -181,8 +249,13 @@ class TC_AI_Router {
 		$chain = $this->get_priority_chain();
 
 		// Check if a specific routing override was passed (e.g. from agent persona settings)
-		if ( ! empty( $options['routing_override'] ) && isset( $this->providers[ $options['routing_override'] ] ) ) {
-			$chain = array_unique( array_merge( array( $options['routing_override'] ), $chain ) );
+		// Migrate retired overrides to gateway.
+		if ( ! empty( $options['routing_override'] ) ) {
+			$ov = $options['routing_override'];
+			if ( in_array( $ov, self::RETIRED_SLUGS, true ) ) { $ov = 'gateway'; }
+			if ( isset( $this->providers[ $ov ] ) ) {
+				$chain = array_unique( array_merge( array( $ov ), $chain ) );
+			}
 		}
 
 		$errors_encountered = array();

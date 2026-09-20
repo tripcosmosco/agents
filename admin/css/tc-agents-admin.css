@@ -409,6 +409,26 @@
 .tc-channel-voice { background: #fce7f3; color: #9d174d; }
 .tc-channel-admin { background: #f1f5f9; color: #334155; }
 
+/* Drag and Drop Kanban Interactions */
+.tc-kanban-card {
+	cursor: grab;
+	user-select: none;
+}
+.tc-kanban-card:active {
+	cursor: grabbing;
+}
+.tc-kanban-card.is-dragging {
+	opacity: 0.45;
+	transform: scale(0.96);
+	box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+}
+.tc-kanban-cards.drag-over {
+	background: #f0f9ff;
+	border: 2px dashed #0ea5e9;
+	border-radius: 8px;
+	transition: background 0.15s ease;
+}
+
 /* Kanban Board & Columns */
 .tc-kanban-board {
 	display: flex;

@@ -173,6 +173,93 @@ class TC_Agent_Memory {
 		}
 	}
 
+	/**
+	 * Deep LLM memory synthesis across conversation history (executed asynchronously in background queue).
+	 *
+	 * @param int $contact_id
+	 * @return bool
+	 */
+	public static function synthesize_memory( $contact_id ) {
+		$contact_id = (int) $contact_id;
+		if ( empty( $contact_id ) ) {
+			return false;
+		}
+
+		global $wpdb;
+		$table_conv = $wpdb->prefix . 'tc_agent_conversations';
+		$table_msg  = $wpdb->prefix . 'tc_agent_messages';
+
+		// Fetch recent conversations for this contact
+		$conv_ids = $wpdb->get_col(
+			$wpdb->prepare( "SELECT id FROM $table_conv WHERE contact_id = %d ORDER BY last_message_at DESC LIMIT 3", $contact_id )
+		);
+
+		if ( empty( $conv_ids ) ) {
+			return false;
+		}
+
+		$ids_in   = implode( ',', array_map( 'intval', $conv_ids ) );
+		$messages = $wpdb->get_results(
+			"SELECT role, content FROM $table_msg WHERE conversation_id IN ($ids_in) ORDER BY id DESC LIMIT 20",
+			ARRAY_A
+		);
+
+		if ( empty( $messages ) ) {
+			return false;
+		}
+
+		$messages = array_reverse( $messages );
+		$transcript = '';
+		foreach ( $messages as $m ) {
+			$transcript .= ucfirst( $m['role'] ) . ': ' . $m['content'] . "\n";
+		}
+
+		$system_prompt = "You are a CRM sales intelligence analyst for TripCosmos, a premier travel agency in Varanasi offering tour packages, hotels, and outstation cabs for Varanasi, Ayodhya, Prayagraj, Bodhgaya, Chitrakoot, Lucknow, Mathura, Vrindavan, and Delhi.\n" .
+						 "Analyze the traveler transcript and extract durable insights into JSON format.\n" .
+						 "Respond with ONLY valid JSON having these exact keys:\n" .
+						 "{\n" .
+						 '  "summary": "1-2 sentence overview of traveler requirements and intent",' . "\n" .
+						 '  "facts": ["list of concrete facts: destinations requested, group size, travel dates, budget, cab type, hotel preference"],' . "\n" .
+						 '  "preferences": ["list of preferences: ghat view, family vs senior citizen, darshan/pooja, AC cab type (Sedan/Innova/Tempo)"],' . "\n" .
+						 '  "objections": ["list of doubts or hesitations: price, hotel distance from temple, cab availability, senior citizen comfort"],' . "\n" .
+						 '  "next_best_action": "Specific recommended next move for the travel consultant"' . "\n" .
+						 "}";
+
+		$ai_messages = array(
+			array( 'role' => 'system', 'content' => $system_prompt ),
+			array( 'role' => 'user', 'content' => "Traveler Transcript:\n" . $transcript ),
+		);
+
+		$response = TC_AI_Router::chat( $ai_messages, array( 'temperature' => 0.2 ) );
+		if ( is_wp_error( $response ) || empty( $response['content'] ) ) {
+			return false;
+		}
+
+		$raw = trim( $response['content'] );
+		// Strip markdown code fences if model returned them
+		if ( preg_match( '/```(?:json)?\s*(\{.*?\})\s*```/s', $raw, $matches ) ) {
+			$raw = $matches[1];
+		}
+
+		$data = json_decode( $raw, true );
+		if ( ! is_array( $data ) ) {
+			return false;
+		}
+
+		self::save_memory(
+			$contact_id,
+			array(
+				'summary'          => $data['summary'] ?? '',
+				'facts'            => (array) ( $data['facts'] ?? array() ),
+				'preferences'      => (array) ( $data['preferences'] ?? array() ),
+				'objections'       => (array) ( $data['objections'] ?? array() ),
+				'next_best_action' => $data['next_best_action'] ?? '',
+			)
+		);
+
+		return true;
+	}
+
 	private static function decode_list( $json ) {
 		$arr = json_decode( (string) $json, true );
 		return is_array( $arr ) ? array_values( array_filter( $arr ) ) : array();

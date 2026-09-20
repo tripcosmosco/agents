@@ -1,10 +1,10 @@
 === TripCosmos Agents ===
 Contributors: tripcosmos
-Tags: ai, chatbot, agent, travel, crm, whatsapp, openrouter, aipuffer
+Tags: ai, chatbot, agent, travel, crm, whatsapp, openrouter, gemini, b2b
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 8.0
-Stable tag: 1.0.0
+Stable tag: 1.2.0
 License: Proprietary
 License URI: https://tripcosmos.co
 
@@ -16,12 +16,16 @@ TripCosmos Agents provides TripCosmos.co with a reliable, supervised AI conversa
 
 = Key Features =
 
-* **AI Provider Failover Chain**: Primary AI Puffer with automatic circuit-breaking fallback to OpenRouter, Omniroute, and in-house VMStudio endpoints.
+* **AI Provider Failover Chain**: Canonical OpenRouter + AI Gateway (consolidates AI Puffer/Omniroute/ai.vmstudio.digital) + Google Gemini, with circuit-breaking and live model sync.
+* **Live Model Sync**: OpenRouter / Gateway /models + Gemini catalogue refresh on Save, 2x-daily cron, and manual REST sync.
+* **B2B Partner Hunter**: Google Business/Places daily import of Indian travel agencies + WhatsApp (Evolution API) + Brevo email outreach, logged to FluentCRM + TwentyCRM.
+* **WhatsApp Dual-Mode**: Legacy wa.vmstudio.digital + Evolution API send/normalize on one shared webhook.
+* **Semantic Vector Store & Hybrid RAG**: Full-text and packed float32 embedding search with automatic overlapping chunking across published treks and site knowledge.
+* **Asynchronous Background Queue**: Non-blocking background worker for memory synthesis, CRM syncing, and catalog indexing keeping chats fast.
+* **Visual Kanban Deals Pipeline**: Drag-and-drop sales stage board with instant AJAX persistence and quick WhatsApp follow-up triggers.
+* **Rich Trek Cards & Carousel**: Interactive frontend widget cards displaying trek altitude, duration, pricing, and 1-click WhatsApp booking.
 * **Safety Guardrails**: 1-click global emergency kill switch, rate limits per session, daily WhatsApp/Voice caps, and draft-for-approval transaction gating.
-* **Master Agent Console**: Full staff workspace in wp-admin to supervise agents, query catalogs, and draft customer responses.
-* **Togo & WooCommerce Integration**: Tool-calling queries live trek packages, pricing, durations, and destinations directly from site data.
-* **Multi-Channel Plumbings**: Native Fluent CRM lead tagging, Twenty CRM REST syncing, WhatsApp (`wa.vmstudio.digital`) gateway bridge, and Google Sheets streaming.
-* **Theme & Cache Resilient**: Floating widget isolated from theme conflicts and tested for Elementor Pro and LiteSpeed Cache compatibility.
+* **Multi-Channel Plumbings**: Native Fluent CRM lead tagging, Twenty CRM REST syncing, WhatsApp (legacy + Evolution API) gateway bridge, Brevo email, and Google Sheets streaming.
 
 == Installation ==
 
@@ -32,6 +36,22 @@ TripCosmos Agents provides TripCosmos.co with a reliable, supervised AI conversa
 5. Connect CRM, WhatsApp, and Voice settings in `Tripcosmos Agents -> Integrations`.
 
 == Changelog ==
+
+= 1.2.0 =
+* Consolidated AI Puffer / Omniroute / ai.vmstudio.digital into one canonical AI Gateway (old slugs kept as BC aliases with auto-migration).
+* Added native Google Gemini provider with live catalogue sync.
+* Added live model sync (OpenRouter + Gateway + Gemini) on Save, 2x-daily cron, REST endpoint.
+* Added B2B Partner Hunter agent + Google Business/Places India import + Evolution API WhatsApp + Brevo outreach, FluentCRM/TwentyCRM logging.
+* Added WhatsApp dual-mode (legacy + Evolution API) with shared inbound webhook.
+
+= 1.1.0 =
+* Added Semantic Vector Store & Hybrid RAG (`TC_Agent_Vector_Store`, `TC_Agent_Chunker`).
+* Added 1-Click Catalog and Trek sync into knowledge base.
+* Added Asynchronous Background Queue (`TC_Agents_Queue`) for sub-second chat latency.
+* Added HTML5 Drag-and-Drop Kanban Deal Pipeline with AJAX stage saving.
+* Added Interactive Trek Recommendation Cards & Carousel in public chat widget.
+* Added 2 new specialist personas: Booking & Gear Concierge and Safety & Field Support Desk.
+* Added automated voice telephony follow-up dispatch hook.
 
 = 1.0.0 =
 * Initial production release.

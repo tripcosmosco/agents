@@ -148,10 +148,9 @@ if ( $agent && ! empty( $agent['allowed_tools'] ) ) {
 						<label for="routing_override"><strong>Provider Override (Optional):</strong></label>
 						<select name="routing_override" id="routing_override" class="widefat">
 							<option value="">Use Global Priority Chain</option>
-							<option value="aipuffer" <?php selected( $agent['routing_override'] ?? '', 'aipuffer' ); ?>>Force AI Puffer</option>
 							<option value="openrouter" <?php selected( $agent['routing_override'] ?? '', 'openrouter' ); ?>>Force OpenRouter</option>
-							<option value="omniroute" <?php selected( $agent['routing_override'] ?? '', 'omniroute' ); ?>>Force Omniroute</option>
-							<option value="vmstudio" <?php selected( $agent['routing_override'] ?? '', 'vmstudio' ); ?>>Force ai.vmstudio.digital</option>
+							<option value="gateway" <?php selected( $agent['routing_override'] ?? '', 'gateway' ); ?>>Force AI Gateway</option>
+							<option value="gemini" <?php selected( $agent['routing_override'] ?? '', 'gemini' ); ?>>Force Gemini</option>
 						</select>
 					</p>
 

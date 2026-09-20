@@ -78,9 +78,9 @@ $kill_switch_active = TC_Agents_Guardrails::is_kill_switch_active();
 			<div class="tc-card">
 				<h3><span class="dashicons dashicons-lightbulb"></span> Quick Prompts</h3>
 				<ul class="tc-quick-prompts">
-					<li><a href="#" class="tc-quick-prompt" data-prompt="Search our trip catalog for high-altitude treks in Ladakh suitable for beginners.">🔍 Search Ladakh Treks</a></li>
-					<li><a href="#" class="tc-quick-prompt" data-prompt="A traveler with a group of 6 wants to do Hampta Pass in July. What is the itinerary summary and pricing?">🏔️ Hampta Pass Group Quote</a></li>
-					<li><a href="#" class="tc-quick-prompt" data-prompt="Summarize the essential gear and physical preparation checklist for Himalayan winter treks.">🎒 Winter Gear Checklist</a></li>
+					<li><a href="#" class="tc-quick-prompt" data-prompt="A family of 4 wants a 4-day tour of Varanasi, Prayagraj, and Ayodhya with hotel and AC Innova. What is the day-wise itinerary and pricing?">🛕 Kashi Ayodhya Prayagraj Tour</a></li>
+					<li><a href="#" class="tc-quick-prompt" data-prompt="A traveler needs an Innova Crysta cab for Varanasi Airport pickup and outstation transfer to Ayodhya Ram Mandir. Provide the cab details and fare.">🚗 Outstation Cab (Innova/Dzire)</a></li>
+					<li><a href="#" class="tc-quick-prompt" data-prompt="Explain private boat ride options and timings for evening Ganga Aarti at Dashashwamedh Ghat and morning Subah-e-Banaras.">⛵ Ganga Aarti Boat Booking</a></li>
 					<li><a href="#" class="tc-quick-prompt" data-prompt="Check if contact with email info@tripcosmos.co exists in our CRM.">👤 Test CRM Contact Lookup</a></li>
 				</ul>
 			</div>
