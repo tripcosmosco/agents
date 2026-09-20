@@ -21,6 +21,7 @@ class TC_Agents_Admin {
 		add_action( 'wp_ajax_tc_sync_aipuffer_bots', array( __CLASS__, 'ajax_sync_aipuffer_bots' ) );
 		add_action( 'wp_ajax_tc_sync_provider_models', array( __CLASS__, 'ajax_sync_provider_models' ) );
 		add_action( 'wp_ajax_tc_test_twentycrm', array( __CLASS__, 'ajax_test_twentycrm' ) );
+		add_action( 'wp_ajax_tc_toggle_widget', array( __CLASS__, 'ajax_toggle_widget' ) );
 	}
 
 	/**
@@ -470,6 +471,29 @@ class TC_Agents_Admin {
 		} else {
 			wp_send_json_error( $result );
 		}
+	}
+
+	/**
+	 * AJAX endpoint to toggle the frontend chatbot on/off.
+	 */
+	public static function ajax_toggle_widget() {
+		check_ajax_referer( 'tc_agents_admin_nonce', 'nonce' );
+
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( array( 'message' => 'Unauthorized' ), 403 );
+		}
+
+		$current   = (string) get_option( 'tc_agents_widget_enabled', '1' );
+		$new_state = ( '1' === $current ) ? '0' : '1';
+		update_option( 'tc_agents_widget_enabled', $new_state );
+
+		wp_send_json_success( array(
+			'enabled' => ( '1' === $new_state ),
+			'status'  => ( '1' === $new_state ) ? 'active' : 'disabled',
+			'message' => ( '1' === $new_state )
+				? __( 'Frontend chatbot is now LIVE on your website.', 'tripcosmos-agents' )
+				: __( 'Frontend chatbot is now DISABLED and hidden from visitors.', 'tripcosmos-agents' ),
+		) );
 	}
 
 	/**

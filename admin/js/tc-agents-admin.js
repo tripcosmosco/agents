@@ -14,6 +14,7 @@
 		initAvatarUploader();
 		initAIPufferBotSync();
 		initProviderModelSync();
+		initWidgetToggle();
 	});
 
 	/**
@@ -517,6 +518,61 @@
 				error: function() {
 					$btn.prop('disabled', false).html(originalHtml);
 					alert('Failed to sync provider models.');
+				}
+			});
+		});
+	}
+
+	/**
+	 * Instant 1-Click Frontend Chatbot Toggle
+	 */
+	function initWidgetToggle() {
+		$(document).on('click', '#tc-quick-toggle-widget-btn, #tc-quick-toggle-widget', function(e) {
+			e.preventDefault();
+			const $btn = $(this);
+			const origText = $btn.text();
+			$btn.prop('disabled', true).text('Updating status...');
+
+			$.ajax({
+				url: tcAgentsAdmin.ajaxUrl,
+				method: 'POST',
+				data: {
+					action: 'tc_toggle_widget',
+					nonce: tcAgentsAdmin.adminNonce
+				},
+				success: function(res) {
+					$btn.prop('disabled', false);
+					if (res.success) {
+						const isLive = res.data.enabled;
+						if ($('#tc-quick-toggle-widget-btn').length) {
+							$('#tc-quick-toggle-widget-btn')
+								.removeClass('button-primary button-secondary')
+								.addClass(isLive ? 'button-secondary' : 'button-primary')
+								.text(isLive ? '🔴 Disable Chatbot' : '🟢 Enable Chatbot');
+							$('#widget_enabled_input').val(isLive ? '1' : '0');
+							const $badge = $('#tc-bot-status-badge');
+							$badge.removeClass('tc-status-healthy tc-status-down').addClass(isLive ? 'tc-status-healthy' : 'tc-status-down');
+							$badge.find('.tc-indicator-dot').removeClass('online down').addClass(isLive ? 'online' : 'down');
+							$('#tc-bot-status-text').text(isLive ? 'ACTIVE & VISIBLE ON WEBSITE' : 'DISABLED & HIDDEN FROM VISITORS');
+							$btn.closest('.tc-card').css({
+								'border-left-color': isLive ? '#10b981' : '#ef4444',
+								'background': isLive ? '#f0fdf4' : '#fef2f2'
+							});
+						}
+						if ($('#tc-quick-toggle-widget').length) {
+							$('#tc-quick-toggle-widget')
+								.removeClass('button-primary button-secondary')
+								.addClass(isLive ? 'button-secondary' : 'button-primary')
+								.text(isLive ? '🟢 Chatbot: Active (Click to Disable)' : '🔴 Chatbot: Disabled (Click to Enable)');
+						}
+					} else {
+						$btn.text(origText);
+						alert('Error: ' + (res.data ? res.data.message : 'Could not toggle widget.'));
+					}
+				},
+				error: function() {
+					$btn.prop('disabled', false).text(origText);
+					alert('Connection error while toggling chatbot status.');
 				}
 			});
 		});

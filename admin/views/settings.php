@@ -8,13 +8,15 @@
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
+$widget_enabled = (string) get_option( 'tc_agents_widget_enabled', '1' );
+$is_widget_live = ( '1' === $widget_enabled );
 ?>
 
 <div class="wrap tc-admin-wrap">
 	<div class="tc-header">
 		<div>
 			<h1><span class="dashicons dashicons-admin-generic"></span> General Settings</h1>
-			<p class="description">Configure frontend chat widget appearance, human escalation routing, and site defaults.</p>
+			<p class="description">Configure frontend chat widget visibility, appearance, human escalation routing, and site defaults.</p>
 		</div>
 	</div>
 
@@ -26,21 +28,37 @@ if ( ! defined( 'ABSPATH' ) ) {
 		<?php wp_nonce_field( 'tc_agents_admin_save', 'tc_agents_nonce' ); ?>
 		<input type="hidden" name="tc_agents_action" value="save_settings" />
 
-		<!-- Frontend Chat Widget Customization -->
+		<!-- 1. Master Frontend Chatbot Enable / Disable Toggle -->
+		<div class="tc-card" style="border-left: 4px solid <?php echo $is_widget_live ? '#10b981' : '#ef4444'; ?>; background: <?php echo $is_widget_live ? '#f0fdf4' : '#fef2f2'; ?>; transition: all 0.25s ease;">
+			<div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+				<div>
+					<h2 style="margin: 0 0 6px 0; font-size: 18px; display: flex; align-items: center; gap: 10px; color: #0f172a;">
+						<span style="font-size: 24px;">💬</span>
+						Frontend Chatbot Visibility
+						<span id="tc-bot-status-badge" class="tc-indicator-badge <?php echo $is_widget_live ? 'tc-status-healthy' : 'tc-status-down'; ?>" style="font-size: 11px;">
+							<span class="tc-indicator-dot <?php echo $is_widget_live ? 'online' : 'down'; ?>"></span>
+							<span id="tc-bot-status-text"><?php echo $is_widget_live ? 'ACTIVE & VISIBLE ON WEBSITE' : 'DISABLED & HIDDEN FROM VISITORS'; ?></span>
+						</span>
+					</h2>
+					<p style="margin: 0; color: #475569; font-size: 13px; max-width: 650px;">
+						Control whether the floating AI assistant, quotation form, and voice consultation bubble appear on your live website. When disabled, all widget assets and markup are completely removed from the frontend.
+					</p>
+				</div>
+				<div style="display: flex; align-items: center; gap: 14px;">
+					<button type="button" class="button button-large <?php echo $is_widget_live ? 'button-secondary' : 'button-primary'; ?>" id="tc-quick-toggle-widget-btn" style="height: 42px; font-weight: 700; font-size: 13px; border-radius: 8px;">
+						<?php echo $is_widget_live ? '🔴 Click to Disable Chatbot' : '🟢 Click to Enable Chatbot'; ?>
+					</button>
+					<input type="hidden" name="widget_enabled" id="widget_enabled_input" value="<?php echo esc_attr( $widget_enabled ); ?>" />
+				</div>
+			</div>
+		</div>
+
+		<!-- 2. Frontend Chat Widget Customization -->
 		<div class="tc-card">
 			<h3>🎨 Frontend Chatbot Customization & Identity</h3>
 			<p class="description">Customize the profile picture/avatar, assistant name, subtitle, proactive teaser, brand gradient colors, and starter quick prompts.</p>
 			
 			<table class="form-table">
-				<tr>
-					<th scope="row">Enable Chat Widget</th>
-					<td>
-						<label>
-							<input type="checkbox" name="widget_enabled" value="1" <?php checked( '1', get_option( 'tc_agents_widget_enabled', '1' ) ); ?> />
-							Display floating chatbot on website
-						</label>
-					</td>
-				</tr>
 
 				<!-- Bot Profile Image / Avatar -->
 				<tr>

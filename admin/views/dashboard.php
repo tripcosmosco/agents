@@ -35,7 +35,8 @@ $voice_count = (int) $wpdb->get_var( "SELECT COUNT(*) FROM $table_convo WHERE ch
 
 // Recent activity feed
 $recent_convos = $wpdb->get_results( "SELECT * FROM $table_convo ORDER BY last_message_at DESC LIMIT 8", ARRAY_A ) ?: array();
-$kill_switch   = TC_Agents_Guardrails::is_kill_switch_active();
+$kill_switch     = TC_Agents_Guardrails::is_kill_switch_active();
+$widget_enabled  = '1' === (string) get_option( 'tc_agents_widget_enabled', '1' );
 ?>
 
 <div class="wrap tc-admin-wrap">
@@ -44,7 +45,10 @@ $kill_switch   = TC_Agents_Guardrails::is_kill_switch_active();
 			<h1><span class="dashicons dashicons-dashboard"></span> TripCosmos Agents — Executive Dashboard</h1>
 			<p class="description">Real-time operational command center: active chats, lead pipelines, multi-channel metrics, and revenue forecasts.</p>
 		</div>
-		<div class="tc-header-actions">
+		<div class="tc-header-actions" style="display: flex; align-items: center; gap: 10px;">
+			<button type="button" id="tc-quick-toggle-widget" class="button <?php echo $widget_enabled ? 'button-secondary' : 'button-primary'; ?>" style="font-weight: 600;">
+				<?php echo $widget_enabled ? '🟢 Chatbot: Active (Click to Disable)' : '🔴 Chatbot: Disabled (Click to Enable)'; ?>
+			</button>
 			<?php if ( $kill_switch ) : ?>
 				<span class="tc-badge tc-badge-danger">🚨 KILL SWITCH ENGAGED</span>
 			<?php else : ?>

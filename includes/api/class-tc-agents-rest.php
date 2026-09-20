@@ -226,6 +226,11 @@ class TC_Agents_REST {
 			$session = 'anon_' . wp_generate_uuid4();
 		}
 
+		// Check if frontend chatbot is disabled for public web visitors
+		if ( 'web' === $channel && '1' !== (string) get_option( 'tc_agents_widget_enabled', '1' ) ) {
+			return new WP_REST_Response( array( 'error' => __( 'The website chatbot is currently disabled.', 'tripcosmos-agents' ) ), 503 );
+		}
+
 		// Security: Admin console requests must verify nonce
 		if ( 'admin' === $channel ) {
 			if ( ! current_user_can( 'manage_options' ) ) {
