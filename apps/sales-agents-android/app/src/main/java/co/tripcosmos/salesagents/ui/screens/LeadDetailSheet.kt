@@ -74,8 +74,8 @@ fun LeadDetailDialog(
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = TextPrimary)
                     }
 
-                    // Avatar Circle
-                    val initials = lead.name.split(" ").mapNotNull { it.firstOrNull()?.toString() }.take(2).joinToString("").ifBlank { "TR" }
+                    val cleanName = lead.name.replace(Regex("[^a-zA-Z0-9 ]"), " ").trim()
+                    val initials = cleanName.split(" ").filter { it.isNotBlank() }.map { it.first().toString() }.take(2).joinToString("").ifBlank { "TR" }
                     Box(
                         modifier = Modifier
                             .size(44.dp)

@@ -11,17 +11,22 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.text.font.FontWeight
 import androidx.core.content.ContextCompat
 import co.tripcosmos.salesagents.telephony.PhoneStateReceiver
 import co.tripcosmos.salesagents.ui.screens.*
@@ -113,13 +118,14 @@ fun MainAppContainer(
     callDuration: Long,
     onDismissPostCall: () -> Unit
 ) {
-    var currentTab by remember { mutableStateOf(0) } // 0 = Pipeline, 1 = Tasks, 2 = Maya AI, 3 = Contacts, 4 = Calls
+    var currentTab by remember { mutableStateOf(2) } // Default to 2 = Center WhatsApp Hub
+    var showMayaPopup by remember { mutableStateOf(false) } // Popup Intelligent Chatbot state
 
     Scaffold(
         bottomBar = {
             NavigationBar(
                 containerColor = LightSurface,
-                tonalElevation = 6.dp
+                tonalElevation = 8.dp
             ) {
                 // Tab 0: Pipeline
                 NavigationBarItem(
@@ -151,18 +157,38 @@ fun MainAppContainer(
                     )
                 )
 
-                // Tab 2: Maya AI Master Chatbot
+                // Tab 2: CENTER ELEVATED WHATSAPP HUB
                 NavigationBarItem(
                     selected = currentTab == 2,
                     onClick = { currentTab = 2 },
-                    icon = { Icon(Icons.Default.AutoAwesome, contentDescription = "Maya AI") },
-                    label = { Text("Maya AI", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
+                    icon = {
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(CircleShape)
+                                .background(if (currentTab == 2) WhatsAppGreen else Color(0xFFDCFCE7)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                Icons.Default.Chat,
+                                contentDescription = "WhatsApp Hub",
+                                tint = if (currentTab == 2) Color.White else WhatsAppDark,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                    },
+                    label = {
+                        Text(
+                            "WhatsApp",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (currentTab == 2) WhatsAppDark else TextSecondary
+                        )
+                    },
                     colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = AiGradientPurple,
-                        selectedTextColor = AiGradientPurple,
-                        unselectedIconColor = TextSecondary,
-                        unselectedTextColor = TextSecondary,
-                        indicatorColor = PillPurpleBg
+                        selectedIconColor = WhatsAppGreen,
+                        selectedTextColor = WhatsAppDark,
+                        indicatorColor = Color.Transparent
                     )
                 )
 
@@ -181,7 +207,7 @@ fun MainAppContainer(
                     )
                 )
 
-                // Tab 4: AI Call Intelligence
+                // Tab 4: Calls & AI Intelligence
                 NavigationBarItem(
                     selected = currentTab == 4,
                     onClick = { currentTab = 4 },
@@ -196,6 +222,23 @@ fun MainAppContainer(
                     )
                 )
             }
+        },
+        floatingActionButton = {
+            // Floating Popup Trigger for Master AI Chatbot (Maya AI)
+            ExtendedFloatingActionButton(
+                onClick = { showMayaPopup = true },
+                containerColor = Color.Transparent,
+                contentColor = Color.White,
+                shape = RoundedCornerShape(24.dp),
+                elevation = FloatingActionButtonDefaults.elevation(6.dp),
+                modifier = Modifier
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(Brush.linearGradient(listOf(AiGradientPink, AiGradientPurple)))
+            ) {
+                Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("Maya AI", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color.White)
+            }
         }
     ) { padding ->
         Surface(
@@ -207,9 +250,14 @@ fun MainAppContainer(
             when (currentTab) {
                 0 -> PipelineScreen()
                 1 -> TasksScreen()
-                2 -> AiCopilotScreen()
+                2 -> WhatsAppHubScreen()
                 3 -> ContactsScreen()
                 4 -> CallHistoryScreen()
+            }
+
+            // Master AI Popup Chatbot (Opens on top of any screen!)
+            if (showMayaPopup) {
+                AiCopilotPopupDialog(onDismiss = { showMayaPopup = false })
             }
 
             // Post-Call Fast Action Dialog (triggers automatically when carrier SIM call ends)

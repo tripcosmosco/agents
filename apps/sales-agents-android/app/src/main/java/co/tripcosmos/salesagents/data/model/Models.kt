@@ -102,3 +102,18 @@ data class AiCallSummary(
     val nextAction: String,
     val assignedAgent: String = "Ajay Verma"
 )
+
+// Superfone WhatsApp Lead & Manager Assignment Model
+data class WhatsAppLead(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val customerName: String,
+    val phone: String,
+    val lastMessage: String,
+    val timeAgo: String,
+    val unreadCount: Int = 0,
+    val tourInterest: String = "Varanasi Spiritual Tour",
+    val estimatedBudget: Double = 15000.0,
+    val assignedManager: String? = null, // null if unassigned
+    val leadScore: Int = 75, // 0-100
+    val status: String = "new" // new, assigned, quoted, converted
+)

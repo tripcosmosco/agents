@@ -265,10 +265,11 @@ fun SuperfoneLeadCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                    val initials = lead.name.split(" ").mapNotNull { it.firstOrNull()?.toString() }.take(2).joinToString("").ifBlank { "TR" }
+                    val cleanName = lead.name.replace(Regex("[^a-zA-Z0-9 ]"), " ").trim()
+                    val initials = cleanName.split(" ").filter { it.isNotBlank() }.map { it.first().toString() }.take(2).joinToString("").ifBlank { "TR" }
                     Box(
                         modifier = Modifier
-                            .size(38.dp)
+                            .size(40.dp)
                             .clip(CircleShape)
                             .background(SuperfoneBlueLight),
                         contentAlignment = Alignment.Center
@@ -299,12 +300,19 @@ fun SuperfoneLeadCard(
                 }
 
                 // Deal value badge
-                Text(
-                    text = "₹" + lead.dealValue.toInt(),
-                    fontWeight = FontWeight.ExtraBold,
-                    color = OrangePrimary,
-                    fontSize = 16.sp
-                )
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(PillAmberBg)
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = "₹" + String.format(java.util.Locale.US, "%,d", lead.dealValue.toInt()),
+                        fontWeight = FontWeight.ExtraBold,
+                        color = PillAmberText,
+                        fontSize = 15.sp
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(10.dp))

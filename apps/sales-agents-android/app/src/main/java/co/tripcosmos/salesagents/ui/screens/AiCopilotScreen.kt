@@ -12,6 +12,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Chat
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -24,13 +26,85 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import co.tripcosmos.salesagents.data.model.ChatMessage
 import co.tripcosmos.salesagents.telephony.DialerManager
 import co.tripcosmos.salesagents.ui.theme.*
 
+@Composable
+fun AiCopilotPopupDialog(
+    onDismiss: () -> Unit
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth(0.95f)
+                .fillMaxHeight(0.88f)
+                .padding(vertical = 12.dp),
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(containerColor = LightSurface),
+            border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder),
+            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+        ) {
+            AiCopilotContent(isPopup = true, onDismiss = onDismiss)
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AiCopilotScreen() {
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(38.dp)
+                                .clip(CircleShape)
+                                .background(Brush.linearGradient(listOf(AiGradientPink, AiGradientPurple))),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("Maya AI", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = TextPrimary)
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(SuperfoneBlueLight)
+                                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                                ) {
+                                    Text("COPILOT", fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, color = SuperfoneBlue)
+                                }
+                            }
+                            Text("TripCosmos Master Sales Intelligence", fontSize = 11.sp, color = TextSecondary)
+                        }
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = LightSurface)
+            )
+        }
+    ) { padding ->
+        Box(modifier = Modifier.padding(padding)) {
+            AiCopilotContent(isPopup = false, onDismiss = {})
+        }
+    }
+}
+
+@Composable
+fun AiCopilotContent(
+    isPopup: Boolean = false,
+    onDismiss: () -> Unit = {}
+) {
     val context = LocalContext.current
     var inputText by remember { mutableStateOf("") }
 
@@ -59,7 +133,6 @@ fun AiCopilotScreen() {
         val userMsg = ChatMessage(text = query, isFromUser = true)
         messages = messages + userMsg
 
-        // AI Response Logic
         val lower = query.lowercase()
         val aiReply: String
         val whatsappDraft: String?
@@ -114,159 +187,159 @@ fun AiCopilotScreen() {
         messages = messages + aiMsg
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        // AI Avatar with gradient ring
-                        Box(
-                            modifier = Modifier
-                                .size(38.dp)
-                                .clip(CircleShape)
-                                .background(
-                                    Brush.linearGradient(listOf(AiGradientPink, AiGradientPurple))
-                                ),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
-                        }
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Column {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("Maya AI", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = TextPrimary)
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(4.dp))
-                                        .background(SuperfoneBlueLight)
-                                        .padding(horizontal = 4.dp, vertical = 2.dp)
-                                ) {
-                                    Text("SALES COPILOT", fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, color = SuperfoneBlue)
-                                }
-                            }
-                            Text("TripCosmos Master Sales Intelligence", fontSize = 11.sp, color = TextSecondary)
-                        }
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = LightSurface)
-            )
-        }
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(LightBackground)
-                .padding(padding)
-        ) {
-            // Quick Prompt Chips
-            LazyRow(
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(LightBackground)
+    ) {
+        // If popup, show a clean header with close button
+        if (isPopup) {
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    .background(LightSurface)
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                items(promptSuggestions) { prompt ->
-                    SuggestionChip(
-                        onClick = { handleSend(prompt) },
-                        label = { Text(prompt, fontSize = 12.sp) },
-                        colors = SuggestionChipDefaults.suggestionChipColors(
-                            containerColor = LightSurface,
-                            labelColor = TextPrimary
-                        ),
-                        border = SuggestionChipDefaults.suggestionChipBorder(
-                            enabled = true,
-                            borderColor = CardBorder
-                        )
-                    )
-                }
-            }
-
-            // Chat Messages List
-            LazyColumn(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                items(messages, key = { it.id }) { msg ->
-                    if (msg.isFromUser) {
-                        // User message (Right aligned)
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.End
-                        ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(Brush.linearGradient(listOf(AiGradientPink, AiGradientPurple))),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                    }
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("Maya AI Sales Copilot", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = TextPrimary)
+                            Spacer(modifier = Modifier.width(4.dp))
                             Box(
                                 modifier = Modifier
-                                    .widthIn(max = 300.dp)
-                                    .clip(RoundedCornerShape(16.dp, 16.dp, 4.dp, 16.dp))
-                                    .background(SuperfoneBlue)
-                                    .padding(14.dp)
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(SuperfoneBlueLight)
+                                    .padding(horizontal = 4.dp, vertical = 1.dp)
                             ) {
-                                Text(text = msg.text, color = Color.White, fontSize = 14.sp)
+                                Text("POPUP", fontSize = 8.sp, fontWeight = FontWeight.Bold, color = SuperfoneBlue)
                             }
                         }
-                    } else {
-                        // AI message (Left aligned with actions)
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.Start
+                        Text("24×7 Quotation & Pitch Assistant", fontSize = 11.sp, color = TextSecondary)
+                    }
+                }
+
+                IconButton(onClick = onDismiss) {
+                    Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.Gray)
+                }
+            }
+            HorizontalDivider(color = CardBorder, thickness = 1.dp)
+        }
+
+        // Quick Prompt Chips
+        LazyRow(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            items(promptSuggestions) { prompt ->
+                SuggestionChip(
+                    onClick = { handleSend(prompt) },
+                    label = { Text(prompt, fontSize = 11.sp) },
+                    colors = SuggestionChipDefaults.suggestionChipColors(
+                        containerColor = LightSurface,
+                        labelColor = TextPrimary
+                    ),
+                    border = SuggestionChipDefaults.suggestionChipBorder(
+                        enabled = true,
+                        borderColor = CardBorder
+                    )
+                )
+            }
+        }
+
+        // Chat Messages List
+        LazyColumn(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth(),
+            contentPadding = PaddingValues(12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            items(messages, key = { it.id }) { msg ->
+                if (msg.isFromUser) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .widthIn(max = 280.dp)
+                                .clip(RoundedCornerShape(16.dp, 16.dp, 4.dp, 16.dp))
+                                .background(SuperfoneBlue)
+                                .padding(12.dp)
                         ) {
-                            Card(
-                                modifier = Modifier.widthIn(max = 320.dp),
-                                shape = RoundedCornerShape(16.dp, 16.dp, 16.dp, 4.dp),
-                                colors = CardDefaults.cardColors(containerColor = LightSurface),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder),
-                                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-                            ) {
-                                Column(modifier = Modifier.padding(14.dp)) {
-                                    Text(
-                                        text = msg.text,
-                                        color = TextPrimary,
-                                        fontSize = 14.sp,
-                                        lineHeight = 20.sp
-                                    )
+                            Text(text = msg.text, color = Color.White, fontSize = 13.sp)
+                        }
+                    }
+                } else {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Start
+                    ) {
+                        Card(
+                            modifier = Modifier.widthIn(max = 310.dp),
+                            shape = RoundedCornerShape(16.dp, 16.dp, 16.dp, 4.dp),
+                            colors = CardDefaults.cardColors(containerColor = LightSurface),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Text(
+                                    text = msg.text,
+                                    color = TextPrimary,
+                                    fontSize = 13.sp,
+                                    lineHeight = 19.sp
+                                )
 
-                                    if (!msg.suggestedWhatsAppText.isNullOrBlank()) {
-                                        Spacer(modifier = Modifier.height(10.dp))
-                                        Divider(color = CardBorder, thickness = 0.5.dp)
-                                        Spacer(modifier = Modifier.height(8.dp))
+                                if (!msg.suggestedWhatsAppText.isNullOrBlank()) {
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    HorizontalDivider(color = CardBorder, thickness = 0.5.dp)
+                                    Spacer(modifier = Modifier.height(6.dp))
 
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        OutlinedButton(
+                                            onClick = {
+                                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                                clipboard.setPrimaryClip(ClipData.newPlainText("Copilot Draft", msg.suggestedWhatsAppText))
+                                                Toast.makeText(context, "Copied to clipboard!", Toast.LENGTH_SHORT).show()
+                                            },
+                                            shape = RoundedCornerShape(8.dp),
+                                            modifier = Modifier.weight(1f),
+                                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
                                         ) {
-                                            // Copy text button
-                                            OutlinedButton(
-                                                onClick = {
-                                                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                                    clipboard.setPrimaryClip(ClipData.newPlainText("Copilot Draft", msg.suggestedWhatsAppText))
-                                                    Toast.makeText(context, "Copied to clipboard!", Toast.LENGTH_SHORT).show()
-                                                },
-                                                shape = RoundedCornerShape(8.dp),
-                                                modifier = Modifier.weight(1f),
-                                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
-                                            ) {
-                                                Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(16.dp))
-                                                Spacer(modifier = Modifier.width(4.dp))
-                                                Text("Copy", fontSize = 12.sp)
-                                            }
+                                            Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(14.dp))
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text("Copy", fontSize = 11.sp)
+                                        }
 
-                                            // WhatsApp 1-tap dispatch
-                                            Button(
-                                                onClick = {
-                                                    DialerManager.openWhatsAppChat(context, "", msg.suggestedWhatsAppText)
-                                                },
-                                                colors = ButtonDefaults.buttonColors(containerColor = WhatsAppGreen),
-                                                shape = RoundedCornerShape(8.dp),
-                                                modifier = Modifier.weight(1f),
-                                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
-                                            ) {
-                                                Icon(Icons.Default.Chat, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
-                                                Spacer(modifier = Modifier.width(4.dp))
-                                                Text("WhatsApp", fontSize = 12.sp, color = Color.White)
-                                            }
+                                        Button(
+                                            onClick = {
+                                                DialerManager.openWhatsAppChat(context, "", msg.suggestedWhatsAppText)
+                                            },
+                                            colors = ButtonDefaults.buttonColors(containerColor = WhatsAppGreen),
+                                            shape = RoundedCornerShape(8.dp),
+                                            modifier = Modifier.weight(1f),
+                                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
+                                        ) {
+                                            Icon(Icons.AutoMirrored.Filled.Chat, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text("WhatsApp", fontSize = 11.sp, color = Color.White)
                                         }
                                     }
                                 }
@@ -275,49 +348,49 @@ fun AiCopilotScreen() {
                     }
                 }
             }
+        }
 
-            // Input Bar
-            Card(
+        // Input Bar
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 10.dp, vertical = 8.dp),
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(containerColor = LightSurface),
+            border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder)
+        ) {
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(12.dp),
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = LightSurface),
-                border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder)
+                    .padding(horizontal = 10.dp, vertical = 2.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    TextField(
-                        value = inputText,
-                        onValueChange = { inputText = it },
-                        modifier = Modifier.weight(1f),
-                        placeholder = { Text("Ask Maya AI for quotes, rates, or pitches...", fontSize = 13.sp) },
-                        colors = TextFieldDefaults.colors(
-                            focusedContainerColor = Color.Transparent,
-                            unfocusedContainerColor = Color.Transparent,
-                            disabledContainerColor = Color.Transparent,
-                            focusedIndicatorColor = Color.Transparent,
-                            unfocusedIndicatorColor = Color.Transparent
-                        ),
-                        singleLine = true
-                    )
+                TextField(
+                    value = inputText,
+                    onValueChange = { inputText = it },
+                    modifier = Modifier.weight(1f),
+                    placeholder = { Text("Ask Maya AI for quote or pitch...", fontSize = 12.sp) },
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = Color.Transparent,
+                        unfocusedContainerColor = Color.Transparent,
+                        disabledContainerColor = Color.Transparent,
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent
+                    ),
+                    singleLine = true
+                )
 
-                    IconButton(
-                        onClick = {
-                            if (inputText.isNotBlank()) {
-                                val query = inputText
-                                inputText = ""
-                                handleSend(query)
-                            }
-                        },
-                        colors = IconButtonDefaults.iconButtonColors(contentColor = SuperfoneBlue)
-                    ) {
-                        Icon(Icons.Default.Send, contentDescription = "Send")
-                    }
+                IconButton(
+                    onClick = {
+                        if (inputText.isNotBlank()) {
+                            val query = inputText
+                            inputText = ""
+                            handleSend(query)
+                        }
+                    },
+                    colors = IconButtonDefaults.iconButtonColors(contentColor = SuperfoneBlue)
+                ) {
+                    Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send", modifier = Modifier.size(20.dp))
                 }
             }
         }

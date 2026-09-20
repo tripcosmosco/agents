@@ -104,18 +104,13 @@ fun TasksScreen() {
                         Text("${taskList.count { !it.isCompleted }} pending follow-ups", fontSize = 12.sp, color = TextSecondary)
                     }
                 },
+                actions = {
+                    IconButton(onClick = { showCreateDialog = true }) {
+                        Icon(Icons.Default.AddCircle, contentDescription = "Add Task", tint = SuperfoneBlue, modifier = Modifier.size(28.dp))
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = LightSurface)
             )
-        },
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = { showCreateDialog = true },
-                containerColor = SuperfoneBlue,
-                contentColor = Color.White,
-                shape = CircleShape
-            ) {
-                Icon(Icons.Default.Add, contentDescription = "Add Task")
-            }
         }
     ) { padding ->
         Column(
