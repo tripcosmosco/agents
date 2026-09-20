@@ -27,7 +27,7 @@ $secret_token       = get_option( 'tc_agents_whatsapp_webhook_secret', '' );
 		<div class="notice notice-success is-dismissible"><p>Integration settings saved successfully.</p></div>
 	<?php endif; ?>
 
-	<form method="post">
+	<form method="post" action="<?php echo esc_url( admin_url( 'admin.php?page=tc-agents-integrations' ) ); ?>">
 		<?php wp_nonce_field( 'tc_agents_admin_save', 'tc_agents_nonce' ); ?>
 		<input type="hidden" name="tc_agents_action" value="save_integrations" />
 
@@ -97,9 +97,9 @@ $secret_token       = get_option( 'tc_agents_whatsapp_webhook_secret', '' );
 					</td>
 				</tr>
 				<tr>
-					<th scope="row"><label>Webhook Secret Token</label></th>
+					<th scope="row"><label for="whatsapp_webhook_secret">Webhook Secret Token</label></th>
 					<td>
-						<input type="text" readonly class="regular-text" value="<?php echo esc_attr( $secret_token ); ?>" />
+						<input type="text" name="whatsapp_webhook_secret" id="whatsapp_webhook_secret" readonly class="regular-text" value="<?php echo esc_attr( $secret_token ); ?>" />
 						<p class="description">Pass this token in the <code>x-webhook-secret</code> header for webhook authentication.</p>
 					</td>
 				</tr>
@@ -229,6 +229,15 @@ $secret_token       = get_option( 'tc_agents_whatsapp_webhook_secret', '' );
 				High-stakes voice calling capability. Ships <strong>disabled by default</strong> with strict daily volume caps.
 			</p>
 			<table class="form-table">
+				<tr>
+					<th scope="row"><label for="voice_enabled">Enable Voice Telephony</label></th>
+					<td>
+						<label>
+							<input type="checkbox" name="voice_enabled" id="voice_enabled" value="1" <?php checked( '1', get_option( 'tc_agents_voice_enabled', '0' ) ); ?> />
+							<strong>Allow Outbound Voice Calling</strong> (Keep unchecked unless actively needed).
+						</label>
+					</td>
+				</tr>
 				<tr>
 					<th scope="row"><label for="voice_provider">Voice Platform</label></th>
 					<td>

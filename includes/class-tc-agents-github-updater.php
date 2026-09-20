@@ -326,7 +326,8 @@ class TC_Agents_GitHub_Updater {
 			return;
 		}
 
-		if ( ! current_user_can( 'update_plugins' ) || ! check_admin_referer( 'tc_check_update' ) ) {
+		$nonce = isset( $_GET['_wpnonce'] ) ? sanitize_text_field( wp_unslash( $_GET['_wpnonce'] ) ) : '';
+		if ( ! current_user_can( 'update_plugins' ) || empty( $nonce ) || ! wp_verify_nonce( $nonce, 'tc_check_update' ) ) {
 			return;
 		}
 

@@ -729,7 +729,9 @@ class TC_Agents_Admin {
 			if ( ! empty( $_POST['evolution_api_key'] ) ) {
 				TC_Agents_Vault::put( 'evolution_api_key', sanitize_text_field( $_POST['evolution_api_key'] ) );
 			}
-			update_option( 'tc_agents_whatsapp_webhook_secret', sanitize_text_field( $_POST['whatsapp_webhook_secret'] ?? '' ) );
+			if ( ! empty( $_POST['whatsapp_webhook_secret'] ) ) {
+				update_option( 'tc_agents_whatsapp_webhook_secret', sanitize_text_field( $_POST['whatsapp_webhook_secret'] ) );
+			}
 			update_option( 'tc_agents_twentycrm_url', esc_url_raw( $_POST['twentycrm_url'] ?? '' ) );
 			if ( ! empty( $_POST['twentycrm_api_key'] ) ) {
 				TC_Agents_Vault::put( 'twentycrm_api_key', sanitize_text_field( $_POST['twentycrm_api_key'] ) );
@@ -748,6 +750,7 @@ class TC_Agents_Admin {
 			update_option( 'tc_agents_sheets_webhook_url', esc_url_raw( $_POST['sheets_webhook_url'] ?? '' ) );
 
 			// Voice settings
+			update_option( 'tc_agents_voice_enabled', ! empty( $_POST['voice_enabled'] ) ? '1' : '0' );
 			update_option( 'tc_agents_voice_provider', sanitize_text_field( $_POST['voice_provider'] ?? 'vapi' ) );
 			if ( ! empty( $_POST['voice_api_key'] ) ) {
 				TC_Agents_Vault::put( 'voice_api_key', sanitize_text_field( $_POST['voice_api_key'] ) );
@@ -775,7 +778,7 @@ class TC_Agents_Admin {
 			update_option( 'tc_agents_human_whatsapp_number', sanitize_text_field( $_POST['human_whatsapp_number'] ?? '' ) );
 			update_option( 'tc_agents_human_notification_email', sanitize_email( $_POST['human_notification_email'] ?? '' ) );
 
-			if ( isset( $_POST['github_token'] ) ) {
+			if ( ! empty( $_POST['github_token'] ) ) {
 				$gh_token = sanitize_text_field( trim( $_POST['github_token'] ) );
 				if ( class_exists( 'TC_Agents_Vault' ) ) {
 					TC_Agents_Vault::put( 'github_token', $gh_token );
@@ -787,7 +790,7 @@ class TC_Agents_Admin {
 			exit;
 		}
 
-		// 8. Personas (migrate retired routing overrides to gateway)
+		// 8. Personas (migrate retired legacy routing overrides to gateway)
 		if ( 'save_agent' === $action ) {
 			global $wpdb;
 			$table = $wpdb->prefix . 'tc_agent_personas';
@@ -795,7 +798,7 @@ class TC_Agents_Admin {
 
 			$tools = array_map( 'sanitize_text_field', (array) ( $_POST['allowed_tools'] ?? array() ) );
 			$routing_override = sanitize_text_field( $_POST['routing_override'] ?? '' );
-			if ( in_array( $routing_override, array( 'aipuffer', 'omniroute', 'vmstudio' ), true ) ) { $routing_override = 'gateway'; }
+			if ( in_array( $routing_override, array( 'omniroute', 'vmstudio' ), true ) ) { $routing_override = 'gateway'; }
 
 			$data = array(
 				'name'             => sanitize_text_field( $_POST['name'] ?? '' ),
@@ -805,6 +808,7 @@ class TC_Agents_Admin {
 				'allowed_tools'    => wp_json_encode( $tools ),
 				'temperature'      => floatval( $_POST['temperature'] ?? 0.7 ),
 				'routing_override' => $routing_override,
+				'is_active'        => ! empty( $_POST['is_active'] ) ? 1 : 0,
 			);
 
 			if ( $agent_id > 0 ) {
@@ -816,6 +820,20 @@ class TC_Agents_Admin {
 			}
 
 			wp_safe_redirect( add_query_arg( array( 'page' => 'tc-agents-personas', 'saved' => '1' ), admin_url( 'admin.php' ) ) );
+			exit;
+		}
+
+		if ( 'delete_agent' === $action ) {
+			global $wpdb;
+			$agent_id = absint( $_POST['agent_id'] ?? 0 );
+			$table    = $wpdb->prefix . 'tc_agent_personas';
+			if ( $agent_id > 0 ) {
+				$agent = $wpdb->get_row( $wpdb->prepare( "SELECT slug FROM $table WHERE id = %d", $agent_id ), ARRAY_A );
+				if ( $agent && 'tripcosmos-guide' !== $agent['slug'] ) {
+					$wpdb->delete( $table, array( 'id' => $agent_id ) );
+				}
+			}
+			wp_safe_redirect( add_query_arg( array( 'page' => 'tc-agents-personas', 'deleted' => '1' ), admin_url( 'admin.php' ) ) );
 			exit;
 		}
 	}

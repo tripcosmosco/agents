@@ -52,7 +52,7 @@ $logs               = TC_Agents_Logger::get_logs( array( 'limit' => 40 ) );
 	<!-- Guardrails Configuration -->
 	<div class="tc-card">
 		<h3>Velocity & Channel Quota Controls</h3>
-		<form method="post">
+		<form method="post" action="<?php echo esc_url( admin_url( 'admin.php?page=tc-agents-guardrails' ) ); ?>">
 			<?php wp_nonce_field( 'tc_agents_admin_save', 'tc_agents_nonce' ); ?>
 			<input type="hidden" name="tc_agents_action" value="save_guardrails" />
 

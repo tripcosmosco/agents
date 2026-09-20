@@ -69,7 +69,7 @@ $health_statuses = $router->check_all_health();
 	<hr style="margin: 32px 0 24px 0;" />
 
 	<!-- Provider Configuration & Priority Form -->
-	<form method="post">
+	<form method="post" action="<?php echo esc_url( admin_url( 'admin.php?page=tc-agents-routing' ) ); ?>">
 		<?php wp_nonce_field( 'tc_agents_admin_save', 'tc_agents_nonce' ); ?>
 		<input type="hidden" name="tc_agents_action" value="save_routing" />
 

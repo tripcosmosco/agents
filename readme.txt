@@ -4,7 +4,7 @@ Tags: ai, chatbot, agent, travel, crm, whatsapp, openrouter, gemini, b2b
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 8.0
-Stable tag: 1.4.1
+Stable tag: 1.4.2
 License: Proprietary
 License URI: https://tripcosmos.co
 
@@ -36,6 +36,18 @@ TripCosmos Agents provides TripCosmos.co with a reliable, supervised AI conversa
 5. Connect CRM, WhatsApp, and Voice settings in `Tripcosmos Agents -> Integrations`.
 
 == Changelog ==
+
+= 1.4.2 =
+* Fix: Hardened `TC_Agents_Vault` encryption and decryption with defensive Throwable error boundaries, preventing fatal `ValueError` tag exceptions on PHP 8+.
+* Fix: Resolved undefined `$code` variable in Brevo API integration (`class-tc-integration-brevo.php`) causing all email dispatches to fail.
+* Fix: Preserved WhatsApp webhook secret token on Integrations save, preventing accidental authentication credential wipes.
+* Fix: Added missing Voice Telephony master toggle checkbox in Integrations view and handler.
+* Fix: Restored AIPKit (AIPuffer) option in agent persona provider override dropdown and stopped unwanted rewrite to gateway.
+* Fix: Added `is_active` persona toggle and delete action for custom agent personas.
+* Fix: Masked GitHub personal access token in General Settings and guarded against empty overwrite.
+* Fix: Enforced explicit form actions across all admin views and replaced `check_admin_referer` in `admin_notices` with `wp_verify_nonce`.
+* Fix: Corrected cross-channel sequence failover logic and ensured drip WhatsApp dispatches are recorded against daily guardrails quota.
+* Fix: Enforced margin ceiling protection on direct `discount_pct` tool arguments in `TC_Agents_Guardrails`.
 
 = 1.4.1 =
 * Fixed GitHub updater filesystem handling by explicitly requiring `file.php` and initializing `WP_Filesystem()`.

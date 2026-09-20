@@ -209,9 +209,13 @@ class TC_Agent_Sequences {
 			$primary_wa   = ( 'whatsapp' === $seq['channel'] );
 
 			if ( $primary_wa && ! empty( $con['phone'] ) ) {
-				$sent = TC_Integration_WhatsApp::send_message( $con['phone'], $message_body );
-				if ( $sent ) {
-					$used_channel = 'whatsapp';
+				$check = TC_Agents_Guardrails::check_permission( 'whatsapp', $con['phone'] );
+				if ( ! is_wp_error( $check ) ) {
+					$sent = TC_Integration_WhatsApp::send_message( $con['phone'], $message_body );
+					if ( $sent ) {
+						$used_channel = 'whatsapp';
+						TC_Agents_Guardrails::record_outbound( 'whatsapp' );
+					}
 				}
 			} elseif ( ! $primary_wa && ! empty( $con['email'] ) ) {
 				$sent = (bool) wp_mail( $con['email'], $subject, $message_body );
@@ -222,15 +226,19 @@ class TC_Agent_Sequences {
 
 			// Failover to secondary channel if primary was unavailable or failed
 			if ( ! $sent ) {
-				if ( 'whatsapp' !== $used_channel && ! empty( $con['phone'] ) ) {
-					$sent = TC_Integration_WhatsApp::send_message( $con['phone'], $message_body );
-					if ( $sent ) {
-						$used_channel = 'whatsapp (failover)';
-					}
-				} elseif ( 'email' !== $used_channel && ! empty( $con['email'] ) ) {
+				if ( $primary_wa && ! empty( $con['email'] ) ) {
 					$sent = (bool) wp_mail( $con['email'], $subject, $message_body );
 					if ( $sent ) {
 						$used_channel = 'email (failover)';
+					}
+				} elseif ( ! $primary_wa && ! empty( $con['phone'] ) ) {
+					$check = TC_Agents_Guardrails::check_permission( 'whatsapp', $con['phone'] );
+					if ( ! is_wp_error( $check ) ) {
+						$sent = TC_Integration_WhatsApp::send_message( $con['phone'], $message_body );
+						if ( $sent ) {
+							$used_channel = 'whatsapp (failover)';
+							TC_Agents_Guardrails::record_outbound( 'whatsapp' );
+						}
 					}
 				}
 			}

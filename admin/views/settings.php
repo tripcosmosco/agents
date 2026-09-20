@@ -24,7 +24,7 @@ $is_widget_live = ( '1' === $widget_enabled );
 		<div class="notice notice-success is-dismissible"><p>Settings saved successfully.</p></div>
 	<?php endif; ?>
 
-	<form method="post">
+	<form method="post" action="<?php echo esc_url( admin_url( 'admin.php?page=tc-agents-settings' ) ); ?>">
 		<?php wp_nonce_field( 'tc_agents_admin_save', 'tc_agents_nonce' ); ?>
 		<input type="hidden" name="tc_agents_action" value="save_settings" />
 
@@ -251,10 +251,8 @@ $is_widget_live = ( '1' === $widget_enabled );
 				<tr>
 					<th scope="row"><label for="github_token">GitHub Personal Access Token (Optional)</label></th>
 					<td>
-						<?php
-						$current_gh_token = class_exists( 'TC_Agents_Vault' ) ? TC_Agents_Vault::get( 'github_token', '' ) : get_option( 'tc_agents_github_token', '' );
-						?>
-						<input type="password" name="github_token" id="github_token" class="regular-text" value="<?php echo esc_attr( $current_gh_token ); ?>" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" autocomplete="off" />
+						<input type="password" name="github_token" id="github_token" class="regular-text" value="" placeholder="<?php echo esc_attr( TC_Agents_Vault::hint( 'github_token' ) ?: 'ghp_••••••••••••••••••••' ); ?>" autocomplete="new-password" />
+						<?php if ( TC_Agents_Vault::has( 'github_token' ) ) : ?><span class="dashicons dashicons-yes-alt" style="color:#10b981;"></span> <small>Encrypted in Vault</small><?php endif; ?>
 						<p class="description">Required only if your GitHub repository is private or if you exceed GitHub's unauthenticated API rate limits (60/hr).</p>
 					</td>
 				</tr>

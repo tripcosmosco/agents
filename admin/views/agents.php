@@ -82,6 +82,14 @@ if ( $agent && ! empty( $agent['allowed_tools'] ) ) {
 								</td>
 								<td>
 									<a href="<?php echo esc_url( add_query_arg( 'edit', $a['id'] ) ); ?>" class="button button-small">Edit</a>
+									<?php if ( 'tripcosmos-guide' !== $a['slug'] ) : ?>
+										<form method="post" action="<?php echo esc_url( admin_url( 'admin.php?page=tc-agents-personas' ) ); ?>" style="display:inline;" onsubmit="return confirm('<?php esc_attr_e( 'Delete this agent persona?', 'tripcosmos-agents' ); ?>');">
+											<?php wp_nonce_field( 'tc_agents_admin_save', 'tc_agents_nonce' ); ?>
+											<input type="hidden" name="tc_agents_action" value="delete_agent" />
+											<input type="hidden" name="agent_id" value="<?php echo esc_attr( $a['id'] ); ?>" />
+											<button type="submit" class="button button-small button-link-delete" style="color:#b91c1c;">Delete</button>
+										</form>
+									<?php endif; ?>
 								</td>
 							</tr>
 						<?php endforeach; ?>
@@ -94,7 +102,7 @@ if ( $agent && ! empty( $agent['allowed_tools'] ) ) {
 		<div class="tc-col-side">
 			<div class="tc-card">
 				<h3><?php echo $agent ? 'Edit Persona: ' . esc_html( $agent['name'] ) : 'Create New Agent Persona'; ?></h3>
-				<form method="post">
+				<form method="post" action="<?php echo esc_url( admin_url( 'admin.php?page=tc-agents-personas' ) ); ?>">
 					<?php wp_nonce_field( 'tc_agents_admin_save', 'tc_agents_nonce' ); ?>
 					<input type="hidden" name="tc_agents_action" value="save_agent" />
 					<input type="hidden" name="agent_id" value="<?php echo esc_attr( $agent['id'] ?? 0 ); ?>" />
@@ -150,8 +158,16 @@ if ( $agent && ! empty( $agent['allowed_tools'] ) ) {
 							<option value="">Use Global Priority Chain</option>
 							<option value="openrouter" <?php selected( $agent['routing_override'] ?? '', 'openrouter' ); ?>>Force OpenRouter</option>
 							<option value="gateway" <?php selected( $agent['routing_override'] ?? '', 'gateway' ); ?>>Force AI Gateway</option>
+							<option value="aipuffer" <?php selected( $agent['routing_override'] ?? '', 'aipuffer' ); ?>>Force AIPKit (AIPuffer)</option>
 							<option value="gemini" <?php selected( $agent['routing_override'] ?? '', 'gemini' ); ?>>Force Gemini</option>
 						</select>
+					</p>
+
+					<p>
+						<label>
+							<input type="checkbox" name="is_active" value="1" <?php checked( ! isset( $agent['is_active'] ) || ! empty( $agent['is_active'] ) ); ?> />
+							<strong>Active Persona</strong> (available for incoming inquiries)
+						</label>
 					</p>
 
 					<p>

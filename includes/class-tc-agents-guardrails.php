@@ -174,9 +174,16 @@ class TC_Agents_Guardrails {
 		}
 
 		// 3. Margin & Discount Ceiling Protection (VMAI Deal Math)
-		if ( ! empty( $arguments['discount_pct'] ) || ( ! empty( $arguments['base_price'] ) && ! empty( $arguments['offered_price'] ) ) ) {
-			$base_price    = floatval( $arguments['base_price'] ?? 0 );
-			$offered_price = floatval( $arguments['offered_price'] ?? 0 );
+		$ceiling = TC_Agent_Deal_Math::get_discount_ceiling();
+		if ( isset( $arguments['discount_pct'] ) && floatval( $arguments['discount_pct'] ) > $ceiling ) {
+			return new WP_Error(
+				'discount_ceiling_exceeded',
+				sprintf( __( 'Requested discount of %.1f%% exceeds authorized maximum of %d%%.', 'tripcosmos-agents' ), floatval( $arguments['discount_pct'] ), $ceiling )
+			);
+		}
+		if ( ! empty( $arguments['base_price'] ) && ! empty( $arguments['offered_price'] ) ) {
+			$base_price    = floatval( $arguments['base_price'] );
+			$offered_price = floatval( $arguments['offered_price'] );
 			if ( $base_price > 0 && $offered_price > 0 ) {
 				$check = TC_Agent_Deal_Math::validate_discount( $base_price, $offered_price );
 				if ( ! $check['allowed'] ) {
