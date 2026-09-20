@@ -200,13 +200,13 @@ class TC_Agent_Knowledge {
 	}
 
 	/**
-	 * 1-Click catalog sync: import published treks, packages, and pages into Knowledge Base.
+	 * 1-Click catalog sync: import published tours, packages, and pages into Knowledge Base.
 	 *
 	 * @return int Number of indexed items.
 	 */
 	public static function sync_wordpress_catalog() {
-		// Detect post types: custom tour/trek types, products, posts, pages
-		$post_types = array( 'post', 'page', 'product', 'trip', 'trek', 'tour', 'package' );
+		// Detect post types: custom tour/package types, products, posts, pages
+		$post_types = array( 'post', 'page', 'product', 'trip', 'tour', 'package', 'togo_trip' );
 		$available  = array();
 		foreach ( $post_types as $pt ) {
 			if ( post_type_exists( $pt ) ) {
@@ -231,16 +231,15 @@ class TC_Agent_Knowledge {
 			}
 
 			// Add category tag based on post type
-			$category = in_array( $p->post_type, array( 'product', 'trip', 'trek', 'tour' ), true ) ? 'trek_catalog' : 'site_content';
+			$category = in_array( $p->post_type, array( 'product', 'trip', 'tour', 'package', 'togo_trip' ), true ) ? 'tour_catalog' : 'site_content';
 
 			// Format structured metadata if available
 			$meta_info = '';
-			$duration  = get_post_meta( $p->ID, 'duration', true ) ?: get_post_meta( $p->ID, 'trip_duration', true );
-			$altitude  = get_post_meta( $p->ID, 'altitude', true ) ?: get_post_meta( $p->ID, 'max_altitude', true );
-			$difficulty = get_post_meta( $p->ID, 'difficulty', true ) ?: get_post_meta( $p->ID, 'trek_difficulty', true );
+			$duration  = get_post_meta( $p->ID, 'duration', true ) ?: ( get_post_meta( $p->ID, 'trip_duration', true ) ?: get_post_meta( $p->ID, 'togo_trip_duration', true ) );
+			$difficulty = get_post_meta( $p->ID, 'difficulty', true ) ?: get_post_meta( $p->ID, 'togo_trip_difficulty', true );
 
-			if ( $duration || $altitude || $difficulty ) {
-				$meta_info = "\n[Trek Details: Duration: " . ( $duration ?: 'N/A' ) . " | Altitude: " . ( $altitude ?: 'N/A' ) . " | Difficulty: " . ( $difficulty ?: 'Moderate' ) . "]\n";
+			if ( $duration || $difficulty ) {
+				$meta_info = "\n[Tour Details: Duration: " . ( $duration ?: 'N/A' ) . " | Grade: " . ( $difficulty ?: 'Family Friendly' ) . "]\n";
 			}
 
 			$full_text = $title . "\n" . $meta_info . "\n" . $content;

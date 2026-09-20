@@ -26,7 +26,7 @@ class TC_Agents_GitHub_Updater {
 	 *
 	 * @var bool
 	 */
-	private $is_upgrade = false;
+	private static $is_upgrade = false;
 
 	/**
 	 * Register hooks.
@@ -226,18 +226,18 @@ class TC_Agents_GitHub_Updater {
 	 * @return bool
 	 */
 	public function flag_upgrade( $reply, $package, $upgrader ) {
-		$this->is_upgrade = false;
+		self::$is_upgrade = false;
 
 		if ( is_string( $package ) && false !== strpos( $package, self::GH_REPO ) ) {
-			$this->is_upgrade = true;
+			self::$is_upgrade = true;
 		}
 
-		if ( ! $this->is_upgrade && $upgrader && isset( $upgrader->skin ) ) {
+		if ( ! self::$is_upgrade && $upgrader && isset( $upgrader->skin ) ) {
 			$skin = $upgrader->skin;
 			if ( ! empty( $skin->plugin ) && plugin_basename( TC_AGENTS_FILE ) === $skin->plugin ) {
-				$this->is_upgrade = true;
+				self::$is_upgrade = true;
 			} elseif ( ! empty( $skin->plugin_info['plugin'] ) && plugin_basename( TC_AGENTS_FILE ) === $skin->plugin_info['plugin'] ) {
-				$this->is_upgrade = true;
+				self::$is_upgrade = true;
 			}
 		}
 
@@ -257,8 +257,13 @@ class TC_Agents_GitHub_Updater {
 	public function fix_source_dir( $source, $remote_source, $upgrader ) {
 		global $wp_filesystem;
 
-		if ( ! $this->is_upgrade ) {
+		if ( ! self::$is_upgrade ) {
 			return $source;
+		}
+
+		if ( ! $wp_filesystem ) {
+			require_once ABSPATH . 'wp-admin/includes/file.php';
+			WP_Filesystem();
 		}
 
 		$target = trailingslashit( $remote_source ) . basename( dirname( TC_AGENTS_FILE ) );
@@ -287,6 +292,7 @@ class TC_Agents_GitHub_Updater {
 	public function clear_cache( $upgrader, $options ) {
 		if ( isset( $options['type'] ) && 'plugin' === $options['type'] ) {
 			delete_transient( self::CACHE_KEY );
+			self::$is_upgrade = false;
 		}
 	}
 
@@ -422,19 +428,23 @@ class TC_Agents_GitHub_Updater {
 
 		$remote_version = self::tag_to_version( $release['tag_name'] );
 
-		// Load WordPress upgrade infrastructure
+		// Load WordPress upgrade and filesystem infrastructure
+		require_once ABSPATH . 'wp-admin/includes/file.php';
 		require_once ABSPATH . 'wp-admin/includes/class-wp-upgrader.php';
 		require_once ABSPATH . 'wp-admin/includes/class-plugin-upgrader.php';
 		require_once ABSPATH . 'wp-admin/includes/class-wp-ajax-upgrader-skin.php';
 		require_once ABSPATH . 'wp-admin/includes/plugin.php';
 
+		// Initialize global $wp_filesystem for folder manipulation
+		WP_Filesystem();
+
 		$skin     = new WP_Ajax_Upgrader_Skin();
 		$upgrader = new Plugin_Upgrader( $skin );
 		$plugin   = plugin_basename( TC_AGENTS_FILE );
 
-		// Hook the folder renaming filter
+		// Hook the folder renaming filter and flag upgrade active
 		$instance = new self();
-		$instance->is_upgrade = true;
+		self::$is_upgrade = true;
 		add_filter( 'upgrader_source_selection', array( $instance, 'fix_source_dir' ), 10, 3 );
 
 		// Inject into update transient so Plugin_Upgrader knows where to download
@@ -448,12 +458,23 @@ class TC_Agents_GitHub_Updater {
 		$result = $upgrader->upgrade( $plugin );
 
 		delete_transient( self::CACHE_KEY );
+		self::$is_upgrade = false;
 
 		if ( is_wp_error( $result ) ) {
 			wp_send_json_error( array( 'message' => $result->get_error_message() ) );
 		} elseif ( false === $result ) {
-			$errors = $skin->get_errors();
-			$error_message = is_wp_error( $errors ) ? $errors->get_error_message() : __( 'Plugin update failed.', 'tripcosmos-agents' );
+			$error_message = __( 'Plugin update failed.', 'tripcosmos-agents' );
+			if ( method_exists( $skin, 'get_errors' ) ) {
+				$errs = $skin->get_errors();
+				if ( is_wp_error( $errs ) ) {
+					$error_message = $errs->get_error_message();
+				}
+			} elseif ( method_exists( $skin, 'get_error_messages' ) ) {
+				$msgs = $skin->get_error_messages();
+				if ( ! empty( $msgs ) ) {
+					$error_message = implode( ' ', (array) $msgs );
+				}
+			}
 			wp_send_json_error( array( 'message' => $error_message ) );
 		}
 

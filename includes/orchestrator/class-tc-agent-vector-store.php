@@ -147,6 +147,9 @@ class TC_Agent_Vector_Store {
 			$endpoint = 'https://api.openai.com/v1/embeddings';
 		}
 		$model = get_option( 'tc_agents_embed_model', 'text-embedding-3-small' );
+		if ( $is_openrouter && false === strpos( $model, '/' ) ) {
+			$model = 'openai/' . $model;
+		}
 
 		$headers = array(
 			'Content-Type'  => 'application/json',

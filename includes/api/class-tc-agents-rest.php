@@ -211,6 +211,11 @@ class TC_Agents_REST {
 	 * Handle Chat Message.
 	 */
 	public static function handle_chat( WP_REST_Request $request ) {
+		// Handle CORS preflight requests gracefully
+		if ( 'OPTIONS' === $request->get_method() ) {
+			return new WP_REST_Response( array( 'status' => 'ok' ), 200 );
+		}
+
 		// Support both JSON body and form-encoded data
 		$params  = array_merge( (array) $request->get_params(), (array) $request->get_json_params() );
 		$message = sanitize_text_field( $params['message'] ?? '' );

@@ -4,7 +4,7 @@ Tags: ai, chatbot, agent, travel, crm, whatsapp, openrouter, gemini, b2b
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 8.0
-Stable tag: 1.4.0
+Stable tag: 1.4.1
 License: Proprietary
 License URI: https://tripcosmos.co
 
@@ -37,7 +37,17 @@ TripCosmos Agents provides TripCosmos.co with a reliable, supervised AI conversa
 
 == Changelog ==
 
-= 1.4.0 =
+= 1.4.1 =
+* Fixed GitHub updater filesystem handling by explicitly requiring `file.php` and initializing `WP_Filesystem()`.
+* Made GitHub updater `is_upgrade` flag static to guarantee proper directory renaming across parallel filter callbacks.
+* Fixed Gemini multi-turn tool calling sequence by preserving tool execution turns and avoiding duplicate user-role merges.
+* Normalized Gemini model names by stripping redundant `models/` prefixes to prevent 404 API errors.
+* Added missing Twenty CRM Person ID persistence in contact leads table for bi-directional status updates.
+* Fixed CORS pre-flight HTTP OPTIONS requests on public `/tc-agents/v1/chat` endpoint.
+* Fixed Evolution API and WPAICG bot bridge payload compatibility by supplying `message`, `prompt`, and `messages`.
+* Enforced complete bot silence on WhatsApp channel during human specialist takeovers.
+* Added popular Delhi, Lucknow, and Bodhgaya circuit routes to cab distance matrix.
+* Replaced all remaining legacy trek metadata tags with spiritual circuit and tour package branding.
 * Fixed critical CRM background queue processor method mismatch errors.
 * Fixed multi-turn LLM context poisoning on subsequent conversation turns.
 * Cleaned up restored conversation history in REST API to filter raw JSON payloads.

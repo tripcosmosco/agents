@@ -679,7 +679,14 @@ class TC_Agent_Tools {
 					'month'       => $month,
 				)
 			);
-			$results['twenty_crm'] = $t_res ? 'synced' : 'skipped';
+			if ( $t_res ) {
+				$wpdb->update( $table_contacts, array( 'twentycrm_id' => (string) $t_res ), array( 'id' => $contact_id ) );
+				$results['twenty_crm'] = 'synced (ID: ' . $t_res . ')';
+			} else {
+				$results['twenty_crm'] = 'skipped/failed';
+			}
+		} else {
+			$results['twenty_crm'] = 'inactive';
 		}
 
 		// 4. Google Sheets sync

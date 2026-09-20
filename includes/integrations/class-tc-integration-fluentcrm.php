@@ -78,7 +78,7 @@ class TC_Integration_FluentCRM {
 			$name = sanitize_text_field( $form_data['full_name'] );
 		}
 
-		// Detect Trek / Destination Interest & Requirements
+		// Detect Tour / Destination Interest & Requirements
 		foreach ( $form_data as $key => $val ) {
 			if ( is_string( $val ) ) {
 				$k_lower = strtolower( (string) $key );
@@ -99,7 +99,7 @@ class TC_Integration_FluentCRM {
 			$email = 'traveler-' . preg_replace( '/\D/', '', $phone ) . '@leads.tripcosmos.co';
 		}
 
-		// 2. Compute Lead Score (Base 70, +15 for phone, +15 for specific trek/destination)
+		// 2. Compute Lead Score (Base 70, +15 for phone, +15 for specific tour/destination)
 		$score = 70;
 		if ( ! empty( $phone ) ) {
 			$score += 15;

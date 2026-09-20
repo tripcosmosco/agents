@@ -49,7 +49,7 @@ class TC_Agent_Orchestrator {
 		if ( 'handed_off' === $conversation['status'] && 'admin' !== $channel ) {
 			return array(
 				'session_id'    => $session_id,
-				'reply'         => __( 'A travel specialist from our team has joined this conversation. Please wait a moment while they reply, or chat with them directly on WhatsApp.', 'tripcosmos-agents' ),
+				'reply'         => 'whatsapp' === $channel ? '' : __( 'A travel specialist from our team has joined this conversation. Please wait a moment while they reply, or chat with them directly on WhatsApp.', 'tripcosmos-agents' ),
 				'handoff'       => array( 'human_takeover_active' => true ),
 				'provider_used' => 'human_takeover_guard',
 				'latency_ms'    => 0,

@@ -2,7 +2,7 @@
 /**
  * Knowledge Base Chunker for TripCosmos Agents.
  *
- * Splits trek descriptions, itineraries, and policy documents on paragraph
+ * Splits tour descriptions, itineraries, and policy documents on paragraph
  * boundaries into overlapping chunks so answers are never clipped midway.
  *
  * @package TripCosmos_Agents

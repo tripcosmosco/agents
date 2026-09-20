@@ -363,11 +363,27 @@ class TC_Provider_AIPuffer implements TC_AI_Provider_Interface {
 			$headers = array( 'Content-Type' => 'application/json', 'Accept' => 'application/json' );
 			if ( ! empty( $key ) ) { $headers['Authorization'] = 'Bearer ' . $key; }
 			$timeout = (int) get_option( 'tc_agents_timeout_seconds', 8 );
-			$response = wp_remote_post( $url, array( 'timeout' => $timeout, 'sslverify' => false, 'headers' => $headers, 'body' => wp_json_encode( array( 'messages' => $messages ) ) ) );
+
+			// Extract last user message to support bots expecting single 'message' or 'prompt' string
+			$last_user_msg = '';
+			for ( $i = count( $messages ) - 1; $i >= 0; $i-- ) {
+				if ( ( $messages[ $i ]['role'] ?? '' ) === 'user' ) {
+					$last_user_msg = (string) ( $messages[ $i ]['content'] ?? '' );
+					break;
+				}
+			}
+
+			$bridge_payload = array(
+				'message'  => $last_user_msg,
+				'prompt'   => $last_user_msg,
+				'messages' => $messages,
+			);
+
+			$response = wp_remote_post( $url, array( 'timeout' => $timeout, 'sslverify' => false, 'headers' => $headers, 'body' => wp_json_encode( $bridge_payload ) ) );
 			$latency = (int) round( ( microtime( true ) - $start_time ) * 1000 );
 			if ( ! is_wp_error( $response ) && wp_remote_retrieve_response_code( $response ) < 400 ) {
 				$body = json_decode( wp_remote_retrieve_body( $response ), true );
-				$content = $body['reply'] ?? $body['data']['reply'] ?? $body['content'] ?? $body['choices'][0]['message']['content'] ?? '';
+				$content = $body['reply'] ?? $body['data']['reply'] ?? $body['content'] ?? $body['response'] ?? $body['answer'] ?? $body['text'] ?? $body['choices'][0]['message']['content'] ?? '';
 				if ( '' !== $content ) {
 					return array( 'content' => $content, 'tool_calls' => $body['choices'][0]['message']['tool_calls'] ?? array(), 'prompt_tokens' => 0, 'completion_tokens' => 0, 'latency_ms' => $latency );
 				}

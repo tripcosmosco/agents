@@ -25,6 +25,10 @@ class TC_Cab_Fare_Engine {
 		'ayodhya_prayagraj'   => 165,
 		'ayodhya_lucknow'     => 135,
 		'prayagraj_chitrakoot'=> 130,
+		'lucknow_prayagraj'   => 200,
+		'bodhgaya_prayagraj'  => 360,
+		'delhi_varanasi'      => 820,
+		'delhi_ayodhya'       => 680,
 		'varanasi_airport'    => 28,
 		'ayodhya_airport'     => 15,
 	);

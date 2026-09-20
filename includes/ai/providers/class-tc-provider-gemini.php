@@ -56,6 +56,7 @@ class TC_Provider_Gemini implements TC_AI_Provider_Interface {
 			return new WP_Error( 'gemini_not_configured', __( 'Gemini API key missing.', 'tripcosmos-agents' ) );
 		}
 		$model = $options['model'] ?? $this->get_model();
+		$model_clean = preg_replace( '#^models/#', '', trim( (string) $model ) );
 
 		$system_text = '';
 		$contents    = array();
@@ -63,16 +64,29 @@ class TC_Provider_Gemini implements TC_AI_Provider_Interface {
 		foreach ( $messages as $m ) {
 			$raw_role = $m['role'] ?? 'user';
 			$content  = (string) ( $m['content'] ?? '' );
-			if ( '' === trim( $content ) ) {
-				continue;
-			}
 
 			if ( 'system' === $raw_role ) {
-				$system_text .= ( empty( $system_text ) ? '' : "\n\n" ) . $content;
+				if ( '' !== trim( $content ) ) {
+					$system_text .= ( empty( $system_text ) ? '' : "\n\n" ) . $content;
+				}
 				continue;
 			}
 
-			$role = ( 'assistant' === $raw_role ) ? 'model' : 'user';
+			if ( '' === trim( $content ) ) {
+				if ( ! empty( $m['tool_calls'] ) ) {
+					$content = '[Consulting travel tools and booking database...]';
+				} else {
+					continue;
+				}
+			}
+
+			if ( 'tool' === $raw_role ) {
+				$tool_name = $m['name'] ?? 'system_tool';
+				$content   = "[Tool Output ({$tool_name})]: " . $content;
+				$role      = 'user';
+			} else {
+				$role = ( 'assistant' === $raw_role ) ? 'model' : 'user';
+			}
 
 			// Enforce strictly alternating user/model turns as required by Gemini API
 			$last_idx = count( $contents ) - 1;
@@ -106,7 +120,7 @@ class TC_Provider_Gemini implements TC_AI_Provider_Interface {
 			);
 		}
 
-		$url = 'https://generativelanguage.googleapis.com/v1beta/models/' . rawurlencode( $model ) . ':generateContent?key=' . $key;
+		$url = 'https://generativelanguage.googleapis.com/v1beta/models/' . rawurlencode( $model_clean ) . ':generateContent?key=' . $key;
 		$res = wp_remote_post(
 			$url,
 			array(
