@@ -15,6 +15,7 @@
 		initAIPufferBotSync();
 		initProviderModelSync();
 		initWidgetToggle();
+		initGitHubUpdater();
 	});
 
 	/**
@@ -584,6 +585,123 @@
 				error: function() {
 					$btn.prop('disabled', false).text(origText);
 					alert('Connection error while toggling chatbot status.');
+				}
+			});
+		});
+	}
+
+	/**
+	 * GitHub Plugin Updates & 1-Click Upgrade Manager
+	 */
+	function initGitHubUpdater() {
+		const $checkBtn = $('#tc-check-github-update-btn');
+		const $updateBtn = $('#tc-perform-github-update-btn');
+		const $statusBox = $('#tc-github-update-status-box');
+		const $targetVersion = $('#tc-target-update-version');
+
+		if (!$checkBtn.length) return;
+
+		$checkBtn.on('click', function(e) {
+			e.preventDefault();
+			const origHtml = $checkBtn.html();
+			$checkBtn.prop('disabled', true).html('<span class="spinner is-active" style="float:none;margin:0 6px 0 0;"></span> Checking GitHub...');
+			$statusBox.hide();
+
+			$.ajax({
+				url: tcAgentsAdmin.ajaxUrl,
+				type: 'POST',
+				dataType: 'json',
+				data: {
+					action: 'tc_agents_check_github_update',
+					nonce: tcAgentsAdmin.adminNonce
+				},
+				success: function(res) {
+					$checkBtn.prop('disabled', false).html(origHtml);
+					if (res.success) {
+						const data = res.data;
+						if (data.has_update) {
+							$targetVersion.text('v' + data.latest_version);
+							$updateBtn.show().data('version', data.latest_version);
+							let notes = '';
+							if (data.changelog) {
+								notes = '<div style="margin-top:10px;padding:10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;max-height:160px;overflow-y:auto;font-family:monospace;font-size:12px;white-space:pre-wrap;">' + data.changelog + '</div>';
+							}
+							$statusBox
+								.css({ 'background': '#fef3c7', 'border': '1px solid #f59e0b', 'color': '#92400e' })
+								.html('<strong>🚀 Update Available!</strong> A new release <strong>v' + data.latest_version + '</strong> is available on GitHub (Installed: v' + data.current_version + ').' + notes)
+								.slideDown(200);
+						} else {
+							$updateBtn.hide();
+							$statusBox
+								.css({ 'background': '#f0fdf4', 'border': '1px solid #86efac', 'color': '#166534' })
+								.html('<strong>✅ Up to Date!</strong> You are running the latest version <strong>v' + data.current_version + '</strong> from GitHub.')
+								.slideDown(200);
+						}
+					} else {
+						$updateBtn.hide();
+						$statusBox
+							.css({ 'background': '#fef2f2', 'border': '1px solid #fca5a5', 'color': '#991b1b' })
+							.html('<strong>⚠️ Check Notice:</strong> ' + (res.data ? res.data.message : 'Could not contact GitHub API.'))
+							.slideDown(200);
+					}
+				},
+				error: function() {
+					$checkBtn.prop('disabled', false).html(origHtml);
+					$updateBtn.hide();
+					$statusBox
+						.css({ 'background': '#fef2f2', 'border': '1px solid #fca5a5', 'color': '#991b1b' })
+						.html('<strong>⚠️ Connection Error:</strong> Unable to reach WordPress server.')
+						.slideDown(200);
+				}
+			});
+		});
+
+		$updateBtn.on('click', function(e) {
+			e.preventDefault();
+			const targetVer = $targetVersion.text() || 'Latest';
+			if (!confirm('Are you sure you want to download and install ' + targetVer + ' directly from GitHub? The plugin will be upgraded in-place.')) {
+				return;
+			}
+
+			const origHtml = $updateBtn.html();
+			$updateBtn.prop('disabled', true).html('<span class="spinner is-active" style="float:none;margin:0 6px 0 0;"></span> Downloading & Updating...');
+			$checkBtn.prop('disabled', true);
+
+			$statusBox
+				.css({ 'background': '#eff6ff', 'border': '1px solid #93c5fd', 'color': '#1e40af' })
+				.html('<strong>⏳ Upgrading Plugin:</strong> Downloading release archive from GitHub, extracting, and installing... Please do not close this window.')
+				.slideDown(200);
+
+			$.ajax({
+				url: tcAgentsAdmin.ajaxUrl,
+				type: 'POST',
+				dataType: 'json',
+				data: {
+					action: 'tc_agents_perform_github_update',
+					nonce: tcAgentsAdmin.adminNonce
+				},
+				success: function(res) {
+					if (res.success) {
+						$statusBox
+							.css({ 'background': '#f0fdf4', 'border': '1px solid #86efac', 'color': '#166534' })
+							.html('<strong>🎉 Update Complete!</strong> ' + res.data.message);
+						setTimeout(function() {
+							window.location.reload();
+						}, 2000);
+					} else {
+						$updateBtn.prop('disabled', false).html(origHtml);
+						$checkBtn.prop('disabled', false);
+						$statusBox
+							.css({ 'background': '#fef2f2', 'border': '1px solid #fca5a5', 'color': '#991b1b' })
+							.html('<strong>❌ Update Failed:</strong> ' + (res.data ? res.data.message : 'Unknown installation error.'));
+					}
+				},
+				error: function() {
+					$updateBtn.prop('disabled', false).html(origHtml);
+					$checkBtn.prop('disabled', false);
+					$statusBox
+						.css({ 'background': '#fef2f2', 'border': '1px solid #fca5a5', 'color': '#991b1b' })
+						.html('<strong>❌ Request Timeout or Connection Error:</strong> Check your server logs or update manually.');
 				}
 			});
 		});

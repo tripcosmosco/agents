@@ -46,6 +46,10 @@ class TC_Agents_GitHub_Updater {
 			array( $instance, 'action_links' )
 		);
 		add_action( 'admin_notices', array( $instance, 'manual_check_notice' ) );
+
+		// In-plugin AJAX actions for General Settings GitHub update manager
+		add_action( 'wp_ajax_tc_agents_check_github_update', array( __CLASS__, 'ajax_check_update' ) );
+		add_action( 'wp_ajax_tc_agents_perform_github_update', array( __CLASS__, 'ajax_perform_update' ) );
 	}
 
 	/**
@@ -62,14 +66,20 @@ class TC_Agents_GitHub_Updater {
 			}
 		}
 
+		$headers = array(
+			'Accept'     => 'application/vnd.github+json',
+			'User-Agent' => 'TripCosmos-Agents-Updater; ' . home_url( '/' ),
+		);
+		$token = class_exists( 'TC_Agents_Vault' ) ? TC_Agents_Vault::get( 'github_token', '' ) : get_option( 'tc_agents_github_token', '' );
+		if ( ! empty( $token ) ) {
+			$headers['Authorization'] = 'Bearer ' . trim( $token );
+		}
+
 		$request = wp_remote_get(
 			sprintf( 'https://api.github.com/repos/%s/%s/releases/latest', self::GH_OWNER, self::GH_REPO ),
 			array(
 				'timeout' => 15,
-				'headers' => array(
-					'Accept'     => 'application/vnd.github+json',
-					'User-Agent' => 'TripCosmos-Agents-Updater; ' . home_url( '/' ),
-				),
+				'headers' => $headers,
 			)
 		);
 
@@ -96,7 +106,7 @@ class TC_Agents_GitHub_Updater {
 	 * @param string $tag Raw tag.
 	 * @return string Version string.
 	 */
-	private static function tag_to_version( $tag ) {
+	public static function tag_to_version( $tag ) {
 		return ltrim( (string) $tag, 'vV' );
 	}
 
@@ -106,18 +116,16 @@ class TC_Agents_GitHub_Updater {
 	 * @param array $release Release payload.
 	 * @return string|null Zip URL or null if none found.
 	 */
-	private static function get_zip_url( $release ) {
-		if ( empty( $release['assets'] ) || ! is_array( $release['assets'] ) ) {
-			return null;
-		}
-
-		foreach ( $release['assets'] as $asset ) {
-			if ( ! empty( $asset['browser_download_url'] ) && '.zip' === substr( strtolower( $asset['name'] ), -4 ) ) {
-				return $asset['browser_download_url'];
+	public static function get_zip_url( $release ) {
+		if ( ! empty( $release['assets'] ) && is_array( $release['assets'] ) ) {
+			foreach ( $release['assets'] as $asset ) {
+				if ( ! empty( $asset['browser_download_url'] ) && '.zip' === substr( strtolower( $asset['name'] ), -4 ) ) {
+					return $asset['browser_download_url'];
+				}
 			}
 		}
 
-		return null;
+		return $release['zipball_url'] ?? null;
 	}
 
 	/**
@@ -349,4 +357,114 @@ class TC_Agents_GitHub_Updater {
 			);
 		}
 	}
+
+	/**
+	 * AJAX endpoint: Check for updates from GitHub.
+	 *
+	 * @return void
+	 */
+	public static function ajax_check_update() {
+		check_ajax_referer( 'tc_agents_admin_nonce', 'nonce' );
+
+		if ( ! current_user_can( 'update_plugins' ) ) {
+			wp_send_json_error( array( 'message' => __( 'You do not have permission to update plugins.', 'tripcosmos-agents' ) ) );
+		}
+
+		delete_transient( self::CACHE_KEY );
+		$release = self::get_release( true );
+
+		if ( ! $release ) {
+			wp_send_json_error( array(
+				'message' => __( 'Could not connect to GitHub API or no releases found. If your repository is private or rate-limited, ensure a GitHub Token is configured in General Settings.', 'tripcosmos-agents' ),
+			) );
+		}
+
+		$remote_version = self::tag_to_version( $release['tag_name'] );
+		$has_update     = version_compare( $remote_version, TC_AGENTS_VERSION, '>' );
+		$zip_url        = self::get_zip_url( $release );
+
+		wp_send_json_success( array(
+			'current_version' => TC_AGENTS_VERSION,
+			'latest_version'  => $remote_version,
+			'has_update'      => $has_update,
+			'tag_name'        => $release['tag_name'],
+			'published_at'    => ! empty( $release['published_at'] ) ? date_i18n( get_option( 'date_format' ), strtotime( $release['published_at'] ) ) : '',
+			'zip_url'         => $zip_url,
+			'changelog'       => ! empty( $release['body'] ) ? esc_html( $release['body'] ) : '',
+			'html_url'        => $release['html_url'] ?? sprintf( 'https://github.com/%s/%s/releases', self::GH_OWNER, self::GH_REPO ),
+			'message'         => $has_update
+				? sprintf( __( 'A new update (%s) is ready to install from GitHub!', 'tripcosmos-agents' ), $remote_version )
+				: sprintf( __( 'You are running the latest version (%s).', 'tripcosmos-agents' ), TC_AGENTS_VERSION ),
+		) );
+	}
+
+	/**
+	 * AJAX endpoint: Perform direct update from GitHub release package.
+	 *
+	 * @return void
+	 */
+	public static function ajax_perform_update() {
+		check_ajax_referer( 'tc_agents_admin_nonce', 'nonce' );
+
+		if ( ! current_user_can( 'update_plugins' ) ) {
+			wp_send_json_error( array( 'message' => __( 'You do not have permission to update plugins.', 'tripcosmos-agents' ) ) );
+		}
+
+		$release = self::get_release( true );
+		if ( ! $release ) {
+			wp_send_json_error( array( 'message' => __( 'Could not retrieve the latest release from GitHub.', 'tripcosmos-agents' ) ) );
+		}
+
+		$zip_url = self::get_zip_url( $release );
+		if ( ! $zip_url ) {
+			wp_send_json_error( array( 'message' => __( 'No release zip archive found on GitHub.', 'tripcosmos-agents' ) ) );
+		}
+
+		$remote_version = self::tag_to_version( $release['tag_name'] );
+
+		// Load WordPress upgrade infrastructure
+		require_once ABSPATH . 'wp-admin/includes/class-wp-upgrader.php';
+		require_once ABSPATH . 'wp-admin/includes/class-plugin-upgrader.php';
+		require_once ABSPATH . 'wp-admin/includes/class-wp-ajax-upgrader-skin.php';
+		require_once ABSPATH . 'wp-admin/includes/plugin.php';
+
+		$skin     = new WP_Ajax_Upgrader_Skin();
+		$upgrader = new Plugin_Upgrader( $skin );
+		$plugin   = plugin_basename( TC_AGENTS_FILE );
+
+		// Hook the folder renaming filter
+		$instance = new self();
+		$instance->is_upgrade = true;
+		add_filter( 'upgrader_source_selection', array( $instance, 'fix_source_dir' ), 10, 3 );
+
+		// Inject into update transient so Plugin_Upgrader knows where to download
+		$transient = get_site_transient( 'update_plugins' );
+		if ( ! is_object( $transient ) ) {
+			$transient = new stdClass();
+		}
+		$transient = $instance->inject_update( $transient );
+		set_site_transient( 'update_plugins', $transient );
+
+		$result = $upgrader->upgrade( $plugin );
+
+		delete_transient( self::CACHE_KEY );
+
+		if ( is_wp_error( $result ) ) {
+			wp_send_json_error( array( 'message' => $result->get_error_message() ) );
+		} elseif ( false === $result ) {
+			$errors = $skin->get_errors();
+			$error_message = is_wp_error( $errors ) ? $errors->get_error_message() : __( 'Plugin update failed.', 'tripcosmos-agents' );
+			wp_send_json_error( array( 'message' => $error_message ) );
+		}
+
+		if ( ! is_plugin_active( $plugin ) ) {
+			activate_plugin( $plugin );
+		}
+
+		wp_send_json_success( array(
+			'message' => sprintf( __( 'Successfully updated to %s! Reloading page...', 'tripcosmos-agents' ), $remote_version ),
+			'version' => $remote_version,
+		) );
+	}
 }
+

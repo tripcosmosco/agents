@@ -4,7 +4,7 @@ Tags: ai, chatbot, agent, travel, crm, whatsapp, openrouter, gemini, b2b
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 8.0
-Stable tag: 1.2.0
+Stable tag: 1.4.0
 License: Proprietary
 License URI: https://tripcosmos.co
 
@@ -36,6 +36,23 @@ TripCosmos Agents provides TripCosmos.co with a reliable, supervised AI conversa
 5. Connect CRM, WhatsApp, and Voice settings in `Tripcosmos Agents -> Integrations`.
 
 == Changelog ==
+
+= 1.4.0 =
+* Fixed critical CRM background queue processor method mismatch errors.
+* Fixed multi-turn LLM context poisoning on subsequent conversation turns.
+* Cleaned up restored conversation history in REST API to filter raw JSON payloads.
+* Fixed frontend quote form submit handler and eliminated duplicate listeners.
+* Added audio visualizer animation lifecycle management to stop background CPU and battery drain.
+* Fixed concurrent message streaming collisions and race conditions.
+* Enhanced markdown parser with paragraph spacing and support for relative, tel:, and mailto: links.
+* Added dedicated in-plugin GitHub update manager and status checker in General Settings.
+* Cleaned up obsolete build files and hardened uninstaller.
+
+= 1.3.0 =
+* Added outstation cab fare calculation engine (TC_Cab_Fare_Engine).
+* Added branded itinerary and PDF document generator (TC_Itinerary_Generator).
+* Added live multilingual pilgrim language switcher (English, Hindi, Gujarati, Telugu).
+* Added authenticated temple protocol and darshan timing knowledge tools.
 
 = 1.2.0 =
 * Consolidated AI Puffer / Omniroute / ai.vmstudio.digital into one canonical AI Gateway (old slugs kept as BC aliases with auto-migration).

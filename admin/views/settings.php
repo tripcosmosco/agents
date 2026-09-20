@@ -200,6 +200,67 @@ $is_widget_live = ( '1' === $widget_enabled );
 			</table>
 		</div>
 
+		<!-- GitHub Updates & Version Control -->
+		<div class="tc-card" id="tc-github-updater-card">
+			<div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 16px;">
+				<div>
+					<h3 style="margin: 0 0 4px 0; display: flex; align-items: center; gap: 8px;">
+						<span style="font-size: 20px;">🚀</span>
+						Plugin Updates &amp; GitHub Synchronization
+					</h3>
+					<p class="description" style="margin: 0;">
+						Directly synchronize and update TripCosmos Agents from its official repository (<code>tripcosmosco/agents</code>).
+					</p>
+				</div>
+				<div style="display: flex; align-items: center; gap: 10px;">
+					<button type="button" id="tc-check-github-update-btn" class="button button-secondary" style="display: inline-flex; align-items: center; gap: 6px; font-weight: 600;">
+						<span class="dashicons dashicons-update" style="margin-top: 2px;"></span>
+						Check for GitHub Updates
+					</button>
+					<button type="button" id="tc-perform-github-update-btn" class="button button-primary" style="display: none; align-items: center; gap: 6px; font-weight: 700; background: #16a34a; border-color: #15803d;">
+						<span class="dashicons dashicons-download" style="margin-top: 2px;"></span>
+						Update to <span id="tc-target-update-version">Latest</span> Now
+					</button>
+				</div>
+			</div>
+
+			<!-- Live Status Banner / Details Box -->
+			<div id="tc-github-update-status-box" style="display: none; padding: 14px 18px; border-radius: 8px; margin-bottom: 18px; font-size: 13px; line-height: 1.5;"></div>
+
+			<table class="form-table" style="margin-top: 0;">
+				<tr>
+					<th scope="row">Installed Version</th>
+					<td>
+						<span class="tc-badge" style="background: #e0f2fe; color: #0369a1; font-weight: 700; font-size: 13px; padding: 4px 10px; border-radius: 12px; display: inline-flex; align-items: center; gap: 6px;">
+							<span style="display: inline-block; width: 8px; height: 8px; background: #0284c7; border-radius: 50%;"></span>
+							v<?php echo esc_html( TC_AGENTS_VERSION ); ?>
+						</span>
+						<span class="description" style="margin-left: 8px;">Active production build.</span>
+					</td>
+				</tr>
+				<tr>
+					<th scope="row">GitHub Repository</th>
+					<td>
+						<a href="https://github.com/tripcosmosco/agents" target="_blank" rel="noopener noreferrer" style="display: inline-flex; align-items: center; gap: 6px; font-weight: 600; text-decoration: none;">
+							<span class="dashicons dashicons-external" style="font-size: 16px;"></span>
+							github.com/tripcosmosco/agents
+						</a>
+						<span class="description" style="margin-left: 8px;">(Branch: <code>main</code>, Releases tagged <code>v*</code>)</span>
+					</td>
+				</tr>
+				<tr>
+					<th scope="row"><label for="github_token">GitHub Personal Access Token (Optional)</label></th>
+					<td>
+						<?php
+						$current_gh_token = class_exists( 'TC_Agents_Vault' ) ? TC_Agents_Vault::get( 'github_token', '' ) : get_option( 'tc_agents_github_token', '' );
+						?>
+						<input type="password" name="github_token" id="github_token" class="regular-text" value="<?php echo esc_attr( $current_gh_token ); ?>" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" autocomplete="off" />
+						<p class="description">Required only if your GitHub repository is private or if you exceed GitHub's unauthenticated API rate limits (60/hr).</p>
+					</td>
+				</tr>
+			</table>
+		</div>
+
 		<p>
 			<input type="submit" class="button button-primary button-large" value="Save All Settings" />
 		</p>

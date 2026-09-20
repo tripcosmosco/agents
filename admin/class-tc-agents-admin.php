@@ -775,6 +775,14 @@ class TC_Agents_Admin {
 			update_option( 'tc_agents_human_whatsapp_number', sanitize_text_field( $_POST['human_whatsapp_number'] ?? '' ) );
 			update_option( 'tc_agents_human_notification_email', sanitize_email( $_POST['human_notification_email'] ?? '' ) );
 
+			if ( isset( $_POST['github_token'] ) ) {
+				$gh_token = sanitize_text_field( trim( $_POST['github_token'] ) );
+				if ( class_exists( 'TC_Agents_Vault' ) ) {
+					TC_Agents_Vault::set( 'github_token', $gh_token );
+				}
+				update_option( 'tc_agents_github_token', $gh_token );
+			}
+
 			wp_safe_redirect( add_query_arg( array( 'page' => 'tc-agents-settings', 'saved' => '1' ), admin_url( 'admin.php' ) ) );
 			exit;
 		}
