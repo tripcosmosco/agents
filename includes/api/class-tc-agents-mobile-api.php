@@ -251,10 +251,74 @@ class TC_Agents_Mobile_API {
 		global $wpdb;
 		$table_contacts = $wpdb->prefix . 'tc_agent_contacts';
 
-		$leads = $wpdb->get_results(
-			"SELECT id, name, email, phone, stage, score, deal_value, created_at, updated_at FROM $table_contacts ORDER BY updated_at DESC LIMIT 50",
-			ARRAY_A
-		);
+		$stage = sanitize_text_field( $request->get_param( 'stage' ) ?? '' );
+		$where = '1=1';
+		$params = array();
+
+		if ( ! empty( $stage ) && 'all' !== $stage ) {
+			$where .= ' AND stage = %s';
+			$params[] = $stage;
+		}
+
+		$query = "SELECT id, name, email, phone, stage, score, deal_value, meta_data, created_at, updated_at FROM $table_contacts WHERE $where ORDER BY updated_at DESC LIMIT 100";
+		$rows = ! empty( $params ) ? $wpdb->get_results( $wpdb->prepare( $query, $params ), ARRAY_A ) : $wpdb->get_results( $query, ARRAY_A );
+
+		$leads = array();
+		foreach ( ( $rows ?: array() ) as $row ) {
+			$meta = json_decode( (string) ( $row['meta_data'] ?? '' ), true ) ?: array();
+			$leads[] = array(
+				'id'           => (int) $row['id'],
+				'name'         => ! empty( $row['name'] ) ? $row['name'] : 'Traveler',
+				'email'        => (string) ( $row['email'] ?? '' ),
+				'phone'        => (string) ( $row['phone'] ?? '' ),
+				'stage'        => (string) ( $row['stage'] ?: 'inquiry' ),
+				'score'        => (int) ( $row['score'] ?? 50 ),
+				'deal_value'   => (float) ( $row['deal_value'] ?? 0.0 ),
+				'destination'  => ! empty( $meta['destination'] ) ? $meta['destination'] : 'Varanasi Spiritual Tour',
+				'requirements' => (string) ( $meta['requirements'] ?? '' ),
+				'created_at'   => (string) ( $row['created_at'] ?? '' ),
+				'updated_at'   => (string) ( $row['updated_at'] ?? '' ),
+			);
+		}
+
+		// Also check if any FluentCRM subscribers with phone should be included
+		$table_subscribers = $wpdb->prefix . 'fc_subscribers';
+		$subscribers_table_exists = $wpdb->get_var( $wpdb->prepare( "SHOW TABLES LIKE %s", $table_subscribers ) );
+		if ( $subscribers_table_exists ) {
+			$existing_phones = array_column( $leads, 'phone' );
+			$subscribers = $wpdb->get_results(
+				"SELECT id, first_name, last_name, email, phone, created_at, updated_at FROM $table_subscribers WHERE phone IS NOT NULL AND phone != '' LIMIT 50",
+				ARRAY_A
+			);
+			if ( ! empty( $subscribers ) ) {
+				foreach ( $subscribers as $sub ) {
+					$clean_sub_phone = preg_replace( '/[^\d]/', '', $sub['phone'] );
+					$already_exists = false;
+					foreach ( $existing_phones as $ep ) {
+						if ( substr( preg_replace( '/[^\d]/', '', $ep ), -10 ) === substr( $clean_sub_phone, -10 ) ) {
+							$already_exists = true;
+							break;
+						}
+					}
+					if ( ! $already_exists && ( empty( $stage ) || 'all' === $stage || 'inquiry' === $stage ) ) {
+						$sub_name = trim( ( $sub['first_name'] ?? '' ) . ' ' . ( $sub['last_name'] ?? '' ) );
+						$leads[] = array(
+							'id'           => 100000 + (int) $sub['id'],
+							'name'         => ! empty( $sub_name ) ? $sub_name : 'CRM Subscriber',
+							'email'        => (string) ( $sub['email'] ?? '' ),
+							'phone'        => (string) $sub['phone'],
+							'stage'        => 'inquiry',
+							'score'        => 55,
+							'deal_value'   => 12000.0,
+							'destination'  => 'Varanasi / Kashi Darshan',
+							'requirements' => 'FluentCRM Contact Sync',
+							'created_at'   => (string) ( $sub['created_at'] ?? '' ),
+							'updated_at'   => (string) ( $sub['updated_at'] ?? '' ),
+						);
+					}
+				}
+			}
+		}
 
 		return new WP_REST_Response( array( 'ok' => true, 'leads' => $leads ), 200 );
 	}

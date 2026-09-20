@@ -3,16 +3,22 @@ package co.tripcosmos.salesagents.data.model
 import com.google.gson.annotations.SerializedName
 
 data class Lead(
-    val id: Long,
-    val name: String,
-    val phone: String,
+    val id: Long = 0L,
+    val name: String = "Traveler",
+    val phone: String = "",
     val email: String? = null,
     val stage: String = "inquiry", // inquiry, qualified, proposal, negotiation, won, lost
     @SerializedName("deal_value") val dealValue: Double = 0.0,
     @SerializedName("score") val score: Int = 50,
     val destination: String? = null,
     val requirements: String? = null,
+    @SerializedName("created_at") val createdAt: String? = null,
     @SerializedName("updated_at") val updatedAt: String? = null
+)
+
+data class LeadsResponse(
+    val ok: Boolean = true,
+    val leads: List<Lead> = emptyList()
 )
 
 data class CallerIdContact(

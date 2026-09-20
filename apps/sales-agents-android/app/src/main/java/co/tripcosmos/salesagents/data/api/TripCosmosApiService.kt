@@ -21,7 +21,7 @@ interface TripCosmosApiService {
     suspend fun getLeads(
         @Query("stage") stage: String? = null,
         @Header("X-Mobile-Token") token: String
-    ): Response<List<Lead>>
+    ): Response<LeadsResponse>
 
     @POST("mobile/call-log")
     suspend fun logCall(

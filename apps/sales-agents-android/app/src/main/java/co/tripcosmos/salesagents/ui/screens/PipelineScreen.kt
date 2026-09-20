@@ -54,7 +54,7 @@ fun PipelineScreen(
                 val stageParam = if (selectedStage == "all") null else selectedStage
                 val res = api.getLeads(stageParam, token)
                 if (res.isSuccessful) {
-                    leads = res.body() ?: emptyList()
+                    leads = res.body()?.leads ?: emptyList()
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
