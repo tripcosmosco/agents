@@ -102,7 +102,7 @@ if ( $agent && ! empty( $agent['allowed_tools'] ) ) {
 					<?php if ( ! $agent ) : ?>
 						<p>
 							<label for="slug"><strong>Agent Slug (unique identifier):</strong></label>
-							<input type="text" name="slug" id="slug" class="widefat" placeholder="e.g. himalaya-trek-expert" required />
+							<input type="text" name="slug" id="slug" class="widefat" placeholder="e.g. varanasi-yatra-guide" required />
 						</p>
 					<?php endif; ?>
 

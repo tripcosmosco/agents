@@ -162,7 +162,7 @@ $categories = array(
 
 					<p>
 						<label for="tc_kb_title"><strong><?php esc_html_e( 'Document / Question Title', 'tripcosmos-agents' ); ?></strong></label><br>
-						<input type="text" id="tc_kb_title" name="title" value="<?php echo esc_attr( $edit_doc['title'] ?? '' ); ?>" class="regular-text" required style="width: 100%;" placeholder="e.g. Kedarkantha Winter Trek Acclimatization Rules" />
+						<input type="text" id="tc_kb_title" name="title" value="<?php echo esc_attr( $edit_doc['title'] ?? '' ); ?>" class="regular-text" required style="width: 100%;" placeholder="e.g. Kashi Vishwanath Mangala Aarti Darshan & Protocol Guidelines" />
 					</p>
 
 					<p>

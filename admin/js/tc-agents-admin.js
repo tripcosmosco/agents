@@ -307,7 +307,7 @@
 					nonce: tcAgentsAdmin.adminNonce
 				},
 				success: function(res) {
-					$btn.prop('disabled', false).html('<span class="dashicons dashicons-database-import"></span> Sync Treks & Posts to RAG');
+					$btn.prop('disabled', false).html('<span class="dashicons dashicons-database-import"></span> Sync Tours & Posts to RAG');
 					if (res.success) {
 						alert(res.data.message || 'Catalog synced successfully!');
 						location.reload();
@@ -316,7 +316,7 @@
 					}
 				},
 				error: function() {
-					$btn.prop('disabled', false).html('<span class="dashicons dashicons-database-import"></span> Sync Treks & Posts to RAG');
+					$btn.prop('disabled', false).html('<span class="dashicons dashicons-database-import"></span> Sync Tours & Posts to RAG');
 					alert('Could not complete catalog sync.');
 				}
 			});

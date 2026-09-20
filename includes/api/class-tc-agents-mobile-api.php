@@ -182,7 +182,7 @@ class TC_Agents_Mobile_API {
 		if ( 'missed' === $call_type && ! empty( $phone ) ) {
 			$name = $contact['name'] ?? 'Traveler';
 			$msg  = sprintf(
-				"Namaste %s! 🏔️ Sorry we missed your call at TripCosmos. Our expedition desk is currently assisting travelers on-trail. How can we help you with your trek planning?",
+				"Namaste %s! 🙏 Sorry we missed your call at TripCosmos Travel Desk. Our Varanasi specialists are currently assisting pilgrims and travelers. How can we help you with your tour, outstation cab, or temple darshan booking?",
 				$name
 			);
 			TC_Integration_WhatsApp::send_message( $phone, $msg );

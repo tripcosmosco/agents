@@ -155,7 +155,7 @@ class TC_Integration_TwentyCRM {
 	 */
 	public static function create_opportunity( $person_id, $traveler_name, $destination, $amount ) {
 		$endpoint = self::get_base_url() . '/rest/opportunities';
-		$title    = sprintf( 'Expedition: %s (%s)', $destination ?: 'Himalayan Trek', $traveler_name );
+		$title    = sprintf( 'Tour Deal: %s (%s)', $destination ?: 'Varanasi Tour / Cab', $traveler_name );
 
 		$payload = array(
 			'name'              => $title,
@@ -187,9 +187,9 @@ class TC_Integration_TwentyCRM {
 	public static function create_note( $person_id, $destination, $requirements ) {
 		$endpoint = self::get_base_url() . '/rest/notes';
 		$content  = sprintf(
-			"TripCosmos AI Capture:\nDestination / Trek: %s\nRequirements: %s\nCaptured on: %s via Autonomous Agent",
-			$destination ?: 'Himalayan Exploration',
-			$requirements ?: 'General expedition inquiry',
+			"TripCosmos AI Capture:\nDestination / Circuit: %s\nRequirements: %s\nCaptured on: %s via Autonomous Agent",
+			$destination ?: 'Varanasi / Spiritual Circuit',
+			$requirements ?: 'General tour & cab inquiry',
 			current_time( 'mysql' )
 		);
 

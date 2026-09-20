@@ -192,7 +192,7 @@ class TC_Agents_Public {
 				<div id="tc-widget-quote-panel" class="tc-panel tc-quote-panel">
 					<div class="tc-quote-heading">
 						<h4>Custom Itinerary & Group Quote</h4>
-						<p>Tell us what you are looking for and our expedition team will personalize routes and pricing.</p>
+						<p>Tell us what you are looking for and our Varanasi travel team will personalize your itinerary, cab, and pricing.</p>
 					</div>
 					<form id="tc-quote-form" class="tc-quote-form">
 						<div class="tc-form-field">

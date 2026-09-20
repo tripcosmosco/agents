@@ -53,7 +53,7 @@ $trigger_events = array(
 	<div class="tc-header">
 		<div>
 			<h1><span class="dashicons dashicons-controls-repeat"></span> <?php esc_html_e( 'Automated Follow-Up Sequences', 'tripcosmos-agents' ); ?></h1>
-			<p class="description"><?php esc_html_e( 'Nurture cold leads and re-engage abandoned trek inquiries automatically via WhatsApp and multi-channel drips.', 'tripcosmos-agents' ); ?></p>
+			<p class="description"><?php esc_html_e( 'Nurture cold leads and re-engage abandoned tour & cab inquiries automatically via WhatsApp and multi-channel drips.', 'tripcosmos-agents' ); ?></p>
 		</div>
 		<div class="tc-header-actions">
 			<a href="#seq-builder-card" class="button button-primary" onclick="document.getElementById('seq-builder-card').scrollIntoView({behavior: 'smooth'});">
@@ -201,7 +201,7 @@ $trigger_events = array(
 
 					<p>
 						<label for="tc_seq_name"><strong><?php esc_html_e( 'Sequence Name', 'tripcosmos-agents' ); ?></strong></label><br>
-						<input type="text" id="tc_seq_name" name="name" value="<?php echo esc_attr( $edit_seq['name'] ?? '' ); ?>" class="regular-text" required style="width: 100%;" placeholder="e.g. 24-Hour Trek Inquiry Nurture" />
+						<input type="text" id="tc_seq_name" name="name" value="<?php echo esc_attr( $edit_seq['name'] ?? '' ); ?>" class="regular-text" required style="width: 100%;" placeholder="e.g. 24-Hour Tour & Cab Inquiry Nurture" />
 					</p>
 
 					<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
@@ -238,8 +238,8 @@ $trigger_events = array(
 					<div id="tc-steps-container">
 						<?php
 						$steps_to_render = ! empty( $edit_steps ) ? $edit_steps : array(
-							array( 'delay_hours' => 2, 'message' => "Hi {name}, our mountain specialists at TripCosmos noticed you were exploring treks. Would you like us to share our full itinerary and permit checklist?" ),
-							array( 'delay_hours' => 24, 'message' => "Hey {name}, quick check-in! Peak season slots for our Himalayan departures are filling fast. Let us know if you need any customized dates!" ),
+							array( 'delay_hours' => 2, 'message' => "Namaste {name}! 🙏 Our travel specialists at TripCosmos noticed you were planning a trip to {destination}. Would you like us to share our day-wise itinerary, cab fare options (Dzire/Innova Crysta), and Kashi Vishwanath darshan guidelines?" ),
+							array( 'delay_hours' => 24, 'message' => "Namaste {name}! Quick follow-up from TripCosmos Varanasi desk. Are your travel dates confirmed? We can pre-book your hotel near the ghats and reserve your evening Ganga Aarti boat ride." ),
 						);
 
 						foreach ( $steps_to_render as $idx => $step ) :

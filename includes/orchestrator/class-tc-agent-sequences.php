@@ -290,7 +290,7 @@ class TC_Agent_Sequences {
 		$email    = ! empty( $contact['email'] ) ? $contact['email'] : '';
 
 		$meta = json_decode( (string) ( $contact['meta_data'] ?? '' ), true ) ?: array();
-		$dest = $meta['destination'] ?? 'Himalayan Treks';
+		$dest = ! empty( $meta['destination'] ) ? $meta['destination'] : 'Varanasi & Spiritual Circuit';
 
 		$replacements = array(
 			'{name}'         => $name,

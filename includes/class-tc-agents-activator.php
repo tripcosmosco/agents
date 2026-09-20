@@ -325,9 +325,9 @@ class TC_Agents_Activator {
 
 		// Frontend Widget
 		add_option( 'tc_agents_widget_enabled', '1' );
-		add_option( 'tc_agents_widget_title', 'TripCosmos Travel Assistant' );
-		add_option( 'tc_agents_widget_greeting', 'Hi there! Looking for an unforgettable trek or adventure package? How can I help you plan today?' );
-		add_option( 'tc_agents_widget_primary_color', '#0ea5e9' );
+		add_option( 'tc_agents_widget_title', 'TripCosmos Travel Desk' );
+		add_option( 'tc_agents_widget_greeting', 'Namaste! 🙏 Welcome to TripCosmos — your Varanasi spiritual & tour guide. Looking for Kashi Vishwanath darshan, Ayodhya Ram Mandir packages, outstation cabs (Innova/Dzire), hotel bookings, or evening Ganga Aarti boat rides? How can I assist you today?' );
+		add_option( 'tc_agents_widget_primary_color', '#ea580c' );
 	}
 
 	/**

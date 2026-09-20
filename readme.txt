@@ -20,10 +20,10 @@ TripCosmos Agents provides TripCosmos.co with a reliable, supervised AI conversa
 * **Live Model Sync**: OpenRouter / Gateway /models + Gemini catalogue refresh on Save, 2x-daily cron, and manual REST sync.
 * **B2B Partner Hunter**: Google Business/Places daily import of Indian travel agencies + WhatsApp (Evolution API) + Brevo email outreach, logged to FluentCRM + TwentyCRM.
 * **WhatsApp Dual-Mode**: Legacy wa.vmstudio.digital + Evolution API send/normalize on one shared webhook.
-* **Semantic Vector Store & Hybrid RAG**: Full-text and packed float32 embedding search with automatic overlapping chunking across published treks and site knowledge.
+* **Semantic Vector Store & Hybrid RAG**: Full-text and packed float32 embedding search with automatic overlapping chunking across published tours, packages, and site knowledge.
 * **Asynchronous Background Queue**: Non-blocking background worker for memory synthesis, CRM syncing, and catalog indexing keeping chats fast.
 * **Visual Kanban Deals Pipeline**: Drag-and-drop sales stage board with instant AJAX persistence and quick WhatsApp follow-up triggers.
-* **Rich Trek Cards & Carousel**: Interactive frontend widget cards displaying trek altitude, duration, pricing, and 1-click WhatsApp booking.
+* **Rich Tour & Cab Cards & Carousel**: Interactive frontend widget cards displaying tour duration, cab vehicle types, pricing, and 1-click WhatsApp booking.
 * **Safety Guardrails**: 1-click global emergency kill switch, rate limits per session, daily WhatsApp/Voice caps, and draft-for-approval transaction gating.
 * **Multi-Channel Plumbings**: Native Fluent CRM lead tagging, Twenty CRM REST syncing, WhatsApp (legacy + Evolution API) gateway bridge, Brevo email, and Google Sheets streaming.
 

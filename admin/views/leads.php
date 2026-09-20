@@ -70,7 +70,7 @@ $conversion_rate = $total_leads > 0 ? round( ( $won_count / $total_leads ) * 100
 	<div class="tc-header">
 		<div>
 			<h1><span class="dashicons dashicons-money-alt"></span> <?php esc_html_e( 'Leads & Deals Pipeline', 'tripcosmos-agents' ); ?></h1>
-			<p class="description"><?php esc_html_e( 'Manage high-altitude trek inquiries, group quotes, automated scores, and traveler memory across web, WhatsApp, and voice.', 'tripcosmos-agents' ); ?></p>
+			<p class="description"><?php esc_html_e( 'Manage spiritual tours, outstation cab quotes, hotel bookings, automated scores, and traveler memory across web, WhatsApp, and voice.', 'tripcosmos-agents' ); ?></p>
 		</div>
 		<div class="tc-header-actions">
 			<a href="#new-lead-modal" class="button button-primary" onclick="document.getElementById('tc-lead-modal').style.display='flex';">

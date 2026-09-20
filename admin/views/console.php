@@ -55,9 +55,9 @@ $kill_switch_active = TC_Agents_Guardrails::is_kill_switch_active();
 					<div class="tc-bubble">
 						👋 <strong>Master Console Ready.</strong> You are interacting directly with the agent layer in <em>staff mode</em>. Test queries like:
 						<ul>
-							<li><code>"Find our top 3 winter treks in Uttarakhand under 15,000 INR"</code></li>
-							<li><code>"Draft a polite WhatsApp follow-up for a lead interested in Kedarkantha"</code></li>
-							<li><code>"Check CRM status for contact test@example.com"</code></li>
+							<li><code>"A family of 4 wants a 3-day Kashi Vishwanath and Ayodhya Ram Mandir tour package with Innova cab and 3-star hotel"</code></li>
+							<li><code>"Quote outstation cab fare for Varanasi to Prayagraj Sangam round-trip in Swift Dzire"</code></li>
+							<li><code>"Check CRM status for contact info@tripcosmos.co"</code></li>
 						</ul>
 					</div>
 				</div>

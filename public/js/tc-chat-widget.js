@@ -319,13 +319,13 @@
 				recognition.onend = function() {
 					isListening = false;
 					micBtn.classList.remove('listening');
-					chatInput.placeholder = 'Ask about treks, itineraries, pricing...';
+					chatInput.placeholder = 'Ask about tours, darshan, cabs, hotels, pricing...';
 				};
 
 				recognition.onerror = function() {
 					isListening = false;
 					micBtn.classList.remove('listening');
-					chatInput.placeholder = 'Ask about treks, itineraries, pricing...';
+					chatInput.placeholder = 'Ask about tours, darshan, cabs, hotels, pricing...';
 				};
 			}
 		}
@@ -400,7 +400,7 @@
 			voiceToggleBtn.querySelector('.tc-voice-btn-label').textContent = 'End Voice Call';
 			voiceToggleBtn.querySelector('.tc-voice-btn-icon').textContent = '🔴';
 			if (voiceRing) voiceRing.classList.add('active');
-			if (voiceStatus) voiceStatus.textContent = 'Listening... Speak about your mountain plans';
+			if (voiceStatus) voiceStatus.textContent = 'Listening... Speak about your travel & darshan plans';
 
 			trackEvent('tc_agent_webcall_started');
 
@@ -576,7 +576,7 @@
 			card.className = 'tc-call-action-card';
 			card.innerHTML =
 				'<div class="tc-call-action-card-header">📞 Instant AI Phone Call Ready</div>' +
-				'<p>Would you like our mountain specialist AI to ring your mobile now to discuss routes, pricing, and fitness?</p>' +
+				'<p>Would you like our travel specialist AI to ring your mobile now to discuss your itinerary, cab options, and pricing?</p>' +
 				'<button type="button" class="tc-call-action-btn">📞 Ring My Mobile Now (' + escapeHtml(phone) + ')</button>';
 
 			card.querySelector('.tc-call-action-btn').addEventListener('click', function(e) {
