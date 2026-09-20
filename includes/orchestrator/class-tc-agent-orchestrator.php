@@ -192,7 +192,7 @@ class TC_Agent_Orchestrator {
 		}
 
 		$reply_content = $ai_response['content'] ?? '';
-		$provider_used = $ai_response['provider'] ?? '';
+		$provider_used = $ai_response['provider_used'] ?? $ai_response['provider'] ?? '';
 		$tool_calls    = $ai_response['tool_calls'] ?? array();
 
 		while ( ! empty( $tool_calls ) && $current_turn < $max_turns ) {
@@ -282,7 +282,12 @@ class TC_Agent_Orchestrator {
 			}
 
 			$reply_content = $ai_response['content'] ?? '';
+			$provider_used = $ai_response['provider_used'] ?? $ai_response['provider'] ?? $provider_used;
 			$tool_calls    = $ai_response['tool_calls'] ?? array();
+		}
+
+		if ( empty( $reply_content ) && ! empty( $executed_tools ) ) {
+			$reply_content = __( 'I have retrieved the requested pilgrimage and travel details for you above. How else may I assist your journey?', 'tripcosmos-agents' );
 		}
 
 		// 8. Save Final Assistant Reply
@@ -311,6 +316,7 @@ class TC_Agent_Orchestrator {
 			'reply'          => $reply_content,
 			'handoff'        => $handoff_data,
 			'executed_tools' => $executed_tools,
+			'tools_used'     => $executed_tools,
 			'provider_used'  => $provider_used,
 			'latency_ms'     => $ai_response['latency_ms'] ?? 0,
 			'status'         => 'success',

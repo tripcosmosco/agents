@@ -808,7 +808,7 @@ class TC_Agent_Tools {
 
 		return array(
 			'package' => $package_name,
-			'message' => "Custom expedition pricing available for {$package_name} in {$season}. Connecting with expedition specialist for quotation.",
+			'message' => "Custom pilgrimage & tour pricing available for {$package_name} in {$season}. Connecting with TripCosmos travel specialist for quotation.",
 		);
 	}
 
@@ -818,7 +818,7 @@ class TC_Agent_Tools {
 	private static function tool_request_voice_call( array $args, array $context = array() ) {
 		$phone  = sanitize_text_field( $args['phone'] ?? '' );
 		$name   = sanitize_text_field( $args['traveler_name'] ?? '' );
-		$reason = sanitize_text_field( $args['reason'] ?? 'Himalayan expedition consultation' );
+		$reason = sanitize_text_field( $args['reason'] ?? 'TripCosmos tour & pilgrimage consultation' );
 
 		if ( empty( $phone ) ) {
 			return array( 'error' => 'A valid phone number is required to place an AI phone call.' );

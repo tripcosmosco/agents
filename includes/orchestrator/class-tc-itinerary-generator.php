@@ -32,6 +32,7 @@ class TC_Itinerary_Generator {
 		$total_fare  = sanitize_text_field( $args['total_fare'] ?? '₹18,500' );
 		$days_text   = $args['itinerary_text'] ?? '';
 
+		$itinerary_id = ! empty( $args['itinerary_id'] ) ? sanitize_text_field( $args['itinerary_id'] ) : 'TC-ITIN-' . strtoupper( wp_generate_password( 6, false ) );
 		$salt         = defined( 'NONCE_KEY' ) ? NONCE_KEY : ( defined( 'AUTH_KEY' ) ? AUTH_KEY : 'tc_itinerary_salt' );
 		$token        = substr( md5( $itinerary_id . $salt ), 0, 10 );
 

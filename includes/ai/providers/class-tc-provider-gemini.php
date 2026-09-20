@@ -51,24 +51,95 @@ class TC_Provider_Gemini implements TC_AI_Provider_Interface {
 	}
 	public function chat( array $messages, array $tools = array(), array $options = array() ) {
 		$start = microtime( true );
-		$key = $this->get_api_key();
-		if ( empty( $key ) ) { return new WP_Error( 'gemini_not_configured', __( 'Gemini API key missing.', 'tripcosmos-agents' ) ); }
-		$model = $options['model'] ?? $this->get_model();
-		$contents = array();
-		foreach ( $messages as $m ) {
-			$role = ( $m['role'] ?? 'user' ) === 'assistant' ? 'model' : 'user';
-			if ( ( $m['role'] ?? '' ) === 'system' ) { $contents[] = array( 'role' => 'user', 'parts' => array( array( 'text' => '[SYSTEM] ' . $m['content'] ) ) ); continue; }
-			$contents[] = array( 'role' => $role, 'parts' => array( array( 'text' => (string) ( $m['content'] ?? '' ) ) ) );
+		$key   = $this->get_api_key();
+		if ( empty( $key ) ) {
+			return new WP_Error( 'gemini_not_configured', __( 'Gemini API key missing.', 'tripcosmos-agents' ) );
 		}
+		$model = $options['model'] ?? $this->get_model();
+
+		$system_text = '';
+		$contents    = array();
+
+		foreach ( $messages as $m ) {
+			$raw_role = $m['role'] ?? 'user';
+			$content  = (string) ( $m['content'] ?? '' );
+			if ( '' === trim( $content ) ) {
+				continue;
+			}
+
+			if ( 'system' === $raw_role ) {
+				$system_text .= ( empty( $system_text ) ? '' : "\n\n" ) . $content;
+				continue;
+			}
+
+			$role = ( 'assistant' === $raw_role ) ? 'model' : 'user';
+
+			// Enforce strictly alternating user/model turns as required by Gemini API
+			$last_idx = count( $contents ) - 1;
+			if ( $last_idx >= 0 && $contents[ $last_idx ]['role'] === $role ) {
+				$contents[ $last_idx ]['parts'][0]['text'] .= "\n\n" . $content;
+			} else {
+				$contents[] = array(
+					'role'  => $role,
+					'parts' => array( array( 'text' => $content ) ),
+				);
+			}
+		}
+
+		if ( empty( $contents ) ) {
+			$contents[] = array(
+				'role'  => 'user',
+				'parts' => array( array( 'text' => 'Namaste' ) ),
+			);
+		}
+
+		$payload = array(
+			'contents'         => $contents,
+			'generationConfig' => array(
+				'temperature' => (float) ( $options['temperature'] ?? 0.7 ),
+			),
+		);
+
+		if ( ! empty( $system_text ) ) {
+			$payload['system_instruction'] = array(
+				'parts' => array( array( 'text' => $system_text ) ),
+			);
+		}
+
 		$url = 'https://generativelanguage.googleapis.com/v1beta/models/' . rawurlencode( $model ) . ':generateContent?key=' . $key;
-		$res = wp_remote_post( $url, array( 'timeout' => (int) get_option( 'tc_agents_timeout_seconds', 8 ), 'sslverify' => true, 'headers' => array( 'Content-Type' => 'application/json' ), 'body' => wp_json_encode( array( 'contents' => $contents, 'generationConfig' => array( 'temperature' => (float) ( $options['temperature'] ?? 0.7 ) ) ) ) ) );
+		$res = wp_remote_post(
+			$url,
+			array(
+				'timeout'   => (int) get_option( 'tc_agents_timeout_seconds', 8 ),
+				'sslverify' => true,
+				'headers'   => array( 'Content-Type' => 'application/json' ),
+				'body'      => wp_json_encode( $payload ),
+			)
+		);
+
 		$lat = (int) round( ( microtime( true ) - $start ) * 1000 );
-		if ( is_wp_error( $res ) ) { return new WP_Error( 'gemini_http_error', $res->get_error_message(), array( 'latency_ms' => $lat ) ); }
+		if ( is_wp_error( $res ) ) {
+			return new WP_Error( 'gemini_http_error', $res->get_error_message(), array( 'latency_ms' => $lat ) );
+		}
+
 		$code = wp_remote_retrieve_response_code( $res );
 		$body = json_decode( wp_remote_retrieve_body( $res ), true );
-		if ( $code >= 400 ) { $msg = $body['error']['message'] ?? "Gemini HTTP {$code}"; return new WP_Error( 'gemini_api_error', $msg, array( 'latency_ms' => $lat ) ); }
+		if ( $code >= 400 ) {
+			$msg = $body['error']['message'] ?? "Gemini HTTP {$code}";
+			return new WP_Error( 'gemini_api_error', $msg, array( 'latency_ms' => $lat ) );
+		}
+
 		$text = '';
-		foreach ( (array) ( $body['candidates'][0]['content']['parts'] ?? array() ) as $p ) { $text .= ( $p['text'] ?? '' ); }
-		return array( 'content' => $text, 'tool_calls' => array(), 'prompt_tokens' => $body['usageMetadata']['promptTokenCount'] ?? 0, 'completion_tokens' => $body['usageMetadata']['candidatesTokenCount'] ?? 0, 'latency_ms' => $lat );
+		foreach ( (array) ( $body['candidates'][0]['content']['parts'] ?? array() ) as $p ) {
+			$text .= ( $p['text'] ?? '' );
+		}
+
+		return array(
+			'content'           => $text,
+			'tool_calls'        => array(),
+			'prompt_tokens'     => $body['usageMetadata']['promptTokenCount'] ?? 0,
+			'completion_tokens' => $body['usageMetadata']['candidatesTokenCount'] ?? 0,
+			'latency_ms'        => $lat,
+		);
 	}
 }

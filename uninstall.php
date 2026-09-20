@@ -111,6 +111,7 @@ if ( '0' === $preserve_data ) {
 		'tc_agents_b2b_last_import',
 		'tc_agents_models_last_sync',
 		'tc_agents_vector_dimensions',
+		'tc_agents_github_token',
 	);
 
 	foreach ( $options as $opt ) {

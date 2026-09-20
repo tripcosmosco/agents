@@ -190,8 +190,8 @@ class TC_Integration_Voice {
 			return false;
 		}
 
-		$customer_name = ! empty( $lead['name'] ) ? $lead['name'] : 'Explorer';
-		$reason        = sprintf( 'Following up on your %s inquiry with TripCosmos', ! empty( $lead['stage'] ) ? $lead['stage'] : 'expedition' );
+		$customer_name = ! empty( $lead['name'] ) ? $lead['name'] : 'Traveler';
+		$reason        = sprintf( 'Following up on your %s inquiry with TripCosmos', ! empty( $lead['stage'] ) ? $lead['stage'] : 'tour & pilgrimage' );
 
 		return self::place_call( $lead['phone'], $customer_name, $reason );
 	}

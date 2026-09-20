@@ -238,8 +238,11 @@ class TC_Agents_Queue {
 				break;
 
 			case 'voice_trigger':
-				if ( ! empty( $payload['lead'] ) && class_exists( 'TC_Integration_Voice' ) ) {
-					TC_Integration_Voice::maybe_dispatch_call( $payload['lead'] );
+				if ( class_exists( 'TC_Integration_Voice' ) ) {
+					$lead = ! empty( $payload['lead'] ) && is_array( $payload['lead'] ) ? $payload['lead'] : $payload;
+					if ( ! empty( $lead['phone'] ) ) {
+						TC_Integration_Voice::maybe_dispatch_call( $lead );
+					}
 				}
 				break;
 

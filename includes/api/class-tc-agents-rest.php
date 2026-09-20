@@ -278,7 +278,7 @@ class TC_Agents_REST {
 				'session_id'     => $result['session_id'],
 				'reply'          => $result['reply'],
 				'handoff'        => $result['handoff'],
-				'executed_tools' => $result['executed_tools'] ?? array(),
+				'executed_tools' => $result['executed_tools'] ?? $result['tools_used'] ?? array(),
 				'provider_used'  => $result['provider_used'],
 				'latency_ms'     => $result['latency_ms'],
 			),
@@ -365,7 +365,7 @@ class TC_Agents_REST {
 				'session_id'     => $result['session_id'],
 				'reply'          => $result['reply'],
 				'handoff'        => $result['handoff'],
-				'executed_tools' => $result['executed_tools'] ?? array(),
+				'executed_tools' => $result['executed_tools'] ?? $result['tools_used'] ?? array(),
 				'provider_used'  => $result['provider_used'],
 				'latency_ms'     => $result['latency_ms'],
 			)
@@ -483,7 +483,7 @@ class TC_Agents_REST {
 			array(
 				'success' => true,
 				'data'    => $result,
-				'message' => __( 'Your trip inquiry has been received! Our expedition specialist will review your request.', 'tripcosmos-agents' ),
+				'message' => __( 'Your trip inquiry has been received! Our travel specialist will review your request.', 'tripcosmos-agents' ),
 			),
 			200
 		);
@@ -496,7 +496,7 @@ class TC_Agents_REST {
 		$params     = array_merge( (array) $request->get_params(), (array) $request->get_json_params() );
 		$phone      = sanitize_text_field( $params['phone'] ?? '' );
 		$name       = sanitize_text_field( $params['name'] ?? '' );
-		$reason     = sanitize_text_field( $params['reason'] ?? 'Himalayan expedition inquiry from website' );
+		$reason     = sanitize_text_field( $params['reason'] ?? 'TripCosmos pilgrimage & tour inquiry from website' );
 		$session_id = sanitize_text_field( $params['session_id'] ?? '' );
 
 		if ( empty( $phone ) ) {

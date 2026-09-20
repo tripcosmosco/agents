@@ -125,9 +125,15 @@ class TC_Agent_Vector_Store {
 			return array();
 		}
 
-		// Check OpenRouter or OpenAI API key
-		$openrouter_key = get_option( 'tc_agents_openrouter_api_key', '' );
-		$api_key        = ! empty( $openrouter_key ) ? $openrouter_key : get_option( 'tc_agents_aipuffer_api_key', '' );
+		// Check OpenRouter, Gateway, or OpenAI API key from Vault or Options
+		$openrouter_key = class_exists( 'TC_Agents_Vault' ) ? TC_Agents_Vault::get( 'openrouter_api_key', '' ) : get_option( 'tc_agents_openrouter_api_key', '' );
+		if ( empty( $openrouter_key ) ) {
+			$openrouter_key = get_option( 'tc_agents_openrouter_api_key', '' );
+		}
+
+		$gateway_key = class_exists( 'TC_Agents_Vault' ) ? TC_Agents_Vault::get( 'gateway_api_key', '' ) : get_option( 'tc_agents_gateway_api_key', '' );
+		$api_key     = ! empty( $openrouter_key ) ? $openrouter_key : ( ! empty( $gateway_key ) ? $gateway_key : get_option( 'tc_agents_aipuffer_api_key', '' ) );
+
 		if ( empty( $api_key ) ) {
 			return array();
 		}
