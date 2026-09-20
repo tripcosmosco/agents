@@ -17,6 +17,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -25,6 +26,7 @@ import androidx.compose.ui.unit.sp
 import co.tripcosmos.salesagents.data.api.TripCosmosApiService
 import co.tripcosmos.salesagents.data.model.AssignLeadPayload
 import co.tripcosmos.salesagents.data.model.WhatsAppLead
+import co.tripcosmos.salesagents.data.model.formatMaskedPhone
 import co.tripcosmos.salesagents.telephony.DialerManager
 import co.tripcosmos.salesagents.ui.theme.*
 import kotlinx.coroutines.Dispatchers
@@ -33,10 +35,14 @@ import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun WhatsAppHubScreen() {
+fun WhatsAppHubScreen(
+    onOpenMaya: (() -> Unit)? = null
+) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val apiService = remember { TripCosmosApiService.create() }
+    val prefs = context.getSharedPreferences("tc_agents_prefs", Context.MODE_PRIVATE)
+    val maskPhoneNumbers = prefs.getBoolean("mask_phone_numbers", false)
 
     var selectedFilter by remember { mutableStateOf("All") }
     var searchQuery by remember { mutableStateOf("") }
@@ -202,6 +208,23 @@ fun WhatsAppHubScreen() {
                     }
                 },
                 actions = {
+                    if (onOpenMaya != null) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(Brush.linearGradient(listOf(AiGradientPink, AiGradientPurple)))
+                                .clickable { onOpenMaya() }
+                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.AutoAwesome, contentDescription = "Maya AI", tint = Color.White, modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Maya AI", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = Color.White)
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(6.dp))
+                    }
                     IconButton(onClick = { fetchLiveLeads(showToast = true) }) {
                         if (isRefreshing) {
                             CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = SuperfoneBlue)
@@ -316,6 +339,7 @@ fun WhatsAppHubScreen() {
                 items(filteredLeads, key = { it.id }) { lead ->
                     WhatsAppLeadCard(
                         lead = lead,
+                        maskPhone = maskPhoneNumbers,
                         onAssignClick = { activeAssignLead = lead },
                         onQuoteClick = { activeQuoteLead = lead },
                         onChatTraveler = {
@@ -406,6 +430,7 @@ fun WhatsAppHubScreen() {
 @Composable
 fun WhatsAppLeadCard(
     lead: WhatsAppLead,
+    maskPhone: Boolean = false,
     onAssignClick: () -> Unit,
     onQuoteClick: () -> Unit,
     onChatTraveler: () -> Unit,
@@ -415,18 +440,18 @@ fun WhatsAppLeadCard(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = LightSurface),
-        border = androidx.compose.foundation.BorderStroke(1.dp, if (lead.assignedManager == null) Color(0xFFFCA5A5) else CardBorder),
+        border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            // Header Row: Avatar + Name + Time + Score
+            // Header Row: Avatar, Customer Name, Phone, Time Ago & Heat Score
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.Top
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                    val initials = lead.customerName.split(" ").mapNotNull { it.firstOrNull()?.toString() }.take(2).joinToString("").ifBlank { "TR" }
+                    val initials = lead.customerName.split(" ").mapNotNull { it.firstOrNull()?.toString() }.take(2).joinToString("").ifBlank { "WA" }
                     Box(
                         modifier = Modifier
                             .size(40.dp)
@@ -455,7 +480,7 @@ fun WhatsAppLeadCard(
                             Spacer(modifier = Modifier.width(4.dp))
                             Icon(Icons.Default.Verified, contentDescription = null, tint = WhatsAppGreen, modifier = Modifier.size(16.dp))
                         }
-                        Text(text = lead.phone, fontSize = 12.sp, color = TextSecondary)
+                        Text(text = formatMaskedPhone(lead.phone, maskPhone), fontSize = 12.sp, color = TextSecondary)
                     }
                 }
 

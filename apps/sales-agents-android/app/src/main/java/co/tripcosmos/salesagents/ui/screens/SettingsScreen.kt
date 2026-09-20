@@ -22,8 +22,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CloudDownload
-import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.*
 import co.tripcosmos.salesagents.updater.GitHubReleaseInfo
 import co.tripcosmos.salesagents.updater.GitHubUpdateManager
 import co.tripcosmos.salesagents.ui.theme.SuperfoneBlue
@@ -32,7 +31,9 @@ import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen() {
+fun SettingsScreen(
+    onClose: (() -> Unit)? = null
+) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val prefs = context.getSharedPreferences("tc_agents_prefs", Context.MODE_PRIVATE)
@@ -40,6 +41,7 @@ fun SettingsScreen() {
     var baseUrl by remember { mutableStateOf(prefs.getString("base_url", "https://tripcosmos.co/wp-json/tc-agents/v1/") ?: "") }
     var apiToken by remember { mutableStateOf(prefs.getString("mobile_api_token", "tc_mobile_secret_2026") ?: "") }
     var agentName by remember { mutableStateOf(prefs.getString("agent_name", "Varanasi Concierge Desk") ?: "") }
+    var maskPhoneNumbers by remember { mutableStateOf(prefs.getBoolean("mask_phone_numbers", false)) }
 
     var isCheckingUpdate by remember { mutableStateOf(false) }
     var releaseInfo by remember { mutableStateOf<GitHubReleaseInfo?>(null) }
@@ -53,7 +55,14 @@ fun SettingsScreen() {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("App Settings", fontWeight = FontWeight.Bold) }
+                title = { Text("Terminal Settings", fontWeight = FontWeight.Bold) },
+                navigationIcon = {
+                    if (onClose != null) {
+                        IconButton(onClick = onClose) {
+                            Icon(Icons.Default.Close, contentDescription = "Close Settings")
+                        }
+                    }
+                }
             )
         }
     ) { padding ->
@@ -209,12 +218,45 @@ fun SettingsScreen() {
 
             Spacer(modifier = Modifier.height(8.dp))
 
+            Text("Security & Anti-Poaching Protection", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Mask Traveler Phone Numbers", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            Text(
+                                "Protects customer contacts by displaying +91 98390 •••••. 1-tap SIM calling and WhatsApp remain fully functional.",
+                                fontSize = 12.sp,
+                                color = Color.DarkGray
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Switch(
+                            checked = maskPhoneNumbers,
+                            onCheckedChange = { maskPhoneNumbers = it },
+                            colors = SwitchDefaults.colors(checkedTrackColor = OrangePrimary)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
             Button(
                 onClick = {
                     prefs.edit()
                         .putString("base_url", baseUrl.trim())
                         .putString("mobile_api_token", apiToken.trim())
                         .putString("agent_name", agentName.trim())
+                        .putBoolean("mask_phone_numbers", maskPhoneNumbers)
                         .apply()
                     Toast.makeText(context, "Settings saved successfully!", Toast.LENGTH_SHORT).show()
                 },
@@ -226,3 +268,4 @@ fun SettingsScreen() {
         }
     }
 }
+

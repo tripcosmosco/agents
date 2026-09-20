@@ -52,6 +52,13 @@ interface TripCosmosApiService {
         @Body payload: GenerateQuotePayload
     ): Response<QuoteResponse>
 
+    @POST("mobile/send-dispatch")
+    suspend fun sendDispatch(
+        @Header("X-Mobile-Token") token: String = "test",
+        @Body payload: DriverDispatchPayload
+    ): Response<DriverDispatchResponse>
+
+
     companion object {
         private const val DEFAULT_BASE_URL = "https://tripcosmos.co/wp-json/tc-agents/v1/"
 

@@ -134,7 +134,8 @@ data class GenerateQuotePayload(
     val tier: String = "deluxe",
     val pax: Int = 2,
     @SerializedName("customer_name") val customerName: String = "Traveler",
-    val dates: String = "Upcoming Weekend"
+    val dates: String = "Upcoming Weekend",
+    @SerializedName("rate_type") val rateType: String = "b2c" // "b2c" or "b2b"
 )
 
 data class QuoteResponse(
@@ -142,7 +143,36 @@ data class QuoteResponse(
     val destination: String = "",
     @SerializedName("package_title") val packageTitle: String = "",
     val pax: Int = 2,
+    @SerializedName("rate_type") val rateType: String = "b2c",
     val pricing: Double = 0.0,
+    @SerializedName("retail_price") val retailPrice: Double = 0.0,
+    @SerializedName("net_price") val netPrice: Double = 0.0,
+    val commission: Double = 0.0,
     @SerializedName("advance_required") val advanceRequired: Double = 0.0,
-    @SerializedName("quote_text") val quoteText: String = ""
+    @SerializedName("quote_text") val quoteText: String = "",
+    @SerializedName("white_label_quote") val whiteLabelQuote: String = ""
 )
+
+data class DriverDispatchPayload(
+    val phone: String,
+    @SerializedName("customer_name") val customerName: String,
+    @SerializedName("driver_name") val driverName: String,
+    @SerializedName("vehicle_number") val vehicleNumber: String,
+    @SerializedName("vehicle_type") val vehicleType: String
+)
+
+data class DriverDispatchResponse(
+    val ok: Boolean = true,
+    val message: String = "",
+    @SerializedName("sms_sent") val smsSent: Boolean = false,
+    val text: String = ""
+)
+
+fun formatMaskedPhone(phone: String, isMasked: Boolean): String {
+    if (!isMasked) return phone
+    val clean = phone.trim()
+    if (clean.length <= 6) return clean
+    val visiblePart = clean.take(clean.length - 5)
+    return "$visiblePart•••••"
+}
+

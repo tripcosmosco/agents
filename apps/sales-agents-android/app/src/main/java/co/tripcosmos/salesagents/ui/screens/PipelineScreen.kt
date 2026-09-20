@@ -10,15 +10,14 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Call
-import androidx.compose.material.icons.filled.Chat
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.*
+
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -26,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import co.tripcosmos.salesagents.data.api.TripCosmosApiService
 import co.tripcosmos.salesagents.data.model.Lead
+import co.tripcosmos.salesagents.data.model.formatMaskedPhone
 import co.tripcosmos.salesagents.telephony.DialerManager
 import co.tripcosmos.salesagents.ui.theme.*
 import kotlinx.coroutines.launch
@@ -33,6 +33,7 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PipelineScreen(
+    onOpenMaya: (() -> Unit)? = null,
     onLeadSelected: (Lead) -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -49,6 +50,7 @@ fun PipelineScreen(
     val prefs = context.getSharedPreferences("tc_agents_prefs", Context.MODE_PRIVATE)
     val token = prefs.getString("mobile_api_token", "tc_mobile_secret_2026") ?: ""
     val baseUrl = prefs.getString("base_url", "https://tripcosmos.co/wp-json/tc-agents/v1/") ?: ""
+    val maskPhoneNumbers = prefs.getBoolean("mask_phone_numbers", false)
 
     fun loadLeads() {
         scope.launch {
@@ -100,6 +102,23 @@ fun PipelineScreen(
                     }
                 },
                 actions = {
+                    if (onOpenMaya != null) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(Brush.linearGradient(listOf(AiGradientPink, AiGradientPurple)))
+                                .clickable { onOpenMaya() }
+                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.AutoAwesome, contentDescription = "Maya AI", tint = Color.White, modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Maya AI", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = Color.White)
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(6.dp))
+                    }
                     IconButton(onClick = { loadLeads() }) {
                         Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = SuperfoneBlue)
                     }
@@ -210,6 +229,7 @@ fun PipelineScreen(
                     items(filteredLeads, key = { it.id }) { lead ->
                         SuperfoneLeadCard(
                             lead = lead,
+                            maskPhone = maskPhoneNumbers,
                             onClick = {
                                 activeLeadForDetail = lead
                                 onLeadSelected(lead)
@@ -244,6 +264,7 @@ fun PipelineScreen(
 @Composable
 fun SuperfoneLeadCard(
     lead: Lead,
+    maskPhone: Boolean = false,
     onClick: () -> Unit,
     onCall: () -> Unit,
     onWhatsApp: () -> Unit
@@ -292,7 +313,7 @@ fun SuperfoneLeadCard(
                             color = TextPrimary
                         )
                         Text(
-                            text = lead.phone,
+                            text = formatMaskedPhone(lead.phone, maskPhone),
                             fontSize = 12.sp,
                             color = TextSecondary
                         )

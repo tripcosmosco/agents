@@ -23,10 +23,11 @@ data class GitHubReleaseInfo(
 )
 
 object GitHubUpdateManager {
-    const val CURRENT_VERSION = "v1.0.4"
+    const val CURRENT_VERSION = "v2.0.0"
+
     const val GITHUB_REPO = "tripcosmosco/sales-agents"
     const val API_URL = "https://api.github.com/repos/$GITHUB_REPO/releases/latest"
-    const val FALLBACK_DOWNLOAD_URL = "https://tripcosmos.co/downloads/sales-agents-tripcosmos.apk"
+    const val FALLBACK_DOWNLOAD_URL = "https://tripcosmos.co/downloads/tripcosmos-agents.apk"
 
     suspend fun checkLatestRelease(): GitHubReleaseInfo? {
         return withContext(Dispatchers.IO) {
