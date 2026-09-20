@@ -49,7 +49,7 @@ class TC_Agent_Orchestrator {
 		if ( 'handed_off' === $conversation['status'] && 'admin' !== $channel ) {
 			return array(
 				'session_id'    => $session_id,
-				'reply'         => __( 'An expedition specialist from our team has joined this conversation. Please wait a moment while they reply, or chat with them directly on WhatsApp.', 'tripcosmos-agents' ),
+				'reply'         => __( 'A travel specialist from our team has joined this conversation. Please wait a moment while they reply, or chat with them directly on WhatsApp.', 'tripcosmos-agents' ),
 				'handoff'       => array( 'human_takeover_active' => true ),
 				'provider_used' => 'human_takeover_guard',
 				'latency_ms'    => 0,
@@ -110,7 +110,7 @@ class TC_Agent_Orchestrator {
 			if ( ! empty( $metadata['page_url'] ) ) {
 				$page_ctx .= "\nPage URL: " . esc_url( $metadata['page_url'] );
 			}
-			$page_ctx .= "\nUse this browsing context to provide immediate, highly tailored recommendations for the trek or package they are currently viewing.";
+			$page_ctx .= "\nUse this browsing context to provide immediate, highly tailored recommendations for the tour or package they are currently viewing.";
 			$page_ctx .= "\n-----------------------------------------\n";
 			$system_prompt .= $page_ctx;
 		}

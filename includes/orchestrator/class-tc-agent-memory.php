@@ -150,19 +150,22 @@ class TC_Agent_Memory {
 		}
 
 		// Preferences
-		if ( strpos( $lower, 'beginner' ) !== false || strpos( $lower, 'first time' ) !== false ) {
-			$updates['preferences'][] = 'Beginner / first-time trekker';
+		if ( strpos( $lower, 'senior' ) !== false || strpos( $lower, 'elderly' ) !== false || strpos( $lower, 'parents' ) !== false ) {
+			$updates['preferences'][] = 'Traveling with senior citizens / parents (wheelchair & easy darshan)';
 		}
-		if ( strpos( $lower, 'snow' ) !== false ) {
-			$updates['preferences'][] = 'Enthusiastic about snow treks';
+		if ( strpos( $lower, 'family' ) !== false || strpos( $lower, 'children' ) !== false || strpos( $lower, 'kids' ) !== false ) {
+			$updates['preferences'][] = 'Family pilgrimage / group travel';
 		}
-		if ( strpos( $lower, 'veg' ) !== false || strpos( $lower, 'jain' ) !== false ) {
-			$updates['preferences'][] = 'Vegetarian / dietary requirement';
+		if ( strpos( $lower, 'innova' ) !== false || strpos( $lower, 'crysta' ) !== false || strpos( $lower, 'tempo' ) !== false ) {
+			$updates['preferences'][] = 'Prefers dedicated AC Innova Crysta / Tempo Traveller';
+		}
+		if ( strpos( $lower, 'veg' ) !== false || strpos( $lower, 'jain' ) !== false || strpos( $lower, 'satvik' ) !== false ) {
+			$updates['preferences'][] = 'Satvik / Pure Vegetarian dietary requirement';
 		}
 
 		// Objections / concerns
-		if ( strpos( $lower, 'altitude' ) !== false || strpos( $lower, 'ams' ) !== false || strpos( $lower, 'breath' ) !== false ) {
-			$updates['objections'][] = 'Concerned about high-altitude sickness (AMS)';
+		if ( strpos( $lower, 'crowd' ) !== false || strpos( $lower, 'rush' ) !== false || strpos( $lower, 'line' ) !== false || strpos( $lower, 'queue' ) !== false ) {
+			$updates['objections'][] = 'Concerned about temple queues & crowd rush (recommend VIP Sugam Darshan)';
 		}
 		if ( strpos( $lower, 'too expensive' ) !== false || strpos( $lower, 'price high' ) !== false ) {
 			$updates['objections'][] = 'Price sensitivity indicated';

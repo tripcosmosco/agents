@@ -130,10 +130,10 @@ class TC_Agents_Mobile_API {
 					'stage'               => $contact['stage'],
 					'lead_score'          => (int) $contact['score'],
 					'deal_value'          => (float) $contact['deal_value'],
-					'destination'         => $meta['destination'] ?? 'Himalayan Expeditions',
+					'destination'         => $meta['destination'] ?? 'Varanasi Spiritual Tour',
 					'requirements'        => $meta['requirements'] ?? '',
 					'ai_summary'          => $mem['summary'] ?? '',
-					'next_best_action'    => $mem['next_best_action'] ?? 'Qualify dates, group size, and altitude comfort level.',
+					'next_best_action'    => $mem['next_best_action'] ?? 'Qualify dates, group size, and vehicle/hotel preference.',
 				),
 			),
 			200

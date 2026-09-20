@@ -374,7 +374,7 @@ class TC_Agents_Admin {
 	}
 
 	/**
-	 * AJAX endpoint to trigger 1-click sync of WordPress treks and posts into KB.
+	 * AJAX endpoint to trigger 1-click sync of WordPress tours and posts into KB.
 	 */
 	public static function ajax_sync_catalog_kb() {
 		check_ajax_referer( 'tc_agents_admin_nonce', 'nonce' );
@@ -778,7 +778,7 @@ class TC_Agents_Admin {
 			if ( isset( $_POST['github_token'] ) ) {
 				$gh_token = sanitize_text_field( trim( $_POST['github_token'] ) );
 				if ( class_exists( 'TC_Agents_Vault' ) ) {
-					TC_Agents_Vault::set( 'github_token', $gh_token );
+					TC_Agents_Vault::put( 'github_token', $gh_token );
 				}
 				update_option( 'tc_agents_github_token', $gh_token );
 			}

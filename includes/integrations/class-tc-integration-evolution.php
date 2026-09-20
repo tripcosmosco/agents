@@ -34,27 +34,42 @@ class TC_Integration_Evolution {
 		return new WP_Error( 'evolution_send_failed', sprintf( __( 'Evolution HTTP %d', 'tripcosmos-agents' ), $code ) );
 	}
 	/**
-	 * Normalize inbound Evolution webhook payload to {from, text, name}.
+	 * Normalize inbound Evolution webhook payload to {from, text, name, from_me}.
 	 * Supports event messages.upsert with keyRemoteJid + message conversation/extendedText.
 	 */
 	public static function normalize_inbound( $data ) {
 		$from = ''; $text = ''; $name = '';
+
+		// Check if message is from self (fromMe flag in Evolution/Baileys).
+		$from_me = ! empty( $data['fromMe'] ) || ! empty( $data['data']['key']['fromMe'] ) || ! empty( $data['key']['fromMe'] );
+		if ( $from_me ) {
+			return array( 'from' => '', 'text' => '', 'name' => '', 'from_me' => true );
+		}
+
 		// Direct simple schema.
 		if ( ! empty( $data['from'] ) || ! empty( $data['sender'] ) ) {
 			$from = $data['from'] ?? $data['sender'] ?? '';
 			$text = $data['body'] ?? $data['message'] ?? $data['text'] ?? '';
 			$name = $data['name'] ?? $data['pushName'] ?? '';
-			return array( 'from' => $from, 'text' => is_array( $text ) ? '' : (string) $text, 'name' => (string) $name );
+			return array( 'from' => (string) $from, 'text' => is_array( $text ) ? '' : (string) $text, 'name' => (string) $name, 'from_me' => false );
 		}
+
 		// Evolution messages.upsert schema.
 		$msg = $data['data']['message'] ?? $data['message'] ?? null;
 		$key = $data['data']['key'] ?? $data['key'] ?? array();
 		if ( is_array( $msg ) ) {
-			$from = $key['remoteJid'] ?? '';
-			$from = preg_replace( '/@.*$/', '', (string) $from );
+			$remote_jid = (string) ( $key['remoteJid'] ?? '' );
+
+			// Ignore WhatsApp status broadcasts and groups to avoid group chat bot spam
+			if ( false !== strpos( $remote_jid, 'status@broadcast' ) || false !== strpos( $remote_jid, '@g.us' ) ) {
+				return array( 'from' => '', 'text' => '', 'name' => '', 'from_me' => false, 'ignored_jid' => true );
+			}
+
+			$from = preg_replace( '/@.*$/', '', $remote_jid );
 			$text = $msg['conversation'] ?? $msg['extendedTextMessage']['text'] ?? $msg['text'] ?? '';
 			$name = $data['data']['pushName'] ?? '';
 		}
-		return array( 'from' => (string) $from, 'text' => is_array( $text ) ? '' : (string) $text, 'name' => (string) $name );
+
+		return array( 'from' => (string) $from, 'text' => is_array( $text ) ? '' : (string) $text, 'name' => (string) $name, 'from_me' => false );
 	}
 }

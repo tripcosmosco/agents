@@ -176,7 +176,7 @@ $categories = array(
 
 					<p>
 						<label for="tc_kb_tags"><strong><?php esc_html_e( 'Keywords / Search Tags', 'tripcosmos-agents' ); ?></strong></label><br>
-						<input type="text" id="tc_kb_tags" name="tags" value="<?php echo esc_attr( $edit_doc['tags'] ?? '' ); ?>" class="regular-text" style="width: 100%;" placeholder="e.g. kedarkantha, refund, permits, altitude" />
+						<input type="text" id="tc_kb_tags" name="tags" value="<?php echo esc_attr( $edit_doc['tags'] ?? '' ); ?>" class="regular-text" style="width: 100%;" placeholder="e.g. kashi vishwanath, cabs, aarti boat, refund, darshan" />
 						<span class="description" style="font-size: 11px;"><?php esc_html_e( 'Comma-separated keywords to help semantic and prompt matching.', 'tripcosmos-agents' ); ?></span>
 					</p>
 

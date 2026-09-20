@@ -23,7 +23,7 @@ class TC_Agent_Sequences {
 	}
 
 	/**
-	 * Seed default high-converting Himalayan trek follow-up sequences.
+	 * Seed default high-converting tour & pilgrimage follow-up sequences.
 	 */
 	public static function maybe_seed_defaults() {
 		global $wpdb;
@@ -201,7 +201,7 @@ class TC_Agent_Sequences {
 
 			$step         = $steps[ $step_idx ];
 			$message_body = self::personalize_message( $step['message'] ?? '', $con );
-			$subject      = $step['subject'] ?? 'TripCosmos Expedition Follow-up';
+			$subject      = $step['subject'] ?? 'TripCosmos Tour & Pilgrimage Follow-up';
 
 			// Cross-Channel Smart Failover Dispatch
 			$sent         = false;

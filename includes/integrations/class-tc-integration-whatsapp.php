@@ -45,7 +45,9 @@ class TC_Integration_WhatsApp {
 
 		if ( 'subscribe' === $hub_mode ) {
 			if ( empty( $secret_configured ) || $hub_token === $secret_configured ) {
-				echo esc_html( $hub_challenge );
+				status_header( 200 );
+				header( 'Content-Type: text/plain; charset=utf-8' );
+				echo sanitize_text_field( (string) $hub_challenge );
 				exit;
 			}
 			return new WP_REST_Response( 'Forbidden', 403 );
@@ -67,16 +69,22 @@ class TC_Integration_WhatsApp {
 		// Normalize sender/text: Evolution messages.upsert first, then legacy schemas.
 		$sender_phone = '';
 		$message_text = '';
-		$sender_name = $data['name'] ?? '';
+		$sender_name  = $data['name'] ?? '';
 		if ( class_exists( 'TC_Integration_Evolution' ) ) {
 			$norm = TC_Integration_Evolution::normalize_inbound( is_array( $data ) ? $data : array() );
+			if ( ! empty( $norm['from_me'] ) ) {
+				return new WP_REST_Response( array( 'status' => 'ignored', 'reason' => 'Outbound message from self (fromMe)' ), 200 );
+			}
+			if ( ! empty( $norm['ignored_jid'] ) ) {
+				return new WP_REST_Response( array( 'status' => 'ignored', 'reason' => 'Status broadcast or group message ignored' ), 200 );
+			}
 			$sender_phone = $norm['from'] ?? '';
 			$message_text = $norm['text'] ?? '';
-			$sender_name = $norm['name'] ?? $sender_name;
+			$sender_name  = $norm['name'] ?? $sender_name;
 		}
 		if ( empty( $sender_phone ) || empty( $message_text ) ) {
 			$sender_phone = $sender_phone ?: ( $data['from'] ?? $data['sender'] ?? $data['phone'] ?? ( $data['entry'][0]['changes'][0]['value']['messages'][0]['from'] ?? '' ) );
-			$raw_text = $data['body'] ?? $data['message'] ?? $data['text'] ?? ( $data['entry'][0]['changes'][0]['value']['messages'][0]['text']['body'] ?? '' );
+			$raw_text     = $data['body'] ?? $data['message'] ?? $data['text'] ?? ( $data['entry'][0]['changes'][0]['value']['messages'][0]['text']['body'] ?? '' );
 			$message_text = $message_text ?: ( is_array( $raw_text ) ? '' : (string) $raw_text );
 		}
 

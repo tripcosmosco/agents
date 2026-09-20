@@ -139,8 +139,14 @@ class TC_Agent_Vector_Store {
 		}
 
 		$is_openrouter = ! empty( $openrouter_key );
-		$endpoint      = $is_openrouter ? 'https://openrouter.ai/api/v1/embeddings' : 'https://api.openai.com/v1/embeddings';
-		$model         = get_option( 'tc_agents_embed_model', 'text-embedding-3-small' );
+		if ( $is_openrouter ) {
+			$endpoint = 'https://openrouter.ai/api/v1/embeddings';
+		} elseif ( ! empty( $gateway_key ) ) {
+			$endpoint = untrailingslashit( get_option( 'tc_agents_gateway_base_url', 'https://ai.vmstudio.digital/v1' ) ) . '/embeddings';
+		} else {
+			$endpoint = 'https://api.openai.com/v1/embeddings';
+		}
+		$model = get_option( 'tc_agents_embed_model', 'text-embedding-3-small' );
 
 		$headers = array(
 			'Content-Type'  => 'application/json',

@@ -61,6 +61,7 @@ class TC_Agents_Public {
 				'whatsappNumber' => $clean_wa,
 				'triggerCallUrl' => esc_url_raw( rest_url( 'tc-agents/v1/trigger-call' ) ),
 				'voiceEnabled'   => '1' === (string) get_option( 'tc_agents_voice_enabled', '0' ),
+				'agentSlug'      => 'tripcosmos-guide',
 				'siteUrl'        => home_url(),
 			)
 		);

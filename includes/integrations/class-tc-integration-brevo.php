@@ -24,9 +24,10 @@ class TC_Integration_Brevo {
 			'body' => wp_json_encode( array( 'sender' => $sender, 'to' => array( array( 'email' => $to ) ), 'subject' => $subject, 'htmlContent' => $html, 'textContent' => $text ?: wp_strip_all_tags( $html ) ) ),
 		) );
 		if ( is_wp_error( $res ) ) { return $res; }
-		$code = wp_remote_retrieve_response_code( $res );
-		if ( $code >= 200 && $code < 300 ) { return array( 'success' => true, 'body' => json_decode( wp_remote_retrieve_body( $res ), true ) ); }
-		return new WP_Error( 'brevo_api_error', sprintf( __( 'Brevo HTTP %d', 'tripcosmos-agents' ), $code ) );
+		$body = json_decode( wp_remote_retrieve_body( $res ), true );
+		if ( $code >= 200 && $code < 300 ) { return array( 'success' => true, 'body' => $body ); }
+		$error_msg = ! empty( $body['message'] ) ? $body['message'] : sprintf( __( 'Brevo HTTP %d', 'tripcosmos-agents' ), $code );
+		return new WP_Error( 'brevo_api_error', $error_msg );
 	}
 	/**
 	 * Push B2B outreach: send to agency contact, log outcome.

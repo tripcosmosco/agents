@@ -134,6 +134,10 @@ class TC_Provider_Gemini implements TC_AI_Provider_Interface {
 			$text .= ( $p['text'] ?? '' );
 		}
 
+		if ( empty( $text ) && ! empty( $body['candidates'][0]['finishReason'] ) && 'STOP' !== $body['candidates'][0]['finishReason'] ) {
+			return new WP_Error( 'gemini_safety_blocked', sprintf( __( 'Gemini filtered response (%s).', 'tripcosmos-agents' ), $body['candidates'][0]['finishReason'] ), array( 'latency_ms' => $lat ) );
+		}
+
 		return array(
 			'content'           => $text,
 			'tool_calls'        => array(),

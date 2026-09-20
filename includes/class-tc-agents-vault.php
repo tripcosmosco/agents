@@ -37,6 +37,16 @@ class TC_Agents_Vault {
 	}
 
 	/**
+	 * Alias for put().
+	 *
+	 * @param string $key
+	 * @param string $value
+	 */
+	public static function set( $key, $value ) {
+		self::put( $key, $value );
+	}
+
+	/**
 	 * Retrieve a decrypted secret from the vault.
 	 * Priority: wp-config.php constants > Vault storage > Legacy option.
 	 *

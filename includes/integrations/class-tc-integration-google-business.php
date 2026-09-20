@@ -58,14 +58,21 @@ class TC_Integration_Google_Business {
 				'rating' => isset( $a['rating'] ) ? (float) $a['rating'] : null,
 				'place_id' => $place_id,
 				'lat' => isset( $a['lat'] ) ? (float) $a['lat'] : null, 'lng' => isset( $a['lng'] ) ? (float) $a['lng'] : null,
-				'source' => sanitize_key( $source ), 'status' => 'new', 'updated_at' => current_time( 'mysql' ),
+				'source' => sanitize_key( $source ), 'updated_at' => current_time( 'mysql' ),
 			);
 			$existing = 0;
 			if ( $place_id ) { $existing = $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $table WHERE place_id = %s LIMIT 1", $place_id ) ); }
 			if ( ! $existing && $phone ) { $existing = $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $table WHERE phone = %s LIMIT 1", $phone ) ); }
 			if ( ! $existing ) { $existing = $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $table WHERE name = %s AND city = %s LIMIT 1", $name, $data['city'] ) ); }
-			if ( $existing ) { $wpdb->update( $table, $data, array( 'id' => (int) $existing ) ); $upd++; }
-			else { $data['created_at'] = current_time( 'mysql' ); $wpdb->insert( $table, $data ); $ins++; }
+			if ( $existing ) {
+				$wpdb->update( $table, $data, array( 'id' => (int) $existing ) );
+				$upd++;
+			} else {
+				$data['status']     = 'new';
+				$data['created_at'] = current_time( 'mysql' );
+				$wpdb->insert( $table, $data );
+				$ins++;
+			}
 		}
 		return array( 'inserted' => $ins, 'updated' => $upd );
 	}

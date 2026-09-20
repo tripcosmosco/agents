@@ -88,7 +88,7 @@ class TC_Agent_Deal_Math {
 			return array( 'pax' => $pax, 'discount_pct' => 5, 'label' => 'Small Group Discount (5% Off)' );
 		}
 		if ( $pax >= 8 && $pax <= 14 ) {
-			return array( 'pax' => $pax, 'discount_pct' => 10, 'label' => 'Expedition Group Tier (10% Off)' );
+			return array( 'pax' => $pax, 'discount_pct' => 10, 'label' => 'Pilgrimage & Tour Group Tier (10% Off)' );
 		}
 
 		return array( 'pax' => $pax, 'discount_pct' => 10, 'label' => 'Large Group Tier (10% Max Automated Discount - Specialist Review Required)' );

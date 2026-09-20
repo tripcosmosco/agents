@@ -145,7 +145,7 @@ class TC_Integration_FluentCRM {
 			$wpdb->insert(
 				$table_contacts,
 				array(
-					'name'           => $name ?: 'Himalayan Traveler',
+					'name'           => $name ?: 'Pilgrim Traveler',
 					'email'          => $email,
 					'phone'          => $phone,
 					'source_channel' => 'fluent_forms',
@@ -288,7 +288,7 @@ class TC_Integration_FluentCRM {
 
 		$tags = array( 'tripcosmos-lead', 'channel-' . $channel );
 		if ( ! empty( $data['destination'] ) ) {
-			$tags[] = 'trek-' . sanitize_title( $data['destination'] );
+			$tags[] = 'tour-' . sanitize_title( $data['destination'] );
 		}
 		if ( 'hot' === $stage || $score >= 80 ) {
 			$tags[] = 'hot-traveler';
@@ -314,7 +314,7 @@ class TC_Integration_FluentCRM {
 					$contact->updateOrCreateMeta( 'tc_stage', $stage );
 					$contact->updateOrCreateMeta( 'tc_lead_score', $score );
 					if ( ! empty( $data['destination'] ) ) {
-						$contact->updateOrCreateMeta( 'tc_trek_preference', sanitize_text_field( $data['destination'] ) );
+						$contact->updateOrCreateMeta( 'tc_destination_preference', sanitize_text_field( $data['destination'] ) );
 					}
 					if ( ! empty( $data['requirements'] ) ) {
 						$contact->updateOrCreateMeta( 'tc_requirements', sanitize_textarea_field( $data['requirements'] ) );

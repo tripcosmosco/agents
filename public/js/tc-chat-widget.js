@@ -490,7 +490,7 @@
 						phoneCallStatus.style.color = '#10b981';
 						phoneCallStatus.innerHTML = '✓ Call dispatched! Your mobile <strong>' + escapeHtml(phone) + '</strong> will ring in a few seconds.';
 					}
-					appendMessage('bot', '📞 **Automated Phone Consultation Dispatched!**\nOur AI mountain guide is placing a live phone call to **' + escapeHtml(phone) + '**. Please answer your mobile.');
+					appendMessage('bot', '📞 **Automated Phone Consultation Dispatched!**\nOur AI travel specialist is placing a live phone call to **' + escapeHtml(phone) + '**. Please answer your mobile.');
 					saveToHistory('bot', '📞 Automated Phone Consultation Dispatched to ' + phone);
 				} else {
 					if (phoneCallStatus) {
@@ -762,7 +762,7 @@
 					message: text,
 					session_id: sessionId,
 					channel: 'web',
-					agent_slug: 'tripcosmos-guide',
+					agent_slug: (window.tcChatWidget && tcChatWidget.agentSlug) ? tcChatWidget.agentSlug : 'tripcosmos-guide',
 					stream: true,
 					page_url: window.location.href,
 					page_title: document.title,
@@ -912,7 +912,7 @@
 						'<div class="tc-trip-title">' + escapeHtml(trip.title) + '</div>' +
 						'<div class="tc-trip-meta-row">' +
 							'<span class="tc-trip-badge">⏳ ' + escapeHtml(trip.duration || 'Flexible') + '</span>' +
-							'<span class="tc-trip-badge">⛰️ ' + escapeHtml(trip.altitude || 'Himalayas') + '</span>' +
+							'<span class="tc-trip-badge">🛕 ' + escapeHtml(trip.altitude || 'Spiritual Circuit') + '</span>' +
 						'</div>' +
 						'<div class="tc-trip-price">' + escapeHtml(trip.price || 'Inquire') + '</div>' +
 						'<div class="tc-trip-actions">' +
@@ -1036,8 +1036,9 @@
 			// Code blocks (inline `code`)
 			safe = safe.replace(/`([^`]+)`/g, '<code class="tc-inline-code">$1</code>');
 
-			// Bold **text**
+			// Bold **text** or __text__
 			safe = safe.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+			safe = safe.replace(/__([^_]+)__/g, '<strong>$1</strong>');
 
 			// Italic *text*
 			safe = safe.replace(/(^|[^*_])\*([^*]+)\*(?=[^*_]|$)/g, '$1<em>$2</em>');

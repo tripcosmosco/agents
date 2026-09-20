@@ -130,7 +130,7 @@ class TC_Cab_Fare_Engine {
 		}
 
 		// 2. Check for Varanasi Local 8h/80km
-		if ( false !== strpos( $dest_clean, 'local' ) || false !== strpos( $dest_clean, 'sightseeing' ) || ( false !== strpos( $dest_clean, 'darshan' ) && empty( $destination ) ) ) {
+		if ( false !== strpos( $dest_clean, 'local' ) || false !== strpos( $dest_clean, 'sightseeing' ) || false !== strpos( $dest_clean, 'darshan' ) || empty( $dest_clean ) ) {
 			$base = $fleet_info['local_8h80k'] * $days;
 			return array(
 				'route'         => sprintf( 'Varanasi Local Sightseeing & Temple Darshan (%d Day%s - 8h/80km)', $days, $days > 1 ? 's' : '' ),

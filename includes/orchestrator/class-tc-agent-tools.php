@@ -86,7 +86,7 @@ class TC_Agent_Tools {
 							),
 							'destination'  => array(
 								'type'        => 'string',
-								'description' => 'Destination or trek they are interested in.',
+								'description' => 'Destination or tour package they are interested in.',
 							),
 							'group_size'   => array(
 								'type'        => 'string',
@@ -163,7 +163,7 @@ class TC_Agent_Tools {
 						'properties' => array(
 							'package_name' => array(
 								'type'        => 'string',
-								'description' => 'Name of the trek or destination e.g. "Kedarkantha", "Hampta Pass".',
+								'description' => 'Name of the tour package or circuit e.g. "Kashi Ayodhya Tour", "Prayagraj Sangam".',
 							),
 							'season'       => array(
 								'type'        => 'string',
@@ -192,7 +192,7 @@ class TC_Agent_Tools {
 							),
 							'reason'        => array(
 								'type'        => 'string',
-								'description' => 'Reason for the call e.g. "Kedarkantha winter trek consultation and group pricing".',
+								'description' => 'Reason for the call e.g. "Kashi Ayodhya tour consultation, cab tariff, and group pricing".',
 							),
 						),
 						'required'   => array( 'phone' ),
@@ -389,9 +389,9 @@ class TC_Agent_Tools {
 				'title'      => $p->post_title,
 				'excerpt'    => wp_trim_words( $p->post_excerpt ?: $p->post_content, 25 ),
 				'price'      => ! empty( $price ) ? '₹' . number_format( (float) $price ) : 'Available upon inquiry',
-				'duration'   => $duration ?: '5-6 Days',
-				'difficulty' => $difficulty ?: 'Moderate',
-				'altitude'   => $altitude ?: '12,500 ft',
+				'duration'   => $duration ?: '3-4 Days',
+				'difficulty' => $difficulty ?: 'Family Friendly',
+				'altitude'   => $altitude ?: 'Spiritual Circuit',
 				'thumbnail'  => get_the_post_thumbnail_url( $p->ID, 'medium' ) ?: '',
 				'url'        => get_permalink( $p->ID ),
 			);
@@ -515,7 +515,7 @@ class TC_Agent_Tools {
 				}
 			}
 
-			// If query didn't match specific keyword, return popular top treks
+			// If query didn't match specific keyword, return popular top tours / circuits
 			$trips = ! empty( $filtered ) ? array_slice( $filtered, 0, $limit ) : array_slice( $catalog_templates, 0, $limit );
 		}
 
