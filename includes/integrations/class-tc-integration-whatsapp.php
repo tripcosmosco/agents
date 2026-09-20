@@ -99,6 +99,13 @@ class TC_Integration_WhatsApp {
 		// Unify or lookup contact
 		self::ensure_whatsapp_contact( $sender_phone, $sender_name );
 
+		// Stop-on-Reply Governor: Cancel active automated follow-up sequences when lead replies on WhatsApp
+		global $wpdb;
+		$lead_contact_id = $wpdb->get_var( $wpdb->prepare( "SELECT id FROM {$wpdb->prefix}tc_agent_contacts WHERE phone = %s LIMIT 1", $sender_phone ) );
+		if ( $lead_contact_id && class_exists( 'TC_Agent_Sequences' ) ) {
+			TC_Agent_Sequences::cancel_for_contact( $lead_contact_id );
+		}
+
 		// Pass to Agent Orchestrator
 		$result = TC_Agent_Orchestrator::handle_message(
 			$message_text,

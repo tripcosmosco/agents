@@ -31,6 +31,7 @@ if ( ! empty( $search_query ) ) {
 
 $where_sql = implode( ' AND ', $where_clauses );
 $leads = $wpdb->get_results( "SELECT * FROM $table_contacts WHERE $where_sql ORDER BY updated_at DESC", ARRAY_A ) ?: array();
+$all_sequences = $wpdb->get_results( "SELECT id, name, channel FROM {$wpdb->prefix}tc_agent_sequences WHERE is_active = 1", ARRAY_A ) ?: array();
 
 // Summary metrics
 $total_leads  = count( $leads );
@@ -81,6 +82,9 @@ $conversion_rate = $total_leads > 0 ? round( ( $won_count / $total_leads ) * 100
 
 	<?php if ( isset( $_GET['saved'] ) ) : ?>
 		<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Lead record updated successfully.', 'tripcosmos-agents' ); ?></p></div>
+	<?php endif; ?>
+	<?php if ( isset( $_GET['enrolled'] ) ) : ?>
+		<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Contact enrolled into automated drip sequence.', 'tripcosmos-agents' ); ?></p></div>
 	<?php endif; ?>
 
 	<!-- Metrics Overview -->
@@ -191,6 +195,20 @@ $conversion_rate = $total_leads > 0 ? round( ( $won_count / $total_leads ) * 100
 								<td><small style="color: #64748b;"><?php echo esc_html( human_time_diff( strtotime( $l['updated_at'] ), current_time( 'timestamp' ) ) . ' ago' ); ?></small></td>
 								<td>
 									<button type="button" class="button button-small" onclick="viewMemory(<?php echo esc_attr( $l['id'] ); ?>, '<?php echo esc_js( $l['name'] ?: 'Traveler' ); ?>')"><?php esc_html_e( 'Memory', 'tripcosmos-agents' ); ?></button>
+									<?php if ( ! empty( $all_sequences ) ) : ?>
+										<form method="post" action="<?php echo esc_url( admin_url( 'admin.php' ) ); ?>" style="display:inline-block; margin-left: 4px;">
+											<?php wp_nonce_field( 'tc_agents_admin_save', 'tc_agents_nonce' ); ?>
+											<input type="hidden" name="tc_agents_action" value="manual_enroll_lead" />
+											<input type="hidden" name="contact_id" value="<?php echo esc_attr( $l['id'] ); ?>" />
+											<input type="hidden" name="redirect_page" value="tc-agents-leads" />
+											<select name="sequence_id" onchange="if(this.value){ this.form.submit(); }" style="font-size: 11px; padding: 2px 4px; height: 26px;" title="<?php esc_attr_e( 'Enroll into follow-up drip sequence', 'tripcosmos-agents' ); ?>">
+												<option value=""><?php esc_html_e( '+ Drip', 'tripcosmos-agents' ); ?></option>
+												<?php foreach ( $all_sequences as $seq_opt ) : ?>
+													<option value="<?php echo esc_attr( $seq_opt['id'] ); ?>"><?php echo esc_html( $seq_opt['name'] ); ?></option>
+												<?php endforeach; ?>
+											</select>
+										</form>
+									<?php endif; ?>
 								</td>
 							</tr>
 						<?php endforeach; ?>

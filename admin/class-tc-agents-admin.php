@@ -536,6 +536,16 @@ class TC_Agents_Admin {
 					array( 'stage' => $stage, 'updated_at' => current_time( 'mysql' ) ),
 					array( 'id' => $lead_id )
 				);
+
+				if ( class_exists( 'TC_Agent_Sequences' ) ) {
+					if ( 'won' === $stage ) {
+						// Auto-enroll in Pre-Arrival Chauffeur & VIP Darshan Guide
+						TC_Agent_Sequences::enroll_contact( $lead_id, 'pre_arrival' );
+					} elseif ( 'completed' === $stage ) {
+						// Auto-enroll in Post-Trip Review & Google Rating Engine
+						TC_Agent_Sequences::enroll_contact( $lead_id, 'post_trip_feedback' );
+					}
+				}
 			}
 			wp_safe_redirect( add_query_arg( array( 'page' => 'tc-agents-leads', 'saved' => '1' ), admin_url( 'admin.php' ) ) );
 			exit;
@@ -592,7 +602,8 @@ class TC_Agents_Admin {
 		if ( 'save_sequence' === $action ) {
 			global $wpdb;
 			$seq_id   = absint( $_POST['sequence_id'] ?? 0 );
-			$delays   = array_map( 'absint', (array) ( $_POST['step_delays'] ?? array() ) );
+			$delays   = array_map( 'floatval', (array) ( $_POST['step_delays'] ?? array() ) );
+			$subjects = array_map( 'sanitize_text_field', (array) ( $_POST['step_subjects'] ?? array() ) );
 			$messages = array_map( 'sanitize_textarea_field', (array) ( $_POST['step_messages'] ?? array() ) );
 
 			$steps = array();
@@ -600,7 +611,8 @@ class TC_Agents_Admin {
 				$msg = $messages[ $idx ] ?? '';
 				if ( ! empty( $msg ) ) {
 					$steps[] = array(
-						'delay_hours' => max( 1, $delay ),
+						'delay_hours' => max( 0.05, (float) $delay ),
+						'subject'     => ! empty( $subjects[ $idx ] ) ? $subjects[ $idx ] : 'TripCosmos Tour & Pilgrimage Follow-up',
 						'message'     => $msg,
 					);
 				}
@@ -643,6 +655,23 @@ class TC_Agents_Admin {
 				$wpdb->update( $wpdb->prefix . 'tc_agent_sequence_enrollments', array( 'status' => 'cancelled' ), array( 'id' => $en_id ) );
 			}
 			wp_safe_redirect( add_query_arg( array( 'page' => 'tc-agents-sequences', 'saved' => '1' ), admin_url( 'admin.php' ) ) );
+			exit;
+		}
+
+		if ( 'run_sequences_now' === $action ) {
+			$count = class_exists( 'TC_Agent_Sequences' ) ? TC_Agent_Sequences::process_due_steps( true ) : 0;
+			wp_safe_redirect( add_query_arg( array( 'page' => 'tc-agents-sequences', 'ran' => $count ), admin_url( 'admin.php' ) ) );
+			exit;
+		}
+
+		if ( 'manual_enroll_lead' === $action ) {
+			$contact_id  = absint( $_POST['contact_id'] ?? 0 );
+			$sequence_id = absint( $_POST['sequence_id'] ?? 0 );
+			if ( $contact_id > 0 && $sequence_id > 0 && class_exists( 'TC_Agent_Sequences' ) ) {
+				TC_Agent_Sequences::enroll_contact( $contact_id, '', $sequence_id );
+			}
+			$redirect_page = sanitize_key( $_POST['redirect_page'] ?? 'tc-agents-sequences' );
+			wp_safe_redirect( add_query_arg( array( 'page' => $redirect_page, 'enrolled' => '1' ), admin_url( 'admin.php' ) ) );
 			exit;
 		}
 

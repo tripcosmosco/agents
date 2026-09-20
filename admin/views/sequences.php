@@ -42,11 +42,16 @@ $enrollments = $wpdb->get_results(
 
 // Trigger events map
 $trigger_events = array(
-	'inquiry_abandoned'  => __( 'Inquiry Abandoned (No message for 2 hours)', 'tripcosmos-agents' ),
-	'proposal_sent'      => __( 'Custom Proposal / Itinerary Sent', 'tripcosmos-agents' ),
-	'no_reply_24h'       => __( 'Traveler Inactive for 24 Hours', 'tripcosmos-agents' ),
-	'post_trip_feedback' => __( 'Post-Trip Review & Feedback Request', 'tripcosmos-agents' ),
+	'inquiry_abandoned'    => __( 'Abandoned Chat Inquiry (Speed-to-Lead)', 'tripcosmos-agents' ),
+	'fluentform_submitted'  => __( 'Fluent Forms Lead Submitted (Instant Quote)', 'tripcosmos-agents' ),
+	'pre_arrival'           => __( 'Booking Confirmed / Pre-Arrival Concierge', 'tripcosmos-agents' ),
+	'post_trip_feedback'   => __( 'Post-Trip Google Review & Referral Engine', 'tripcosmos-agents' ),
+	'b2b_outreach'         => __( 'B2B Travel Partner Outreach & White-Label DMC', 'tripcosmos-agents' ),
+	'proposal_sent'        => __( 'Custom Proposal / Itinerary Sent', 'tripcosmos-agents' ),
+	'no_reply_24h'         => __( 'Traveler Inactive for 24 Hours', 'tripcosmos-agents' ),
 );
+
+$all_contacts = $wpdb->get_results( "SELECT id, name, phone, email FROM $table_contact ORDER BY id DESC LIMIT 100", ARRAY_A ) ?: array();
 ?>
 
 <div class="wrap tc-admin-wrap">
@@ -56,6 +61,13 @@ $trigger_events = array(
 			<p class="description"><?php esc_html_e( 'Nurture cold leads and re-engage abandoned tour & cab inquiries automatically via WhatsApp and multi-channel drips.', 'tripcosmos-agents' ); ?></p>
 		</div>
 		<div class="tc-header-actions">
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin.php' ) ); ?>" style="display:inline-block; margin-right: 8px;">
+				<?php wp_nonce_field( 'tc_agents_admin_save', 'tc_agents_nonce' ); ?>
+				<input type="hidden" name="tc_agents_action" value="run_sequences_now" />
+				<button type="submit" class="button button-secondary" title="<?php esc_attr_e( 'Force execution of due drip steps right now without waiting for hourly cron.', 'tripcosmos-agents' ); ?>">
+					<span class="dashicons dashicons-update" style="vertical-align: middle;"></span> <?php esc_html_e( 'Run Due Steps Now', 'tripcosmos-agents' ); ?>
+				</button>
+			</form>
 			<a href="#seq-builder-card" class="button button-primary" onclick="document.getElementById('seq-builder-card').scrollIntoView({behavior: 'smooth'});">
 				<span class="dashicons dashicons-plus-alt2" style="vertical-align: middle;"></span> <?php esc_html_e( 'Create Sequence', 'tripcosmos-agents' ); ?>
 			</a>
@@ -70,6 +82,9 @@ $trigger_events = array(
 	<?php endif; ?>
 	<?php if ( isset( $_GET['enrolled'] ) ) : ?>
 		<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Contact manually enrolled into drip sequence.', 'tripcosmos-agents' ); ?></p></div>
+	<?php endif; ?>
+	<?php if ( isset( $_GET['ran'] ) ) : ?>
+		<div class="notice notice-info is-dismissible"><p><?php echo sprintf( esc_html__( 'Dispatched %d due sequence steps successfully.', 'tripcosmos-agents' ), absint( $_GET['ran'] ) ); ?></p></div>
 	<?php endif; ?>
 
 	<div class="tc-two-col-layout">
@@ -182,6 +197,45 @@ $trigger_events = array(
 					</table>
 				<?php endif; ?>
 			</div>
+
+			<!-- Quick Manual Lead Enrollment Card -->
+			<div class="tc-card" style="margin-top: 24px;">
+				<div class="tc-card-header">
+					<h3><span class="dashicons dashicons-plus-alt" style="vertical-align: text-top;"></span> <?php esc_html_e( 'Quick Enroll Lead into Sequence', 'tripcosmos-agents' ); ?></h3>
+				</div>
+				<form method="post" action="<?php echo esc_url( admin_url( 'admin.php' ) ); ?>" style="padding: 16px 0 8px;">
+					<?php wp_nonce_field( 'tc_agents_admin_save', 'tc_agents_nonce' ); ?>
+					<input type="hidden" name="tc_agents_action" value="manual_enroll_lead" />
+					<input type="hidden" name="redirect_page" value="tc-agents-sequences" />
+					<div style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 12px; align-items: flex-end;">
+						<div>
+							<label style="font-size: 12px; font-weight:600; display:block; margin-bottom: 4px;"><?php esc_html_e( 'Select Traveler / Contact:', 'tripcosmos-agents' ); ?></label>
+							<select name="contact_id" required style="width: 100%;">
+								<option value=""><?php esc_html_e( '-- Choose Contact --', 'tripcosmos-agents' ); ?></option>
+								<?php foreach ( $all_contacts as $ac ) : ?>
+									<option value="<?php echo esc_attr( $ac['id'] ); ?>">
+										<?php echo esc_html( $ac['name'] ?: 'Traveler #' . $ac['id'] ); ?> (<?php echo esc_html( $ac['phone'] ?: $ac['email'] ?: 'No Phone/Email' ); ?>)
+									</option>
+								<?php endforeach; ?>
+							</select>
+						</div>
+						<div>
+							<label style="font-size: 12px; font-weight:600; display:block; margin-bottom: 4px;"><?php esc_html_e( 'Select Follow-Up Sequence:', 'tripcosmos-agents' ); ?></label>
+							<select name="sequence_id" required style="width: 100%;">
+								<option value=""><?php esc_html_e( '-- Choose Sequence --', 'tripcosmos-agents' ); ?></option>
+								<?php foreach ( $sequences as $sq ) : ?>
+									<option value="<?php echo esc_attr( $sq['id'] ); ?>">
+										<?php echo esc_html( $sq['name'] ); ?> (<?php echo esc_html( ucfirst( $sq['channel'] ) ); ?>)
+									</option>
+								<?php endforeach; ?>
+							</select>
+						</div>
+						<div>
+							<button type="submit" class="button button-primary"><?php esc_html_e( 'Enroll Now', 'tripcosmos-agents' ); ?></button>
+						</div>
+					</div>
+				</form>
+			</div>
 		</div>
 
 		<!-- Right: Create / Edit Sequence Builder -->
@@ -208,7 +262,8 @@ $trigger_events = array(
 						<p>
 							<label for="tc_seq_channel"><strong><?php esc_html_e( 'Channel', 'tripcosmos-agents' ); ?></strong></label><br>
 							<select id="tc_seq_channel" name="channel" style="width: 100%;">
-								<option value="whatsapp" <?php selected( $edit_seq['channel'] ?? 'whatsapp', 'whatsapp' ); ?>><?php esc_html_e( 'WhatsApp', 'tripcosmos-agents' ); ?></option>
+								<option value="whatsapp" <?php selected( $edit_seq['channel'] ?? 'whatsapp', 'whatsapp' ); ?>><?php esc_html_e( 'WhatsApp (Evolution API)', 'tripcosmos-agents' ); ?></option>
+								<option value="email" <?php selected( $edit_seq['channel'] ?? '', 'email' ); ?>><?php esc_html_e( 'Email (Brevo / SMTP)', 'tripcosmos-agents' ); ?></option>
 								<option value="web" <?php selected( $edit_seq['channel'] ?? '', 'web' ); ?>><?php esc_html_e( 'Web Widget', 'tripcosmos-agents' ); ?></option>
 							</select>
 						</p>
@@ -238,8 +293,8 @@ $trigger_events = array(
 					<div id="tc-steps-container">
 						<?php
 						$steps_to_render = ! empty( $edit_steps ) ? $edit_steps : array(
-							array( 'delay_hours' => 2, 'message' => "Namaste {name}! 🙏 Our travel specialists at TripCosmos noticed you were planning a trip to {destination}. Would you like us to share our day-wise itinerary, cab fare options (Dzire/Innova Crysta), and Kashi Vishwanath darshan guidelines?" ),
-							array( 'delay_hours' => 24, 'message' => "Namaste {name}! Quick follow-up from TripCosmos Varanasi desk. Are your travel dates confirmed? We can pre-book your hotel near the ghats and reserve your evening Ganga Aarti boat ride." ),
+							array( 'delay_hours' => 0.25, 'subject' => 'Quick question regarding your tour inquiry - TripCosmos', 'message' => "Namaste {name}! 🙏 Our travel specialists at TripCosmos noticed you were planning a trip to {destination}. Would you like us to share our day-wise itinerary, cab fare options (Dzire/Innova Crysta), and Kashi Vishwanath darshan guidelines?" ),
+							array( 'delay_hours' => 24, 'subject' => 'Varanasi Darshan & Cab Planning Follow-up', 'message' => "Namaste {name}! Quick follow-up from TripCosmos Varanasi desk. Are your travel dates confirmed? We can pre-book your hotel near the ghats and reserve your evening Ganga Aarti boat ride." ),
 						);
 
 						foreach ( $steps_to_render as $idx => $step ) :
@@ -249,12 +304,18 @@ $trigger_events = array(
 									<strong><?php esc_html_e( 'Step', 'tripcosmos-agents' ); ?> <span class="step-num"><?php echo $idx + 1; ?></span></strong>
 									<button type="button" class="button-link button-link-delete" onclick="this.closest('.tc-step-row').remove(); reindexSteps();" style="font-size: 11px;">Remove</button>
 								</div>
-								<div style="margin-bottom: 6px;">
-									<label style="font-size: 11px; font-weight:600;"><?php esc_html_e( 'Delay after previous event (Hours):', 'tripcosmos-agents' ); ?></label>
-									<input type="number" name="step_delays[]" value="<?php echo esc_attr( $step['delay_hours'] ?? 2 ); ?>" min="1" max="720" style="width: 80px;" required />
+								<div style="display: grid; grid-template-columns: 100px 1fr; gap: 8px; margin-bottom: 6px;">
+									<div>
+										<label style="font-size: 11px; font-weight:600; display:block;"><?php esc_html_e( 'Delay (Hrs):', 'tripcosmos-agents' ); ?></label>
+										<input type="number" name="step_delays[]" value="<?php echo esc_attr( $step['delay_hours'] ?? 2 ); ?>" step="0.25" min="0.05" max="720" style="width: 100%;" required title="0.25 = 15 mins, 1 = 1 hour, 24 = 1 day" />
+									</div>
+									<div>
+										<label style="font-size: 11px; font-weight:600; display:block;"><?php esc_html_e( 'Subject Line (for Emails):', 'tripcosmos-agents' ); ?></label>
+										<input type="text" name="step_subjects[]" value="<?php echo esc_attr( $step['subject'] ?? '' ); ?>" style="width: 100%; font-size: 12px;" placeholder="e.g. Your Custom Itinerary & Cab Quote" />
+									</div>
 								</div>
 								<div>
-									<label style="font-size: 11px; font-weight:600;"><?php esc_html_e( 'Message Template ({name}, {deal_value}):', 'tripcosmos-agents' ); ?></label>
+									<label style="font-size: 11px; font-weight:600;"><?php esc_html_e( 'Message Template ({name}, {deal_value}, {destination}):', 'tripcosmos-agents' ); ?></label>
 									<textarea name="step_messages[]" rows="3" style="width: 100%; font-size: 12px;" required><?php echo esc_textarea( $step['message'] ?? '' ); ?></textarea>
 								</div>
 							</div>
@@ -284,13 +345,19 @@ function addStepRow() {
 			<strong>Step <span class="step-num">${count}</span></strong>
 			<button type="button" class="button-link button-link-delete" onclick="this.closest('.tc-step-row').remove(); reindexSteps();" style="font-size: 11px;">Remove</button>
 		</div>
-		<div style="margin-bottom: 6px;">
-			<label style="font-size: 11px; font-weight:600;">Delay after previous event (Hours):</label>
-			<input type="number" name="step_delays[]" value="24" min="1" max="720" style="width: 80px;" required />
+		<div style="display: grid; grid-template-columns: 100px 1fr; gap: 8px; margin-bottom: 6px;">
+			<div>
+				<label style="font-size: 11px; font-weight:600; display:block;">Delay (Hrs):</label>
+				<input type="number" name="step_delays[]" value="24" step="0.25" min="0.05" max="720" style="width: 100%;" required title="0.25 = 15 mins, 1 = 1 hour, 24 = 1 day" />
+			</div>
+			<div>
+				<label style="font-size: 11px; font-weight:600; display:block;">Subject Line (for Emails):</label>
+				<input type="text" name="step_subjects[]" value="" style="width: 100%; font-size: 12px;" placeholder="e.g. Travel Tip: Evening Ganga Aarti" />
+			</div>
 		</div>
 		<div>
-			<label style="font-size: 11px; font-weight:600;">Message Template ({name}, {deal_value}):</label>
-			<textarea name="step_messages[]" rows="3" style="width: 100%; font-size: 12px;" required placeholder="Hi {name}, ..."></textarea>
+			<label style="font-size: 11px; font-weight:600;">Message Template ({name}, {deal_value}, {destination}):</label>
+			<textarea name="step_messages[]" rows="3" style="width: 100%; font-size: 12px;" required placeholder="Namaste {name}, ..."></textarea>
 		</div>
 	`;
 	container.appendChild(div);
