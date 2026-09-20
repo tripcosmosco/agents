@@ -56,7 +56,7 @@ class TC_Agents_Public {
 				'leadCaptureUrl' => esc_url_raw( rest_url( 'tc-agents/v1/lead-capture' ) ),
 				'historyUrl'     => esc_url_raw( rest_url( 'tc-agents/v1/conversations' ) ),
 				'title'          => get_option( 'tc_agents_widget_title', 'TripCosmos Travel Desk' ),
-				'greeting'       => get_option( 'tc_agents_widget_greeting', 'Namaste! 🙏 Welcome to TripCosmos — your Varanasi spiritual & tour guide. Looking for Kashi Vishwanath darshan, Ayodhya Ram Mandir packages, outstation cabs (Innova/Dzire), hotel bookings, or evening Ganga Aarti boat rides? How can I assist you today?' ),
+				'greeting'       => get_option( 'tc_agents_widget_greeting', "Namaste! 🙏 Welcome to TripCosmos — Varanasi's premier pilgrimage & tour desk.\n\nLooking for Kashi Vishwanath VIP darshan, Ayodhya Ram Mandir packages, outstation cabs (Innova Crysta / Swift Dzire), hotel bookings, or private Ganga Aarti boat rides? How can I assist you today?" ),
 				'primaryColor'   => get_option( 'tc_agents_widget_primary_color', '#ea580c' ),
 				'whatsappNumber' => $clean_wa,
 				'triggerCallUrl' => esc_url_raw( rest_url( 'tc-agents/v1/trigger-call' ) ),
@@ -79,8 +79,8 @@ class TC_Agents_Public {
 		$subtitle      = get_option( 'tc_agents_widget_subtitle', 'Online • Varanasi Desk ✓' );
 		$avatar_url    = get_option( 'tc_agents_bot_avatar', '' );
 		$avatar_emoji  = get_option( 'tc_agents_bot_avatar_emoji', '🛕' );
-		$greeting      = get_option( 'tc_agents_widget_greeting', 'Namaste! 🙏 Welcome to TripCosmos — your Varanasi spiritual & tour guide. Looking for Kashi Vishwanath darshan, Ayodhya Ram Mandir packages, outstation cabs (Innova/Dzire), hotel bookings, or evening Ganga Aarti boat rides? How can I assist you today?' );
-		$teaser_text   = get_option( 'tc_agents_launcher_teaser_text', 'Planning Varanasi, Ayodhya, or Prayagraj? Ask our AI Concierge for tours, cabs & ghat hotels!' );
+		$greeting      = get_option( 'tc_agents_widget_greeting', "Namaste! 🙏 Welcome to TripCosmos — Varanasi's premier pilgrimage & tour desk.\n\nLooking for Kashi Vishwanath VIP darshan, Ayodhya Ram Mandir packages, outstation cabs (Innova Crysta / Swift Dzire), hotel bookings, or private Ganga Aarti boat rides? How can I assist you today?" );
+		$teaser_text   = get_option( 'tc_agents_launcher_teaser_text', 'Namaste! 🙏 Planning your trip to Varanasi or Ayodhya? I can check live cab fares, VIP Darshan passes & hotel availability for you right now.' );
 		$side          = get_option( 'tc_agents_widget_side', 'right' );
 		$primary_color = get_option( 'tc_agents_widget_primary_color', '#ea580c' );
 		$second_color  = get_option( 'tc_agents_widget_secondary_color', '#9333ea' );
@@ -97,19 +97,37 @@ class TC_Agents_Public {
 		<!-- TripCosmos AI Agent Floating Widget -->
 		<div id="tc-agent-widget-root" class="tc-widget-container<?php echo esc_attr( $side_class ); ?>" style="--tc-primary-color: <?php echo esc_attr( $primary_color ); ?>; --tc-secondary-color: <?php echo esc_attr( $second_color ); ?>;" aria-live="polite">
 
-			<!-- Proactive Teaser Balloon -->
+			<!-- Proactive Sales Outreach Card -->
 			<div id="tc-widget-teaser" class="tc-widget-teaser" style="display: none;" role="status">
-				<button type="button" class="tc-teaser-close" id="tc-teaser-close" aria-label="Dismiss proactive tip">&times;</button>
-				<div class="tc-teaser-body" id="tc-teaser-body">
-					<span class="tc-teaser-icon">
-						<?php if ( ! empty( $avatar_url ) ) : ?>
-							<img src="<?php echo esc_url( $avatar_url ); ?>" alt="Bot Avatar" style="width: 22px; height: 22px; border-radius: 50%; object-fit: cover; vertical-align: middle;" />
-						<?php else : ?>
-							<?php echo esc_html( $avatar_emoji ); ?>
-						<?php endif; ?>
-					</span>
-					<span class="tc-teaser-text"><?php echo esc_html( $teaser_text ); ?></span>
+				<div class="tc-teaser-header">
+					<div class="tc-teaser-profile">
+						<div class="tc-teaser-avatar-wrap">
+							<?php if ( ! empty( $avatar_url ) ) : ?>
+								<img src="<?php echo esc_url( $avatar_url ); ?>" alt="Travel Specialist" />
+							<?php else : ?>
+								<span><?php echo esc_html( $avatar_emoji ); ?></span>
+							<?php endif; ?>
+							<span class="tc-teaser-live-dot"></span>
+						</div>
+						<div>
+							<div class="tc-teaser-meta-name"><?php echo esc_html( $title ); ?></div>
+							<div class="tc-teaser-meta-status">Online • Replies instantly</div>
+						</div>
+					</div>
+					<button type="button" class="tc-teaser-close" id="tc-teaser-close" aria-label="Dismiss message">&times;</button>
 				</div>
+				<div class="tc-teaser-text" id="tc-teaser-body">
+					<?php echo esc_html( $teaser_text ); ?>
+				</div>
+				<div class="tc-teaser-chips">
+					<button type="button" class="tc-teaser-chip" data-query="Tell me about Kashi Ayodhya Prayagraj 4 Days Tour Package">🛕 4D Tour</button>
+					<button type="button" class="tc-teaser-chip" data-query="Check outstation cab fares for Varanasi to Ayodhya">🚗 Cab Fares</button>
+					<button type="button" class="tc-teaser-chip" data-query="How to book VIP Sugam Darshan for Kashi Vishwanath?">🕉️ VIP Darshan</button>
+				</div>
+				<button type="button" class="tc-teaser-action-btn" id="tc-teaser-open-btn">
+					<span>💬 Chat with Specialist</span>
+					<span>&rarr;</span>
+				</button>
 			</div>
 
 			<!-- Floating Trigger Button -->
@@ -120,12 +138,13 @@ class TC_Agents_Public {
 					</svg>
 				</span>
 				<span class="tc-fab-icon-close" style="display: none;">
-					<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+					<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
 						<line x1="18" y1="6" x2="6" y2="18"></line>
 						<line x1="6" y1="6" x2="18" y2="18"></line>
 					</svg>
 				</span>
 				<span class="tc-status-pulse"></span>
+				<span class="tc-fab-badge" id="tc-fab-badge" style="display: none;">1</span>
 			</button>
 
 			<!-- Chat Window Dialog -->

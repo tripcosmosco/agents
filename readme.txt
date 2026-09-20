@@ -4,7 +4,7 @@ Tags: ai, chatbot, agent, travel, crm, whatsapp, openrouter, gemini, b2b
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 8.0
-Stable tag: 1.4.3
+Stable tag: 1.4.4
 License: Proprietary
 License URI: https://tripcosmos.co
 
@@ -36,6 +36,13 @@ TripCosmos Agents provides TripCosmos.co with a reliable, supervised AI conversa
 5. Connect CRM, WhatsApp, and Voice settings in `Tripcosmos Agents -> Integrations`.
 
 == Changelog ==
+
+= 1.4.4 =
+* Fix: Fixed launcher FAB chat button styling glitch where `.tc-status-pulse` was sticking outside the corner radius and hovering awkwardly over the close 'X' button when active.
+* Feature: Implemented proactive sales agent auto-talking and auto-initiation. The agent reaches out proactively after 3.5s or on scroll with an authentic sales greeting, live presence indicator, and interactive action chips ("🛕 4D Tour", "🚗 Cab Fares", "🕉️ VIP Darshan").
+* Feature: Clicking any proactive action chip automatically opens the chat and dispatches the query to the live consultant, starting the conversation immediately.
+* Feature: Upgraded AI agent persona and prompt engineering with the "TripCosmos Elite Human Sales Consultant & Customer Care Protocol" to behave like a genuine, high-touch Varanasi travel advisor (proactive discovery questions, transparent pricing, senior citizen darshan care, cab options, and seamless WhatsApp handoff).
+* Fix: Added missing `maybe_upgrade()` and `upgrade_to_v144()` routines in `TC_Agents_Activator` to safely migrate existing databases to the updated sales greetings.
 
 = 1.4.3 =
 * Fix: Guaranteed all 4 canonical providers (AI Puffer, OpenRouter, OmniRoute Gateway, Google Gemini) are rendered in Failover Chain Priority (#1 to #4), preventing missing slots when database option was partially populated.

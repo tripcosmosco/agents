@@ -137,9 +137,11 @@
 		function toggleWidget() {
 			isOpen = !isOpen;
 			chatWindow.style.display = isOpen ? 'flex' : 'none';
-			triggerBtn.querySelector('.tc-fab-icon-chat').style.display = isOpen ? 'none' : 'block';
-			triggerBtn.querySelector('.tc-fab-icon-close').style.display = isOpen ? 'block' : 'none';
+			triggerBtn.classList.toggle('active', isOpen);
 			if (widgetRoot) widgetRoot.classList.toggle('tc-window-open', isOpen);
+
+			const badgeEl = document.getElementById('tc-fab-badge');
+			if (badgeEl && isOpen) badgeEl.style.display = 'none';
 
 			if (teaserEl) teaserEl.style.display = 'none';
 
@@ -169,7 +171,7 @@
 				sessionId = 'web_' + Math.random().toString(36).substring(2, 11) + '_' + Date.now();
 				sessionStorage.setItem('tc_agent_session_id', sessionId);
 
-				const greeting = tcChatWidget.greeting || 'Namaste! 🙏 Welcome to TripCosmos — your Varanasi spiritual & tour guide. Looking for Kashi Vishwanath darshan, Ayodhya Ram Mandir packages, outstation cabs (Innova/Dzire), hotel bookings, or evening Ganga Aarti boat rides? How can I assist you today?';
+				const greeting = tcChatWidget.greeting || "Namaste! 🙏 Welcome to TripCosmos — Varanasi's premier pilgrimage & tour desk.\n\nLooking for Kashi Vishwanath VIP darshan, Ayodhya Ram Mandir packages, outstation cabs (Innova Crysta / Swift Dzire), hotel bookings, or private Ganga Aarti boat rides? How can I assist you today?";
 				const greetingHtml = '<div class="tc-chat-bubble tc-bubble-bot"><div class="tc-bubble-text">' + escapeHtml(greeting).replace(/\n/g, '<br />') + '</div></div>';
 				messagesContainer.innerHTML = greetingHtml;
 				if (starterChips) {
@@ -180,24 +182,91 @@
 			});
 		}
 
-		// 4. Proactive Teaser Balloon
+		// 4. Proactive Human Sales Agent Auto-Initiation
 		const teaserDismissed = sessionStorage.getItem('tc_teaser_dismissed');
-		if (!teaserDismissed && teaserEl) {
-			setTimeout(function() {
-				if (!isOpen && !sessionStorage.getItem('tc_teaser_dismissed')) {
-					teaserEl.style.display = 'block';
-					trackEvent('tc_agent_teaser_shown');
-				}
-			}, 6000);
+		const openBtn         = document.getElementById('tc-teaser-open-btn');
+		const badgeEl         = document.getElementById('tc-fab-badge');
 
-			teaserEl.addEventListener('click', function(e) {
-				if (e.target === teaserCloseBtn || teaserCloseBtn.contains(e.target)) {
+		function playSoftChime() {
+			try {
+				const AudioCtx = window.AudioContext || window.webkitAudioContext;
+				if (!AudioCtx) return;
+				const ctx = new AudioCtx();
+				if (ctx.state === 'suspended') ctx.resume();
+				const osc = ctx.createOscillator();
+				const gain = ctx.createGain();
+				osc.type = 'sine';
+				osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+				osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.12);
+				gain.gain.setValueAtTime(0.04, ctx.currentTime);
+				gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+				osc.connect(gain);
+				gain.connect(ctx.destination);
+				osc.start();
+				osc.stop(ctx.currentTime + 0.36);
+			} catch (e) {}
+		}
+
+		let teaserShown = false;
+		function showProactiveTeaser() {
+			if (teaserShown || isOpen || sessionStorage.getItem('tc_teaser_dismissed') || !teaserEl) return;
+			teaserShown = true;
+			teaserEl.style.display = 'block';
+			if (badgeEl) badgeEl.style.display = 'flex';
+			playSoftChime();
+			trackEvent('tc_agent_proactive_sales_outreach_shown');
+		}
+
+		if (!teaserDismissed && teaserEl) {
+			// Proactively engage after 3.5s of page load
+			setTimeout(showProactiveTeaser, 3500);
+
+			// Or proactively engage as soon as traveler scrolls down past 250px
+			window.addEventListener('scroll', function onScrollTrigger() {
+				if (window.scrollY > 250) {
+					showProactiveTeaser();
+					window.removeEventListener('scroll', onScrollTrigger);
+				}
+			}, { passive: true });
+
+			// Handle quick action chips inside the proactive card!
+			const teaserChips = teaserEl.querySelectorAll('.tc-teaser-chip');
+			teaserChips.forEach(function(chip) {
+				chip.addEventListener('click', function(e) {
+					e.stopPropagation();
+					const query = chip.getAttribute('data-query');
+					teaserEl.style.display = 'none';
+					sessionStorage.setItem('tc_teaser_dismissed', '1');
+					if (badgeEl) badgeEl.style.display = 'none';
+					if (!isOpen) toggleWidget();
+					if (query) {
+						setTimeout(function() {
+							sendMessage(query);
+							if (starterChips) starterChips.style.display = 'none';
+						}, 250);
+					}
+				});
+			});
+
+			if (openBtn) {
+				openBtn.addEventListener('click', function(e) {
 					e.stopPropagation();
 					teaserEl.style.display = 'none';
 					sessionStorage.setItem('tc_teaser_dismissed', '1');
-				} else {
+					if (badgeEl) badgeEl.style.display = 'none';
+					if (!isOpen) toggleWidget();
+				});
+			}
+
+			teaserEl.addEventListener('click', function(e) {
+				if (e.target === teaserCloseBtn || (teaserCloseBtn && teaserCloseBtn.contains(e.target))) {
+					e.stopPropagation();
 					teaserEl.style.display = 'none';
 					sessionStorage.setItem('tc_teaser_dismissed', '1');
+				} else if (!e.target.closest('.tc-teaser-chip') && e.target !== openBtn) {
+					teaserEl.style.display = 'none';
+					sessionStorage.setItem('tc_teaser_dismissed', '1');
+					if (badgeEl) badgeEl.style.display = 'none';
 					if (!isOpen) toggleWidget();
 				}
 			});

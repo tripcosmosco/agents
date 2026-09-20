@@ -18,6 +18,40 @@ class TC_Agents_Activator {
 		self::create_tables();
 		self::set_default_options();
 		self::seed_default_agent();
+		self::sync_persona_tools();
+		self::upgrade_to_v144();
+		$target_ver = defined( 'TC_AGENTS_VERSION' ) ? TC_AGENTS_VERSION : '1.4.4';
+		update_option( 'tc_agents_db_version', $target_ver );
+		update_option( 'tc_agents_version', $target_ver );
+	}
+
+	/**
+	 * Upgrade personas and greetings for v1.4.4.
+	 */
+	public static function upgrade_to_v144() {
+		global $wpdb;
+		$table_personas = $wpdb->prefix . 'tc_agent_personas';
+
+		$sales_greeting = "Namaste! 🙏 Welcome to TripCosmos — Varanasi's premier pilgrimage & luxury tour desk.\n\nLooking for Kashi Vishwanath VIP darshan, Ayodhya Ram Mandir packages, outstation cabs (Innova Crysta / Swift Dzire), hotel bookings, or private Ganga Aarti boat rides? How can I assist you today?";
+
+		// Update default guide greeting in persona table if using legacy greeting
+		$wpdb->query(
+			$wpdb->prepare(
+				"UPDATE $table_personas SET greeting_message = %s WHERE slug = %s AND (greeting_message LIKE %s OR greeting_message IS NULL OR greeting_message = '')",
+				$sales_greeting,
+				'tripcosmos-guide',
+				'%welcome to TripCosmos (Varanasi)%'
+			)
+		);
+
+		// Update launcher teaser text
+		update_option( 'tc_agents_launcher_teaser_text', 'Namaste! 🙏 Planning your trip to Varanasi or Ayodhya? I can check live cab fares, VIP Darshan passes & hotel availability for you right now.' );
+
+		// Update widget greeting option if using old default
+		$opt_greeting = get_option( 'tc_agents_widget_greeting', '' );
+		if ( empty( $opt_greeting ) || false !== strpos( $opt_greeting, 'spiritual & tour guide' ) ) {
+			update_option( 'tc_agents_widget_greeting', $sales_greeting );
+		}
 	}
 
 	/**
@@ -268,13 +302,16 @@ class TC_Agents_Activator {
 	 * Run upgrade routine automatically when plugin version is bumped.
 	 */
 	public static function maybe_upgrade() {
+		$target_ver    = defined( 'TC_AGENTS_VERSION' ) ? TC_AGENTS_VERSION : '1.4.4';
 		$installed_ver = get_option( 'tc_agents_db_version', '0' );
-		if ( version_compare( $installed_ver, TC_AGENTS_VERSION, '<' ) ) {
+		if ( version_compare( $installed_ver, $target_ver, '<' ) ) {
 			self::create_tables();
 			self::set_default_options();
 			self::seed_default_agent();
 			self::sync_persona_tools();
-			update_option( 'tc_agents_db_version', TC_AGENTS_VERSION );
+			self::upgrade_to_v144();
+			update_option( 'tc_agents_db_version', $target_ver );
+			update_option( 'tc_agents_version', $target_ver );
 		}
 	}
 
@@ -366,7 +403,7 @@ class TC_Agents_Activator {
 										  "2. LEAD CAPTURE & CRM SYNC: Whenever the traveler provides their Name, Phone/WhatsApp number, or Email, or shows travel intent, you MUST immediately invoke the 'sync_lead_crm' tool to register them in Fluent CRM, Twenty CRM, and the TripCosmos pipeline. Do not wait for the chat to end.\n" .
 										  "3. CAB & GROUP ESTIMATES: Offer accurate vehicle recommendations (e.g. Sedan for 1-3 pax, Innova Crysta for 4-6 pax, Tempo Traveller for 7+ pax). Never exceed the 10% discount margin ceiling.\n" .
 										  "4. HUMAN ESCALATION & VOICE CALL: Offer direct WhatsApp handoff ('request_human_handoff') or instant phone callback ('request_voice_call') for complex custom itineraries or immediate bookings.",
-					'greeting_message' => "Namaste and welcome to TripCosmos (Varanasi)! Looking for an authentic tour package, hotel booking, or outstation cab for Varanasi, Ayodhya, Prayagraj, Bodhgaya, or Mathura? How can I assist you today?",
+					'greeting_message' => "Namaste! 🙏 Welcome to TripCosmos — Varanasi's premier pilgrimage & luxury tour desk.\n\nLooking for Kashi Vishwanath VIP darshan, Ayodhya Ram Mandir packages, outstation cabs (Innova Crysta / Swift Dzire), hotel bookings, or private Ganga Aarti boat rides? How can I assist you today?",
 					'channels'         => 'web,whatsapp',
 					'allowed_tools'    => wp_json_encode( array( 'search_trips', 'lookup_contact_crm', 'sync_lead_crm', 'request_human_handoff', 'query_pricing_sheet', 'request_voice_call', 'calculate_cab_tariff', 'generate_itinerary_pdf', 'lookup_temple_protocol' ) ),
 					'temperature'      => 0.70,
