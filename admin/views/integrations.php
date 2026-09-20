@@ -9,9 +9,10 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-$fluent_active = TC_Integration_FluentCRM::is_active();
-$webhook_url   = rest_url( 'tc-agents/v1/whatsapp-webhook' );
-$secret_token  = get_option( 'tc_agents_whatsapp_webhook_secret', '' );
+$fluent_active      = TC_Integration_FluentCRM::is_active();
+$twenty_configured  = class_exists( 'TC_Integration_TwentyCRM' ) && TC_Integration_TwentyCRM::is_configured();
+$webhook_url        = rest_url( 'tc-agents/v1/whatsapp-webhook' );
+$secret_token       = get_option( 'tc_agents_whatsapp_webhook_secret', '' );
 ?>
 
 <div class="wrap tc-admin-wrap">
@@ -48,8 +49,14 @@ $secret_token  = get_option( 'tc_agents_whatsapp_webhook_secret', '' );
 
 		<!-- 2. Twenty CRM -->
 		<div class="tc-card">
-			<h3>2. Twenty CRM (crm.vmstudio.digital)</h3>
-			<p class="description">REST integration pushing qualified leads directly into your cloud CRM deal pipeline.</p>
+			<div class="tc-card-header">
+				<h3>2. Twenty CRM (crm.vmstudio.digital)</h3>
+				<span class="tc-indicator-badge <?php echo $twenty_configured ? 'tc-status-healthy' : 'tc-status-down'; ?>">
+					<span class="tc-indicator-dot <?php echo $twenty_configured ? 'online' : 'down'; ?>"></span>
+					<?php echo $twenty_configured ? 'CONFIGURED & READY' : 'TOKEN MISSING / NOT CONFIGURED'; ?>
+				</span>
+			</div>
+			<p class="description">REST integration pushing qualified leads directly into your cloud CRM deal pipeline at <code>crm.vmstudio.digital</code>.</p>
 			<table class="form-table">
 				<tr>
 					<th scope="row"><label for="twentycrm_url">Instance URL</label></th>
@@ -62,6 +69,16 @@ $secret_token  = get_option( 'tc_agents_whatsapp_webhook_secret', '' );
 					<td>
 						<input type="password" name="twentycrm_api_key" id="twentycrm_api_key" class="regular-text" value="" placeholder="<?php echo esc_attr( TC_Agents_Vault::hint( 'twentycrm_api_key' ) ?: '••••••••••••' ); ?>" autocomplete="new-password" />
 						<?php if ( TC_Agents_Vault::has( 'twentycrm_api_key' ) ) : ?><span class="dashicons dashicons-yes-alt" style="color:#10b981;"></span> <small>Encrypted in Vault</small><?php endif; ?>
+						<p class="description">Generate a Bearer Token in your Twenty CRM Dashboard (<strong>Settings ➔ Developers ➔ API Keys</strong>) and paste here.</p>
+					</td>
+				</tr>
+				<tr>
+					<th scope="row">Test Connection</th>
+					<td>
+						<button type="button" class="button button-secondary" id="tc-test-twentycrm-btn">
+							<span class="dashicons dashicons-rest-api" style="vertical-align:middle;margin-top:-2px;"></span> Test Twenty CRM Connection
+						</button>
+						<span id="tc-twentycrm-test-result" style="margin-left:12px;font-weight:600;font-size:13px;"></span>
 					</td>
 				</tr>
 			</table>
@@ -255,3 +272,43 @@ $secret_token  = get_option( 'tc_agents_whatsapp_webhook_secret', '' );
 		</p>
 	</form>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+	var testBtn = document.getElementById('tc-test-twentycrm-btn');
+	if (!testBtn) return;
+
+	testBtn.addEventListener('click', function() {
+		var resEl = document.getElementById('tc-twentycrm-test-result');
+		testBtn.disabled = true;
+		resEl.style.color = '#6b7280';
+		resEl.textContent = 'Testing connection to Twenty CRM...';
+
+		var data = new FormData();
+		data.append('action', 'tc_test_twentycrm');
+		data.append('nonce', '<?php echo wp_create_nonce( 'tc_agents_admin_nonce' ); ?>');
+
+		fetch(ajaxurl, {
+			method: 'POST',
+			body: data
+		})
+		.then(function(res) { return res.json(); })
+		.then(function(response) {
+			testBtn.disabled = false;
+			if (response.success) {
+				resEl.style.color = '#10b981';
+				resEl.textContent = '✓ ' + (response.data && response.data.message ? response.data.message : 'Successfully connected to Twenty CRM!');
+			} else {
+				resEl.style.color = '#ef4444';
+				var msg = (response.data && response.data.message) ? response.data.message : (response.message || 'Connection failed.');
+				resEl.textContent = '✕ ' + msg;
+			}
+		})
+		.catch(function(err) {
+			testBtn.disabled = false;
+			resEl.style.color = '#ef4444';
+			resEl.textContent = '✕ Network error: ' + err.message;
+		});
+	});
+});
+</script>

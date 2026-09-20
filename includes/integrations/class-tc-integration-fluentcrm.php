@@ -259,7 +259,15 @@ class TC_Integration_FluentCRM {
 			return false;
 		}
 
+		$phone = sanitize_text_field( $data['phone'] ?? '' );
 		$email = sanitize_email( $data['email'] ?? '' );
+		if ( empty( $email ) && ! empty( $phone ) ) {
+			$clean_digits = preg_replace( '/\D/', '', $phone );
+			if ( ! empty( $clean_digits ) ) {
+				$email = 'traveler-' . $clean_digits . '@leads.tripcosmos.co';
+			}
+		}
+
 		if ( empty( $email ) || ! is_email( $email ) ) {
 			return false;
 		}
@@ -267,7 +275,6 @@ class TC_Integration_FluentCRM {
 		$name_parts = explode( ' ', trim( $data['name'] ?? '' ), 2 );
 		$first_name = $name_parts[0] ?? '';
 		$last_name  = $name_parts[1] ?? '';
-		$phone      = sanitize_text_field( $data['phone'] ?? '' );
 		$channel    = sanitize_text_field( $data['channel'] ?? 'web' );
 		$stage      = sanitize_text_field( $data['stage'] ?? 'inquiry' );
 		$score      = (int) ( $data['score'] ?? 50 );

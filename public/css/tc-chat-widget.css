@@ -1331,6 +1331,259 @@
 	color: #c2410c !important;
 	text-decoration: underline !important;
 }
+/* ==========================================================================
+   12b. Multi-Tab Navigation & Panels (Guide, Quote, Voice, History)
+   ========================================================================== */
+#tc-agent-widget-root .tc-panel {
+	display: none !important;
+	flex: 1 1 auto !important;
+	overflow-y: auto !important;
+	min-height: 0 !important;
+}
+
+#tc-agent-widget-root .tc-panel.active {
+	display: flex !important;
+	flex-direction: column !important;
+}
+
+/* Tabs Bar */
+#tc-agent-widget-root .tc-widget-tabs {
+	display: flex !important;
+	align-items: stretch !important;
+	justify-content: space-around !important;
+	background: #f8fafc !important;
+	border-top: 1px solid #e2e8f0 !important;
+	padding: 4px 6px !important;
+	gap: 4px !important;
+}
+
+#tc-agent-widget-root .tc-tab-btn {
+	flex: 1 1 0 !important;
+	background: transparent !important;
+	border: none !important;
+	border-radius: 8px !important;
+	padding: 6px 4px !important;
+	display: flex !important;
+	flex-direction: column !important;
+	align-items: center !important;
+	justify-content: center !important;
+	cursor: pointer !important;
+	font-family: inherit !important;
+	position: relative !important;
+	transition: all 0.2s ease !important;
+	color: #64748b !important;
+}
+
+#tc-agent-widget-root .tc-tab-btn:hover {
+	background: rgba(241, 245, 249, 0.9) !important;
+	color: #0f172a !important;
+}
+
+#tc-agent-widget-root .tc-tab-btn.active {
+	color: #ea580c !important;
+	background: #fff !important;
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06) !important;
+}
+
+#tc-agent-widget-root .tc-tab-btn .tc-tab-icon {
+	font-size: 16px !important;
+	line-height: 1 !important;
+	margin-bottom: 3px !important;
+}
+
+#tc-agent-widget-root .tc-tab-btn .tc-tab-label {
+	font-size: 11px !important;
+	font-weight: 600 !important;
+	letter-spacing: -0.01em !important;
+}
+
+/* Fast Quote Panel */
+#tc-agent-widget-root .tc-quote-panel {
+	padding: 18px 18px 24px !important;
+	background: linear-gradient(180deg, #f8fafc 0%, #fff 100%) !important;
+}
+
+#tc-agent-widget-root .tc-quote-heading {
+	margin-bottom: 16px !important;
+}
+
+#tc-agent-widget-root .tc-quote-heading h4 {
+	margin: 0 0 4px !important;
+	font-size: 15px !important;
+	font-weight: 700 !important;
+	color: #0f172a !important;
+}
+
+#tc-agent-widget-root .tc-quote-heading p {
+	margin: 0 !important;
+	font-size: 12px !important;
+	color: #64748b !important;
+	line-height: 1.4 !important;
+}
+
+#tc-agent-widget-root .tc-quote-form .tc-form-field {
+	margin-bottom: 12px !important;
+}
+
+#tc-agent-widget-root .tc-quote-form .tc-form-row {
+	display: flex !important;
+	gap: 10px !important;
+}
+
+#tc-agent-widget-root .tc-quote-form .tc-form-row .tc-form-field {
+	flex: 1 1 0 !important;
+}
+
+#tc-agent-widget-root .tc-quote-form label {
+	display: block !important;
+	font-size: 11px !important;
+	font-weight: 700 !important;
+	color: #334155 !important;
+	margin-bottom: 4px !important;
+	text-transform: uppercase !important;
+	letter-spacing: 0.03em !important;
+}
+
+#tc-agent-widget-root .tc-quote-form input,
+#tc-agent-widget-root .tc-quote-form select {
+	width: 100% !important;
+	padding: 8px 12px !important;
+	border: 1px solid #cbd5e1 !important;
+	border-radius: 8px !important;
+	font-size: 13px !important;
+	background: #fff !important;
+	color: #0f172a !important;
+	box-sizing: border-box !important;
+	outline: none !important;
+	transition: border-color 0.2s, box-shadow 0.2s !important;
+}
+
+#tc-agent-widget-root .tc-quote-form input:focus,
+#tc-agent-widget-root .tc-quote-form select:focus {
+	border-color: #ea580c !important;
+	box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.15) !important;
+}
+
+#tc-agent-widget-root .tc-quote-submit-btn {
+	width: 100% !important;
+	margin-top: 6px !important;
+	padding: 11px 16px !important;
+	background: linear-gradient(135deg, #ea580c 0%, #c2410c 100%) !important;
+	color: #fff !important;
+	border: none !important;
+	border-radius: 10px !important;
+	font-size: 13.5px !important;
+	font-weight: 700 !important;
+	cursor: pointer !important;
+	box-shadow: 0 4px 12px rgba(234, 88, 12, 0.3) !important;
+	transition: all 0.2s ease !important;
+}
+
+#tc-agent-widget-root .tc-quote-submit-btn:hover {
+	transform: translateY(-1px) !important;
+	box-shadow: 0 6px 16px rgba(234, 88, 12, 0.4) !important;
+}
+
+#tc-agent-widget-root .tc-quote-success {
+	padding: 24px 16px !important;
+	text-align: center !important;
+}
+
+#tc-agent-widget-root .tc-quote-success .tc-success-icon {
+	width: 44px !important;
+	height: 44px !important;
+	line-height: 44px !important;
+	border-radius: 50% !important;
+	background: #10b981 !important;
+	color: #fff !important;
+	font-size: 22px !important;
+	font-weight: 800 !important;
+	margin: 0 auto 12px !important;
+}
+
+#tc-agent-widget-root .tc-quote-success h5 {
+	margin: 0 0 6px !important;
+	font-size: 15px !important;
+	font-weight: 700 !important;
+	color: #0f172a !important;
+}
+
+#tc-agent-widget-root .tc-quote-success p {
+	margin: 0 !important;
+	font-size: 12.5px !important;
+	color: #64748b !important;
+	line-height: 1.4 !important;
+}
+
+/* History Panel */
+#tc-agent-widget-root .tc-history-panel {
+	padding: 16px !important;
+}
+
+#tc-agent-widget-root .tc-history-header {
+	display: flex !important;
+	align-items: center !important;
+	justify-content: space-between !important;
+	margin-bottom: 12px !important;
+}
+
+#tc-agent-widget-root .tc-history-header h4 {
+	margin: 0 !important;
+	font-size: 14px !important;
+	font-weight: 700 !important;
+	color: #0f172a !important;
+}
+
+#tc-agent-widget-root .tc-clear-history-btn {
+	background: none !important;
+	border: none !important;
+	color: #ef4444 !important;
+	font-size: 11px !important;
+	font-weight: 700 !important;
+	cursor: pointer !important;
+	padding: 4px 8px !important;
+}
+
+#tc-agent-widget-root .tc-history-items {
+	display: flex !important;
+	flex-direction: column !important;
+	gap: 10px !important;
+}
+
+#tc-agent-widget-root .tc-history-item {
+	padding: 10px 12px !important;
+	border-radius: 10px !important;
+	background: #f8fafc !important;
+	border: 1px solid #e2e8f0 !important;
+	font-size: 12.5px !important;
+	line-height: 1.4 !important;
+}
+
+#tc-agent-widget-root .tc-history-item.tc-hist-bot {
+	border-left: 3px solid #ea580c !important;
+}
+
+#tc-agent-widget-root .tc-history-item.tc-hist-user {
+	border-left: 3px solid #3b82f6 !important;
+}
+
+#tc-agent-widget-root .tc-hist-header {
+	font-size: 11px !important;
+	font-weight: 700 !important;
+	color: #64748b !important;
+	margin-bottom: 4px !important;
+}
+
+#tc-agent-widget-root .tc-history-empty {
+	text-align: center !important;
+	padding: 40px 20px !important;
+	color: #94a3b8 !important;
+}
+
+#tc-agent-widget-root .tc-history-empty p {
+	margin-top: 8px !important;
+	font-size: 12.5px !important;
+}
 
 /* ==========================================================================
    13. Mobile Responsive Full-Screen Dialog

@@ -584,7 +584,7 @@ class TC_Agent_Tools {
 		}
 
 		// 2. Fluent CRM sync
-		if ( class_exists( 'TC_Integration_FluentCRM' ) ) {
+		if ( class_exists( 'TC_Integration_FluentCRM' ) && TC_Integration_FluentCRM::is_active() ) {
 			$f_res = TC_Integration_FluentCRM::sync_lead(
 				array(
 					'name'        => $name,
@@ -599,8 +599,10 @@ class TC_Agent_Tools {
 				$wpdb->update( $table_contacts, array( 'fluentcrm_id' => $fluent_id ), array( 'id' => $contact_id ) );
 				$results['fluent_crm'] = 'synced (ID: ' . $fluent_id . ')';
 			} else {
-				$results['fluent_crm'] = 'skipped/invalid_email';
+				$results['fluent_crm'] = 'skipped/failed';
 			}
+		} else {
+			$results['fluent_crm'] = 'inactive';
 		}
 
 		// 3. Twenty CRM sync

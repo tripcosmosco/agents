@@ -20,6 +20,7 @@ class TC_Agents_Admin {
 		add_action( 'wp_ajax_tc_sync_catalog_kb', array( __CLASS__, 'ajax_sync_catalog_kb' ) );
 		add_action( 'wp_ajax_tc_sync_aipuffer_bots', array( __CLASS__, 'ajax_sync_aipuffer_bots' ) );
 		add_action( 'wp_ajax_tc_sync_provider_models', array( __CLASS__, 'ajax_sync_provider_models' ) );
+		add_action( 'wp_ajax_tc_test_twentycrm', array( __CLASS__, 'ajax_test_twentycrm' ) );
 	}
 
 	/**
@@ -447,6 +448,28 @@ class TC_Agents_Admin {
 			'count'    => count( $models ),
 			'message'  => sprintf( __( 'Synced %d models for %s.', 'tripcosmos-agents' ), count( $models ), $provider->get_name() ),
 		) );
+	}
+
+	/**
+	 * AJAX endpoint to test Twenty CRM connection.
+	 */
+	public static function ajax_test_twentycrm() {
+		check_ajax_referer( 'tc_agents_admin_nonce', 'nonce' );
+
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( array( 'message' => 'Unauthorized' ), 403 );
+		}
+
+		if ( ! class_exists( 'TC_Integration_TwentyCRM' ) ) {
+			wp_send_json_error( array( 'message' => 'Twenty CRM integration class not found.' ) );
+		}
+
+		$result = TC_Integration_TwentyCRM::test_connection();
+		if ( ! empty( $result['success'] ) ) {
+			wp_send_json_success( $result );
+		} else {
+			wp_send_json_error( $result );
+		}
 	}
 
 	/**

@@ -613,6 +613,143 @@
 			if (starterChips) starterChips.style.display = 'none';
 		});
 
+		// 9b. Fast Itinerary & Group Quote Form Submit
+		if (quoteForm) {
+			quoteForm.addEventListener('submit', function(e) {
+				e.preventDefault();
+				const submitBtn = document.getElementById('tc-quote-submit');
+				const name = (document.getElementById('tc-q-name').value || '').trim();
+				const phone = (document.getElementById('tc-q-phone').value || '').trim();
+				const email = (document.getElementById('tc-q-email').value || '').trim();
+				const destination = (document.getElementById('tc-q-destination').value || '').trim();
+				const travelMonth = (document.getElementById('tc-q-month').value || '').trim();
+				const groupReq = (document.getElementById('tc-q-group').value || '').trim();
+
+				if (!name || !phone) {
+					alert('Please enter your Name and WhatsApp Number.');
+					return;
+				}
+
+				if (submitBtn) {
+					submitBtn.disabled = true;
+					submitBtn.textContent = '⚡ Preparing Itinerary & Fare...';
+				}
+
+				fetch(tcChatWidget.leadCaptureUrl, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({
+						name: name,
+						phone: phone,
+						email: email,
+						destination: destination,
+						travel_month: travelMonth,
+						group_size: groupReq,
+						session_id: sessionId,
+						page_url: window.location.href,
+						page_title: document.title
+					})
+				})
+				.then(function(res) { return res.json(); })
+				.then(function(data) {
+					if (quoteSuccess) quoteSuccess.style.display = 'block';
+					quoteForm.style.display = 'none';
+
+					// Auto-switch back to Guide chat after 1.2s and ask AI to deliver the full customized itinerary
+					setTimeout(function() {
+						switchTab('chat');
+						quoteForm.reset();
+						if (submitBtn) {
+							submitBtn.disabled = false;
+							submitBtn.textContent = '⚡ Get Custom Itinerary & Cab Fare';
+						}
+						if (quoteSuccess) quoteSuccess.style.display = 'none';
+						quoteForm.style.display = 'block';
+
+						// Prompt AI to generate the tailored itinerary directly in the chat window!
+						const promptText = 'I have submitted my itinerary request: Name: ' + name + ', WhatsApp: ' + phone + (email ? ', Email: ' + email : '') + (destination ? ', Destination: ' + destination : '') + (travelMonth ? ', Travel Dates: ' + travelMonth : '') + ', Requirement: ' + groupReq + '. Please prepare and show my customized itinerary and cab fare breakdown now!';
+						sendMessage(promptText);
+					}, 1200);
+				})
+				.catch(function(err) {
+					if (submitBtn) {
+						submitBtn.disabled = false;
+						submitBtn.textContent = '⚡ Get Custom Itinerary & Cab Fare';
+					}
+					alert('Could not submit inquiry. Please talk to our guide directly.');
+				});
+			});
+		}
+
+		// 9c. Bottom Navigation Tab Switching
+		function switchTab(tabId) {
+			tabBtns.forEach(function(btn) {
+				const isActive = btn.getAttribute('data-tab') === tabId;
+				btn.classList.toggle('active', isActive);
+				btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
+			});
+
+			const panels = [messagesContainer, quotePanel, voicePanel, historyPanel];
+			panels.forEach(function(p) {
+				if (p) p.classList.remove('active');
+			});
+
+			const inputArea = document.getElementById('tc-widget-input-area');
+
+			if (tabId === 'chat') {
+				if (messagesContainer) messagesContainer.classList.add('active');
+				if (inputArea) inputArea.style.display = 'block';
+				scrollToBottom();
+				if (chatInput) chatInput.focus();
+			} else if (tabId === 'quote') {
+				if (quotePanel) quotePanel.classList.add('active');
+				if (inputArea) inputArea.style.display = 'none';
+			} else if (tabId === 'voice') {
+				if (voicePanel) voicePanel.classList.add('active');
+				if (inputArea) inputArea.style.display = 'none';
+			} else if (tabId === 'history') {
+				if (historyPanel) historyPanel.classList.add('active');
+				if (inputArea) inputArea.style.display = 'none';
+				renderHistoryPanel();
+			}
+		}
+
+		tabBtns.forEach(function(btn) {
+			btn.addEventListener('click', function(e) {
+				const tabId = btn.getAttribute('data-tab');
+				if (tabId) switchTab(tabId);
+			});
+		});
+
+		function renderHistoryPanel() {
+			if (!historyList) return;
+			try {
+				const history = JSON.parse(sessionStorage.getItem('tc_chat_history')) || [];
+				if (!history.length) {
+					historyList.innerHTML = '<div class="tc-history-empty"><span style="font-size:28px;">🛕</span><p>No past chat transcripts yet. Ask a question or request an itinerary to start saving your journey history!</p></div>';
+					return;
+				}
+				let html = '<div class="tc-history-items">';
+				history.forEach(function(item, idx) {
+					const isUser = item.role === 'user';
+					const label = isUser ? 'You' : 'TripCosmos Guide';
+					const icon = isUser ? '👤' : '🛕';
+					html += '<div class="tc-history-item tc-hist-' + item.role + '"><div class="tc-hist-header"><span>' + icon + ' ' + label + '</span></div><div class="tc-hist-body">' + escapeHtml(item.text).substring(0, 180) + (item.text.length > 180 ? '...' : '') + '</div></div>';
+				});
+				html += '</div>';
+				historyList.innerHTML = html;
+			} catch (e) {}
+		}
+
+		if (clearHistoryBtn) {
+			clearHistoryBtn.addEventListener('click', function() {
+				sessionStorage.removeItem('tc_chat_history');
+				renderHistoryPanel();
+				const greeting = tcChatWidget.greeting || 'Namaste! How can I assist you today?';
+				messagesContainer.innerHTML = '<div class="tc-chat-bubble tc-bubble-bot"><div class="tc-bubble-text">' + escapeHtml(greeting).replace(/\n/g, '<br />') + '</div></div>';
+			});
+		}
+
 		// 10. Send Message Flow with Streaming & Context
 		function sendMessage(text) {
 			// Auto-detect phone / email on client side for immediate tracking and 1-click call option
