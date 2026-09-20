@@ -14,20 +14,18 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Call
-import androidx.compose.material.icons.filled.List
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.font.FontWeight
 import androidx.core.content.ContextCompat
 import co.tripcosmos.salesagents.telephony.PhoneStateReceiver
-import co.tripcosmos.salesagents.ui.screens.PipelineScreen
-import co.tripcosmos.salesagents.ui.screens.PostCallDialog
-import co.tripcosmos.salesagents.ui.screens.SettingsScreen
-import co.tripcosmos.salesagents.ui.theme.OrangePrimary
-import co.tripcosmos.salesagents.ui.theme.SalesAgentsTheme
+import co.tripcosmos.salesagents.ui.screens.*
+import co.tripcosmos.salesagents.ui.theme.*
 
 class MainActivity : ComponentActivity() {
 
@@ -49,8 +47,8 @@ class MainActivity : ComponentActivity() {
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
-    ) { permissions ->
-        // Handle permissions
+    ) { _ ->
+        // Permissions granted
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -83,7 +81,8 @@ class MainActivity : ComponentActivity() {
         val permissions = mutableListOf(
             Manifest.permission.CALL_PHONE,
             Manifest.permission.READ_PHONE_STATE,
-            Manifest.permission.READ_CALL_LOG
+            Manifest.permission.READ_CALL_LOG,
+            Manifest.permission.READ_CONTACTS
         )
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             permissions.add(Manifest.permission.POST_NOTIFICATIONS)
@@ -114,56 +113,86 @@ fun MainAppContainer(
     callDuration: Long,
     onDismissPostCall: () -> Unit
 ) {
-    var currentTab by remember { mutableStateOf(0) } // 0 = Pipeline, 1 = Contacts, 2 = Calls, 3 = Settings
+    var currentTab by remember { mutableStateOf(0) } // 0 = Pipeline, 1 = Tasks, 2 = Maya AI, 3 = Contacts, 4 = Calls
 
     Scaffold(
         bottomBar = {
-            NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
+            NavigationBar(
+                containerColor = LightSurface,
+                tonalElevation = 6.dp
+            ) {
+                // Tab 0: Pipeline
                 NavigationBarItem(
                     selected = currentTab == 0,
                     onClick = { currentTab = 0 },
-                    icon = { Icon(Icons.Default.List, contentDescription = "Pipeline") },
-                    label = { Text("Pipeline") },
+                    icon = { Icon(Icons.Default.TrendingUp, contentDescription = "Pipeline") },
+                    label = { Text("Pipeline", fontSize = 11.sp) },
                     colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = OrangePrimary,
-                        selectedTextColor = OrangePrimary,
-                        indicatorColor = MaterialTheme.colorScheme.surfaceVariant
+                        selectedIconColor = SuperfoneBlue,
+                        selectedTextColor = SuperfoneBlue,
+                        unselectedIconColor = TextSecondary,
+                        unselectedTextColor = TextSecondary,
+                        indicatorColor = SuperfoneBlueLight
                     )
                 )
 
+                // Tab 1: Tasks
                 NavigationBarItem(
                     selected = currentTab == 1,
                     onClick = { currentTab = 1 },
-                    icon = { Icon(Icons.Default.Person, contentDescription = "Contacts") },
-                    label = { Text("Contacts") },
+                    icon = { Icon(Icons.Default.TaskAlt, contentDescription = "Tasks") },
+                    label = { Text("Tasks", fontSize = 11.sp) },
                     colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = OrangePrimary,
-                        selectedTextColor = OrangePrimary,
-                        indicatorColor = MaterialTheme.colorScheme.surfaceVariant
+                        selectedIconColor = SuperfoneBlue,
+                        selectedTextColor = SuperfoneBlue,
+                        unselectedIconColor = TextSecondary,
+                        unselectedTextColor = TextSecondary,
+                        indicatorColor = SuperfoneBlueLight
                     )
                 )
 
+                // Tab 2: Maya AI Master Chatbot
                 NavigationBarItem(
                     selected = currentTab == 2,
                     onClick = { currentTab = 2 },
-                    icon = { Icon(Icons.Default.Call, contentDescription = "Call History") },
-                    label = { Text("Calls") },
+                    icon = { Icon(Icons.Default.AutoAwesome, contentDescription = "Maya AI") },
+                    label = { Text("Maya AI", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
                     colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = OrangePrimary,
-                        selectedTextColor = OrangePrimary,
-                        indicatorColor = MaterialTheme.colorScheme.surfaceVariant
+                        selectedIconColor = AiGradientPurple,
+                        selectedTextColor = AiGradientPurple,
+                        unselectedIconColor = TextSecondary,
+                        unselectedTextColor = TextSecondary,
+                        indicatorColor = PillPurpleBg
                     )
                 )
 
+                // Tab 3: Contacts Directory
                 NavigationBarItem(
                     selected = currentTab == 3,
                     onClick = { currentTab = 3 },
-                    icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") },
-                    label = { Text("Settings") },
+                    icon = { Icon(Icons.Default.People, contentDescription = "Contacts") },
+                    label = { Text("Contacts", fontSize = 11.sp) },
                     colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = OrangePrimary,
-                        selectedTextColor = OrangePrimary,
-                        indicatorColor = MaterialTheme.colorScheme.surfaceVariant
+                        selectedIconColor = SuperfoneBlue,
+                        selectedTextColor = SuperfoneBlue,
+                        unselectedIconColor = TextSecondary,
+                        unselectedTextColor = TextSecondary,
+                        indicatorColor = SuperfoneBlueLight
+                    )
+                )
+
+                // Tab 4: AI Call Intelligence
+                NavigationBarItem(
+                    selected = currentTab == 4,
+                    onClick = { currentTab = 4 },
+                    icon = { Icon(Icons.Default.PhoneCallback, contentDescription = "Calls") },
+                    label = { Text("Calls", fontSize = 11.sp) },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = SuperfoneBlue,
+                        selectedTextColor = SuperfoneBlue,
+                        unselectedIconColor = TextSecondary,
+                        unselectedTextColor = TextSecondary,
+                        indicatorColor = SuperfoneBlueLight
                     )
                 )
             }
@@ -172,16 +201,18 @@ fun MainAppContainer(
         Surface(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
+                .padding(padding),
+            color = LightBackground
         ) {
             when (currentTab) {
-                0 -> PipelineScreen(onLeadSelected = { /* open detail */ })
-                1 -> co.tripcosmos.salesagents.ui.screens.ContactsScreen()
-                2 -> co.tripcosmos.salesagents.ui.screens.CallHistoryScreen()
-                3 -> SettingsScreen()
+                0 -> PipelineScreen()
+                1 -> TasksScreen()
+                2 -> AiCopilotScreen()
+                3 -> ContactsScreen()
+                4 -> CallHistoryScreen()
             }
 
-            // Post-Call Fast Action Dialog (triggers automatically when call terminates)
+            // Post-Call Fast Action Dialog (triggers automatically when carrier SIM call ends)
             if (!callEndedPhone.isNullOrBlank()) {
                 PostCallDialog(
                     phone = callEndedPhone,

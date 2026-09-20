@@ -7,11 +7,13 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -25,22 +27,24 @@ import androidx.compose.ui.unit.sp
 import co.tripcosmos.salesagents.data.api.TripCosmosApiService
 import co.tripcosmos.salesagents.data.model.Lead
 import co.tripcosmos.salesagents.telephony.DialerManager
-import co.tripcosmos.salesagents.ui.theme.OrangePrimary
-import co.tripcosmos.salesagents.ui.theme.WhatsAppGreen
+import co.tripcosmos.salesagents.ui.theme.*
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PipelineScreen(
-    onLeadSelected: (Lead) -> Unit
+    onLeadSelected: (Lead) -> Unit = {}
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
     val stages = listOf("all", "inquiry", "qualified", "proposal", "negotiation", "won", "lost")
     var selectedStage by remember { mutableStateOf("all") }
+    var selectedTeamFilter by remember { mutableStateOf("All Team") }
+    var searchQuery by remember { mutableStateOf("") }
     var leads by remember { mutableStateOf<List<Lead>>(emptyList()) }
     var isLoading by remember { mutableStateOf(false) }
+    var activeLeadForDetail by remember { mutableStateOf<Lead?>(null) }
 
     val prefs = context.getSharedPreferences("tc_agents_prefs", Context.MODE_PRIVATE)
     val token = prefs.getString("mobile_api_token", "tc_mobile_secret_2026") ?: ""
@@ -54,7 +58,12 @@ fun PipelineScreen(
                 val stageParam = if (selectedStage == "all") null else selectedStage
                 val res = api.getLeads(stageParam, token)
                 if (res.isSuccessful) {
-                    leads = res.body()?.leads ?: emptyList()
+                    val rawLeads = res.body()?.leads ?: emptyList()
+                    // Distribute leads evenly across team for realistic team assignment demo
+                    val team = listOf("Ajay Verma", "Meera Singh", "Rahul Sharma", "TripCosmos Travel Desk")
+                    leads = rawLeads.mapIndexed { idx, lead ->
+                        lead.copy(owner = team[idx % team.size])
+                    }
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -68,36 +77,90 @@ fun PipelineScreen(
         loadLeads()
     }
 
+    val filteredLeads = remember(searchQuery, selectedTeamFilter, leads) {
+        leads.filter { lead ->
+            val matchSearch = searchQuery.isBlank() ||
+                    lead.name.contains(searchQuery, ignoreCase = true) ||
+                    lead.phone.contains(searchQuery) ||
+                    (lead.destination ?: "").contains(searchQuery, ignoreCase = true)
+
+            val matchTeam = selectedTeamFilter == "All Team" || lead.owner == selectedTeamFilter
+
+            matchSearch && matchTeam
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
                     Column {
-                        Text("TripCosmos Sales Pipeline", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                        Text("${leads.size} active inquiries", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                        Text("Sales Pipeline & Deals", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextPrimary)
+                        Text("${filteredLeads.size} inquiries • Superfone Lead Manager", fontSize = 12.sp, color = TextSecondary)
                     }
                 },
                 actions = {
                     IconButton(onClick = { loadLeads() }) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Refresh")
+                        Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = SuperfoneBlue)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface
-                )
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = LightSurface)
             )
         }
     ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .background(LightBackground)
                 .padding(padding)
         ) {
-            // Horizontal Stage Filter Chips
+            // Search Input
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 6.dp),
+                placeholder = { Text("Search by traveler, phone, or tour...", fontSize = 13.sp) },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = Color.Gray) },
+                shape = RoundedCornerShape(12.dp),
+                singleLine = true
+            )
+
+            // Team Member Assignment Filter Row
+            val teamOptions = listOf("All Team", "Ajay Verma", "Meera Singh", "Rahul Sharma")
             LazyRow(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                    .padding(horizontal = 16.dp, vertical = 2.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(teamOptions) { teamMember ->
+                    val isSelected = selectedTeamFilter == teamMember
+                    FilterChip(
+                        selected = isSelected,
+                        onClick = { selectedTeamFilter = teamMember },
+                        label = { Text(teamMember, fontSize = 11.sp) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = PillPurpleBg,
+                            selectedLabelColor = PillPurpleText,
+                            containerColor = LightSurface,
+                            labelColor = TextSecondary
+                        ),
+                        border = FilterChipDefaults.filterChipBorder(
+                            enabled = true,
+                            selected = isSelected,
+                            borderColor = if (isSelected) PillPurpleText else CardBorder
+                        )
+                    )
+                }
+            }
+
+            // Horizontal Stage Filter Chips (All, Inquiry, Qualified, etc.)
+            LazyRow(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 6.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(stages) { st ->
@@ -105,10 +168,17 @@ fun PipelineScreen(
                     FilterChip(
                         selected = isSelected,
                         onClick = { selectedStage = st },
-                        label = { Text(st.replaceFirstChar { it.uppercase() }) },
+                        label = { Text(st.replaceFirstChar { it.uppercase() }, fontSize = 12.sp) },
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = OrangePrimary,
-                            selectedLabelColor = Color.White
+                            selectedContainerColor = SuperfoneBlue,
+                            selectedLabelColor = Color.White,
+                            containerColor = LightSurface,
+                            labelColor = TextPrimary
+                        ),
+                        border = FilterChipDefaults.filterChipBorder(
+                            enabled = true,
+                            selected = isSelected,
+                            borderColor = if (isSelected) SuperfoneBlue else CardBorder
                         )
                     )
                 }
@@ -116,11 +186,20 @@ fun PipelineScreen(
 
             if (isLoading) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = OrangePrimary)
+                    CircularProgressIndicator(color = SuperfoneBlue)
                 }
-            } else if (leads.isEmpty()) {
+            } else if (filteredLeads.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("No leads found in this stage.", color = Color.Gray)
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("No leads found in this filter.", color = Color.Gray, fontSize = 14.sp)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Button(
+                            onClick = { loadLeads() },
+                            colors = ButtonDefaults.buttonColors(containerColor = SuperfoneBlue)
+                        ) {
+                            Text("Refresh Pipeline")
+                        }
+                    }
                 }
             } else {
                 LazyColumn(
@@ -128,65 +207,143 @@ fun PipelineScreen(
                     contentPadding = PaddingValues(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    items(leads) { lead ->
-                        LeadCard(lead = lead, onCall = {
-                            DialerManager.dialViaCarrierSim(context, lead.phone)
-                        }, onWhatsApp = {
-                            DialerManager.openWhatsAppChat(context, lead.phone, "Namaste ${lead.name} ji! Reaching out from TripCosmos Varanasi.")
-                        }, onClick = {
-                            onLeadSelected(lead)
-                        })
+                    items(filteredLeads, key = { it.id }) { lead ->
+                        SuperfoneLeadCard(
+                            lead = lead,
+                            onClick = {
+                                activeLeadForDetail = lead
+                                onLeadSelected(lead)
+                            },
+                            onCall = {
+                                DialerManager.dialViaCarrierSim(context, lead.phone)
+                            },
+                            onWhatsApp = {
+                                val msg = "Namaste ${lead.name} ji! Reaching out from TripCosmos Varanasi regarding your travel inquiry."
+                                DialerManager.openWhatsAppChat(context, lead.phone, msg)
+                            }
+                        )
                     }
                 }
             }
         }
     }
+
+    // Superfone Lead Profile Detail Dialog
+    activeLeadForDetail?.let { currentLead ->
+        LeadDetailDialog(
+            lead = currentLead,
+            onDismiss = { activeLeadForDetail = null },
+            onLeadUpdated = { updated ->
+                leads = leads.map { if (it.id == updated.id) updated else it }
+                activeLeadForDetail = null
+            }
+        )
+    }
 }
 
 @Composable
-fun LeadCard(
+fun SuperfoneLeadCard(
     lead: Lead,
+    onClick: () -> Unit,
     onCall: () -> Unit,
-    onWhatsApp: () -> Unit,
-    onClick: () -> Unit
+    onWhatsApp: () -> Unit
 ) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() },
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = LightSurface),
+        border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
+            // Row 1: Avatar + Name + Deal Value (Superfone style)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = lead.name.ifBlank { "Traveler" },
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 17.sp
-                )
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                    val initials = lead.name.split(" ").mapNotNull { it.firstOrNull()?.toString() }.take(2).joinToString("").ifBlank { "TR" }
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .background(SuperfoneBlueLight),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = initials.uppercase(),
+                            fontWeight = FontWeight.Bold,
+                            color = SuperfoneBlue,
+                            fontSize = 13.sp
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(10.dp))
+
+                    Column {
+                        Text(
+                            text = lead.name.ifBlank { "Traveler" },
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp,
+                            color = TextPrimary
+                        )
+                        Text(
+                            text = lead.phone,
+                            fontSize = 12.sp,
+                            color = TextSecondary
+                        )
+                    }
+                }
+
                 // Deal value badge
                 Text(
                     text = "₹" + lead.dealValue.toInt(),
                     fontWeight = FontWeight.ExtraBold,
                     color = OrangePrimary,
-                    fontSize = 15.sp
+                    fontSize = 16.sp
                 )
             }
 
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
-            Text(
-                text = lead.destination ?: "Varanasi Spiritual Tour",
-                color = Color.Gray,
-                fontSize = 13.sp
-            )
+            // Row 2: Lead Owner Pill (Superfone Screenshot 3 style)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("LEAD OWNER", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Box(
+                        modifier = Modifier
+                            .size(20.dp)
+                            .clip(CircleShape)
+                            .background(PillPurpleBg),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        val oInitials = lead.owner.split(" ").mapNotNull { it.firstOrNull()?.toString() }.take(2).joinToString("")
+                        Text(oInitials, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = PillPurpleText)
+                    }
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(lead.owner, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
+                }
 
-            Spacer(modifier = Modifier.height(8.dp))
+                // Destination tag
+                Text(
+                    text = "📍 " + (lead.destination ?: "Varanasi Tour"),
+                    fontSize = 12.sp,
+                    color = SuperfoneBlue,
+                    fontWeight = FontWeight.Medium
+                )
+            }
 
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Row 3: Tags + Stage Pill + Action Buttons
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -195,15 +352,15 @@ fun LeadCard(
                 // Stage Pill
                 Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Color(0xFFE0E7FF))
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(PillAmberBg)
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 ) {
                     Text(
                         text = lead.stage.uppercase(),
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF3730A3)
+                        color = PillAmberText
                     )
                 }
 
@@ -211,16 +368,16 @@ fun LeadCard(
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilledTonalIconButton(
                         onClick = onCall,
-                        colors = IconButtonDefaults.filledTonalIconButtonColors(containerColor = Color(0xFFFFEDD5))
+                        colors = IconButtonDefaults.filledTonalIconButtonColors(containerColor = SuperfoneBlueLight)
                     ) {
-                        Icon(Icons.Default.Call, contentDescription = "Free Call", tint = OrangePrimary)
+                        Icon(Icons.Default.Call, contentDescription = "Free Call", tint = SuperfoneBlue, modifier = Modifier.size(20.dp))
                     }
 
                     FilledTonalIconButton(
                         onClick = onWhatsApp,
-                        colors = IconButtonDefaults.filledTonalIconButtonColors(containerColor = Color(0xFFDCFCE7))
+                        colors = IconButtonDefaults.filledTonalIconButtonColors(containerColor = PillGreenBg)
                     ) {
-                        Icon(Icons.Default.Chat, contentDescription = "WhatsApp", tint = WhatsAppGreen)
+                        Icon(Icons.Default.Chat, contentDescription = "WhatsApp", tint = WhatsAppGreen, modifier = Modifier.size(20.dp))
                     }
                 }
             }

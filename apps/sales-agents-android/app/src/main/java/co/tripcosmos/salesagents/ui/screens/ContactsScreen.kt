@@ -32,8 +32,7 @@ import androidx.core.content.ContextCompat
 import co.tripcosmos.salesagents.data.api.TripCosmosApiService
 import co.tripcosmos.salesagents.data.model.Lead
 import co.tripcosmos.salesagents.telephony.DialerManager
-import co.tripcosmos.salesagents.ui.theme.OrangePrimary
-import co.tripcosmos.salesagents.ui.theme.WhatsAppGreen
+import co.tripcosmos.salesagents.ui.theme.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -225,7 +224,7 @@ fun ContactsScreen() {
                             Text("$f ($count)")
                         },
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = OrangePrimary,
+                            selectedContainerColor = SuperfoneBlue,
                             selectedLabelColor = Color.White
                         )
                     )
@@ -238,7 +237,8 @@ fun ContactsScreen() {
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 6.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFFEFF6FF))
+                    colors = CardDefaults.cardColors(containerColor = SuperfoneBlueLight),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder)
                 ) {
                     Row(
                         modifier = Modifier
@@ -251,16 +251,16 @@ fun ContactsScreen() {
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.weight(1f)
                         ) {
-                            Icon(Icons.Default.ContactPhone, contentDescription = null, tint = Color(0xFF2563EB))
+                            Icon(Icons.Default.ContactPhone, contentDescription = null, tint = SuperfoneBlue)
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 "Sync device phonebook with CRM caller ID",
                                 fontSize = 12.sp,
-                                color = Color(0xFF1E40AF)
+                                color = SuperfoneBlueDark
                             )
                         }
                         TextButton(onClick = { permissionLauncher.launch(Manifest.permission.READ_CONTACTS) }) {
-                            Text("Enable", fontWeight = FontWeight.Bold, color = Color(0xFF2563EB))
+                            Text("Enable", fontWeight = FontWeight.Bold, color = SuperfoneBlue)
                         }
                     }
                 }
@@ -268,7 +268,7 @@ fun ContactsScreen() {
 
             if (isLoading) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = OrangePrimary)
+                    CircularProgressIndicator(color = SuperfoneBlue)
                 }
             } else if (filteredContacts.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -280,7 +280,7 @@ fun ContactsScreen() {
                                 loadCrmContacts()
                                 if (hasContactsPermission) loadDeviceContacts()
                             },
-                            colors = ButtonDefaults.buttonColors(containerColor = OrangePrimary)
+                            colors = ButtonDefaults.buttonColors(containerColor = SuperfoneBlue)
                         ) {
                             Text("Refresh Directory")
                         }
@@ -295,7 +295,9 @@ fun ContactsScreen() {
                     items(filteredContacts) { contact ->
                         Card(
                             modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                            colors = CardDefaults.cardColors(containerColor = LightSurface),
+                            shape = RoundedCornerShape(16.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder),
                             elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
                         ) {
                             Row(
@@ -310,7 +312,8 @@ fun ContactsScreen() {
                                         Text(
                                             text = contact.name.ifBlank { "Traveler" },
                                             fontWeight = FontWeight.Bold,
-                                            fontSize = 16.sp
+                                            fontSize = 16.sp,
+                                            color = TextPrimary
                                         )
                                         if (contact.stage == "phonebook") {
                                             Spacer(modifier = Modifier.width(6.dp))
@@ -327,23 +330,23 @@ fun ContactsScreen() {
                                             Box(
                                                 modifier = Modifier
                                                     .clip(RoundedCornerShape(4.dp))
-                                                    .background(Color(0xFFFEF3C7))
+                                                    .background(PillAmberBg)
                                                     .padding(horizontal = 4.dp, vertical = 2.dp)
                                             ) {
-                                                Text("CRM", fontSize = 10.sp, color = Color(0xFFD97706), fontWeight = FontWeight.Bold)
+                                                Text("CRM", fontSize = 10.sp, color = PillAmberText, fontWeight = FontWeight.Bold)
                                             }
                                         }
                                     }
                                     Text(
                                         text = contact.phone,
                                         fontSize = 13.sp,
-                                        color = Color.Gray
+                                        color = TextSecondary
                                     )
                                     if (!contact.destination.isNullOrBlank() && contact.destination != "Device Contact") {
                                         Text(
                                             text = "📍 " + contact.destination,
                                             fontSize = 12.sp,
-                                            color = OrangePrimary
+                                            color = SuperfoneBlue
                                         )
                                     }
                                 }
@@ -351,9 +354,9 @@ fun ContactsScreen() {
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     FilledTonalIconButton(
                                         onClick = { DialerManager.dialViaCarrierSim(context, contact.phone) },
-                                        colors = IconButtonDefaults.filledTonalIconButtonColors(containerColor = Color(0xFFFFEDD5))
+                                        colors = IconButtonDefaults.filledTonalIconButtonColors(containerColor = SuperfoneBlueLight)
                                     ) {
-                                        Icon(Icons.Default.Call, contentDescription = "Free Call", tint = OrangePrimary)
+                                        Icon(Icons.Default.Call, contentDescription = "Free Call", tint = SuperfoneBlue)
                                     }
 
                                     FilledTonalIconButton(
@@ -364,7 +367,7 @@ fun ContactsScreen() {
                                                 "Namaste ${contact.name} ji! Reaching out from TripCosmos Varanasi."
                                             )
                                         },
-                                        colors = IconButtonDefaults.filledTonalIconButtonColors(containerColor = Color(0xFFDCFCE7))
+                                        colors = IconButtonDefaults.filledTonalIconButtonColors(containerColor = PillGreenBg)
                                     ) {
                                         Icon(Icons.Default.Chat, contentDescription = "WhatsApp", tint = WhatsAppGreen)
                                     }

@@ -12,6 +12,8 @@ data class Lead(
     @SerializedName("score") val score: Int = 50,
     val destination: String? = null,
     val requirements: String? = null,
+    val owner: String = "Ajay Verma", // Team assignment (Ajay Verma, Meera Singh, Rahul Sharma, Travel Desk)
+    val tags: List<String> = listOf("New Lead", "Travel Package"),
     @SerializedName("created_at") val createdAt: String? = null,
     @SerializedName("updated_at") val updatedAt: String? = null
 )
@@ -61,4 +63,42 @@ data class ApiResponse<T>(
     val ok: Boolean,
     val message: String? = null,
     val data: T? = null
+)
+
+// Superfone Task Model
+data class LeadTask(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val title: String,
+    val leadName: String,
+    val phone: String,
+    val dueDate: String,
+    val isCompleted: Boolean = false,
+    val assignedTo: String = "Ajay Verma",
+    val priority: String = "Normal" // High, Normal
+)
+
+// Superfone Master Chatbot Message Model
+data class ChatMessage(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val text: String,
+    val isFromUser: Boolean,
+    val timestamp: String = "Just now",
+    val suggestedWhatsAppText: String? = null
+)
+
+// Superfone AI Call Summary Model
+data class AiCallSummary(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val customerName: String,
+    val phone: String,
+    val callTime: String,
+    val duration: String,
+    val destination: String,
+    val travelers: String,
+    val dates: String,
+    val budget: String,
+    val tags: List<String>,
+    val reminder: String,
+    val nextAction: String,
+    val assignedAgent: String = "Ajay Verma"
 )
