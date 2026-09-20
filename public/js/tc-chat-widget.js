@@ -134,11 +134,20 @@
 		// 3. Open / Close Toggle
 		let isOpen = false;
 
-		function toggleWidget() {
-			isOpen = !isOpen;
-			chatWindow.style.display = isOpen ? 'flex' : 'none';
+		function toggleWidget(forceState) {
+			if (typeof forceState === 'boolean') {
+				isOpen = forceState;
+			} else {
+				isOpen = !isOpen;
+			}
+			chatWindow.style.setProperty('display', isOpen ? 'flex' : 'none', 'important');
 			triggerBtn.classList.toggle('active', isOpen);
 			if (widgetRoot) widgetRoot.classList.toggle('tc-window-open', isOpen);
+
+			const chatIcon = triggerBtn.querySelector('.tc-fab-icon-chat');
+			const closeIcon = triggerBtn.querySelector('.tc-fab-icon-close');
+			if (chatIcon) chatIcon.style.setProperty('display', isOpen ? 'none' : 'flex', 'important');
+			if (closeIcon) closeIcon.style.setProperty('display', isOpen ? 'flex' : 'none', 'important');
 
 			const badgeEl = document.getElementById('tc-fab-badge');
 			if (badgeEl && isOpen) badgeEl.style.display = 'none';
@@ -159,8 +168,18 @@
 			}
 		}
 
-		triggerBtn.addEventListener('click', toggleWidget);
-		closeBtn.addEventListener('click', toggleWidget);
+		triggerBtn.addEventListener('click', function(e) {
+			e.preventDefault();
+			toggleWidget();
+		});
+
+		if (closeBtn) {
+			closeBtn.addEventListener('click', function(e) {
+				e.preventDefault();
+				e.stopPropagation();
+				toggleWidget(false);
+			});
+		}
 
 		if (restartBtn) {
 			restartBtn.addEventListener('click', function() {
