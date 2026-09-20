@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Sales Agents by tripCosmos.co</string>
+    <string name="app_name">Tripcosmos\'s Agents</string>
     <string name="nav_pipeline">Pipeline</string>
     <string name="nav_contacts">Contacts</string>
     <string name="nav_history">Calls</string>

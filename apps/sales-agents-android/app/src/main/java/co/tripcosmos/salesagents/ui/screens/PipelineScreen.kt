@@ -96,7 +96,7 @@ fun PipelineScreen(
                 title = {
                     Column {
                         Text("Sales Pipeline & Deals", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextPrimary)
-                        Text("${filteredLeads.size} inquiries • Superfone Lead Manager", fontSize = 12.sp, color = TextSecondary)
+                        Text("${filteredLeads.size} inquiries • Tripcosmos\'s Agents Lead Manager", fontSize = 12.sp, color = TextSecondary)
                     }
                 },
                 actions = {
