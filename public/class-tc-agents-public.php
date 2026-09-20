@@ -168,6 +168,17 @@ class TC_Agents_Public {
 					</div>
 				</div>
 
+				<!-- Multilingual Pilgrim Language Switcher -->
+				<div class="tc-lang-picker-bar" role="toolbar" aria-label="<?php esc_attr_e( 'Select Chat Language', 'tripcosmos-agents' ); ?>">
+					<span class="tc-lang-picker-title">🌐 Language:</span>
+					<div class="tc-lang-pills">
+						<button type="button" class="tc-lang-pill active" data-lang="en" title="English">EN</button>
+						<button type="button" class="tc-lang-pill" data-lang="hi" title="हिन्दी (Hindi)">हिन्दी</button>
+						<button type="button" class="tc-lang-pill" data-lang="gu" title="ગુજરાતી (Gujarati)">ગુજરાતી</button>
+						<button type="button" class="tc-lang-pill" data-lang="te" title="తెలుగు (Telugu)">తెలుగు</button>
+					</div>
+				</div>
+
 				<!-- Tab 1: Messages Stream -->
 				<div id="tc-widget-messages" class="tc-panel tc-messages-container active">
 					<!-- Welcome Message -->

@@ -273,6 +273,7 @@ class TC_Agents_Activator {
 			self::create_tables();
 			self::set_default_options();
 			self::seed_default_agent();
+			self::sync_persona_tools();
 			update_option( 'tc_agents_db_version', TC_AGENTS_VERSION );
 		}
 	}
@@ -367,7 +368,7 @@ class TC_Agents_Activator {
 										  "4. HUMAN ESCALATION & VOICE CALL: Offer direct WhatsApp handoff ('request_human_handoff') or instant phone callback ('request_voice_call') for complex custom itineraries or immediate bookings.",
 					'greeting_message' => "Namaste and welcome to TripCosmos (Varanasi)! Looking for an authentic tour package, hotel booking, or outstation cab for Varanasi, Ayodhya, Prayagraj, Bodhgaya, or Mathura? How can I assist you today?",
 					'channels'         => 'web,whatsapp',
-					'allowed_tools'    => wp_json_encode( array( 'search_trips', 'lookup_contact_crm', 'sync_lead_crm', 'request_human_handoff', 'query_pricing_sheet', 'request_voice_call' ) ),
+					'allowed_tools'    => wp_json_encode( array( 'search_trips', 'lookup_contact_crm', 'sync_lead_crm', 'request_human_handoff', 'query_pricing_sheet', 'request_voice_call', 'calculate_cab_tariff', 'generate_itinerary_pdf', 'lookup_temple_protocol' ) ),
 					'temperature'      => 0.70,
 					'is_active'        => 1,
 				)
@@ -387,7 +388,7 @@ class TC_Agents_Activator {
 										  "Always ensure traveler contact details are saved via 'sync_lead_crm' and offer direct WhatsApp handoff for finalized cab itineraries.",
 					'greeting_message' => "Namaste! Ready to book an outstation cab, reserve a private boat for Varanasi Ganga Aarti, or book hotels in Varanasi or Ayodhya? I'm here to assist!",
 					'channels'         => 'web,whatsapp',
-					'allowed_tools'    => wp_json_encode( array( 'search_trips', 'sync_lead_crm', 'lookup_contact_crm', 'request_human_handoff', 'request_voice_call' ) ),
+					'allowed_tools'    => wp_json_encode( array( 'search_trips', 'sync_lead_crm', 'lookup_contact_crm', 'request_human_handoff', 'request_voice_call', 'calculate_cab_tariff', 'generate_itinerary_pdf', 'lookup_temple_protocol' ) ),
 					'temperature'      => 0.50,
 					'is_active'        => 1,
 				)
@@ -407,7 +408,7 @@ class TC_Agents_Activator {
 										  "Always prioritize safety, respect, and traditional hospitality.",
 					'greeting_message' => "TripCosmos Yatra Support Desk. How can we assist with your temple darshan timings, ritual arrangements, or pilgrimage logistics today?",
 					'channels'         => 'web,whatsapp',
-					'allowed_tools'    => wp_json_encode( array( 'request_human_handoff', 'lookup_contact_crm' ) ),
+					'allowed_tools'    => wp_json_encode( array( 'request_human_handoff', 'lookup_contact_crm', 'lookup_temple_protocol', 'search_trips' ) ),
 					'temperature'      => 0.30,
 					'is_active'        => 1,
 				)
@@ -430,6 +431,44 @@ class TC_Agents_Activator {
 					'is_active'        => 1,
 				)
 			);
+		}
+	}
+
+	/**
+	 * Ensure latest tool capabilities are appended to existing persona records.
+	 */
+	public static function sync_persona_tools() {
+		global $wpdb;
+		$table_personas = $wpdb->prefix . 'tc_agent_personas';
+		$personas = $wpdb->get_results( "SELECT id, slug, allowed_tools FROM $table_personas", ARRAY_A );
+		if ( empty( $personas ) ) {
+			return;
+		}
+
+		$tool_map = array(
+			'tripcosmos-guide'     => array( 'calculate_cab_tariff', 'generate_itinerary_pdf', 'lookup_temple_protocol' ),
+			'tripcosmos-concierge' => array( 'calculate_cab_tariff', 'generate_itinerary_pdf', 'lookup_temple_protocol' ),
+			'tripcosmos-support'   => array( 'lookup_temple_protocol', 'search_trips' ),
+		);
+
+		foreach ( $personas as $p ) {
+			$slug = $p['slug'];
+			if ( ! isset( $tool_map[ $slug ] ) ) {
+				continue;
+			}
+			$current_tools = ! empty( $p['allowed_tools'] ) ? json_decode( $p['allowed_tools'], true ) : array();
+			if ( ! is_array( $current_tools ) ) {
+				$current_tools = array();
+			}
+			$needed  = $tool_map[ $slug ];
+			$updated = array_values( array_unique( array_merge( $current_tools, $needed ) ) );
+			if ( $updated !== $current_tools ) {
+				$wpdb->update(
+					$table_personas,
+					array( 'allowed_tools' => wp_json_encode( $updated ) ),
+					array( 'id' => (int) $p['id'] )
+				);
+			}
 		}
 	}
 }

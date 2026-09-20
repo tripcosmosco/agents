@@ -199,6 +199,59 @@ class TC_Agent_Tools {
 					),
 				),
 			),
+			array(
+				'type'     => 'function',
+				'function' => array(
+					'name'        => 'calculate_cab_tariff',
+					'description' => 'Calculate exact outstation cab fare, kilometers, driver allowance, and route estimates for Varanasi, Ayodhya, Prayagraj, Bodhgaya, Chitrakoot, Lucknow, and airport transfers.',
+					'parameters'  => array(
+						'type'       => 'object',
+						'properties' => array(
+							'origin'       => array( 'type' => 'string', 'description' => 'Origin city (e.g. "Varanasi", "Ayodhya", "Prayagraj"). Default: "Varanasi".' ),
+							'destination'  => array( 'type' => 'string', 'description' => 'Destination city, circuit, or airport (e.g. "Ayodhya", "Prayagraj", "Bodhgaya", "Varanasi Airport", "Local").' ),
+							'vehicle_type' => array( 'type' => 'string', 'enum' => array( 'sedan', 'ertiga', 'innova', 'tempo_12', 'tempo_17', 'tempo_26' ), 'description' => 'Vehicle category: sedan (Dzire/Etios), ertiga (XL6/Ertiga), innova (Innova Crysta), tempo_12 (12-seater), tempo_17 (17-seater), tempo_26 (26-seater Mini-bus).' ),
+							'days'         => array( 'type' => 'integer', 'description' => 'Total duration in days (default: 1).' ),
+							'is_round_trip'=> array( 'type' => 'boolean', 'description' => 'Whether the trip is round trip (default: true).' ),
+						),
+						'required'   => array( 'destination' ),
+					),
+				),
+			),
+			array(
+				'type'     => 'function',
+				'function' => array(
+					'name'        => 'generate_itinerary_pdf',
+					'description' => 'Generate an official TripCosmos branded itinerary document and printable link for the traveler with day-by-day darshan plans, dedicated vehicle, inclusions, and WhatsApp confirmation.',
+					'parameters'  => array(
+						'type'       => 'object',
+						'properties' => array(
+							'name'          => array( 'type' => 'string', 'description' => 'Traveler or guest name.' ),
+							'destination'   => array( 'type' => 'string', 'description' => 'Tour package or circuit name (e.g. "Kashi Ayodhya Prayagraj 4 Days Spiritual Tour").' ),
+							'duration'      => array( 'type' => 'string', 'description' => 'Duration (e.g. "4 Days / 3 Nights").' ),
+							'vehicle'       => array( 'type' => 'string', 'description' => 'Allocated vehicle (e.g. "Dedicated AC Innova Crysta throughout").' ),
+							'hotel_tier'    => array( 'type' => 'string', 'description' => 'Hotel category (e.g. "3-Star Deluxe Hotel Near Ghats").' ),
+							'pax'           => array( 'type' => 'string', 'description' => 'Passenger count (e.g. "4 Adults + 1 Child").' ),
+							'total_fare'    => array( 'type' => 'string', 'description' => 'Total estimated package or cab fare (e.g. "₹22,500").' ),
+							'itinerary_text'=> array( 'type' => 'string', 'description' => 'Detailed day-by-day itinerary schedule with timings.' ),
+						),
+						'required'   => array( 'name', 'destination' ),
+					),
+				),
+			),
+			array(
+				'type'     => 'function',
+				'function' => array(
+					'name'        => 'lookup_temple_protocol',
+					'description' => 'Get authentic temple timings, Mangala Aarti schedules, Sparsh Darshan dress codes, VIP entry passes, and wheelchair protocols for Kashi Vishwanath, Ayodhya Ram Mandir, Prayagraj Sangam, and Bodhgaya.',
+					'parameters'  => array(
+						'type'       => 'object',
+						'properties' => array(
+							'temple' => array( 'type' => 'string', 'enum' => array( 'kashi_vishwanath', 'ayodhya_ram_mandir', 'prayagraj_sangam', 'bodhgaya_mahabodhi' ), 'description' => 'Temple or holy site to inspect.' ),
+						),
+						'required'   => array( 'temple' ),
+					),
+				),
+			),
 		);
 	}
 
@@ -254,6 +307,15 @@ class TC_Agent_Tools {
 
 			case 'outreach_b2b_agency':
 				return self::tool_outreach_b2b_agency( $arguments );
+
+			case 'calculate_cab_tariff':
+				return self::tool_calculate_cab_tariff( $arguments );
+
+			case 'generate_itinerary_pdf':
+				return self::tool_generate_itinerary_pdf( $arguments );
+
+			case 'lookup_temple_protocol':
+				return self::tool_lookup_temple_protocol( $arguments );
 
 			default:
 				return array( 'error' => sprintf( 'Unknown tool: %s', $tool_name ) );
@@ -836,5 +898,90 @@ class TC_Agent_Tools {
 			TC_Integration_TwentyCRM::push_lead( array( 'name' => $agency['name'], 'email' => $agency['email'], 'phone' => $agency['phone'], 'destination' => 'B2B Partnership ' . $agency['city'] ) );
 		}
 		return array( 'success' => true, 'agency' => $agency['name'], 'results' => $results );
+	}
+
+	/**
+	 * Tool: Calculate Cab Tariff across Varanasi, Ayodhya, Prayagraj, and Circuits.
+	 */
+	private static function tool_calculate_cab_tariff( array $args ) {
+		$origin        = sanitize_text_field( $args['origin'] ?? 'Varanasi' );
+		$destination   = sanitize_text_field( $args['destination'] ?? 'Ayodhya' );
+		$vehicle_type  = sanitize_key( $args['vehicle_type'] ?? 'innova' );
+		$days          = max( 1, (int) ( $args['days'] ?? 1 ) );
+		$is_round_trip = ! isset( $args['is_round_trip'] ) || (bool) $args['is_round_trip'];
+
+		if ( class_exists( 'TC_Cab_Fare_Engine' ) ) {
+			return TC_Cab_Fare_Engine::calculate( $origin, $destination, $vehicle_type, $days, $is_round_trip );
+		}
+
+		return array( 'error' => 'Cab fare calculation engine not initialized.' );
+	}
+
+	/**
+	 * Tool: Generate Branded Itinerary Document and PDF Link.
+	 */
+	private static function tool_generate_itinerary_pdf( array $args ) {
+		if ( class_exists( 'TC_Itinerary_Generator' ) ) {
+			return TC_Itinerary_Generator::generate( $args );
+		}
+
+		return array( 'error' => 'Itinerary generator not initialized.' );
+	}
+
+	/**
+	 * Tool: Lookup Verified Temple Darshan Protocols & Aarti Timings.
+	 */
+	private static function tool_lookup_temple_protocol( array $args ) {
+		$temple = sanitize_key( $args['temple'] ?? 'kashi_vishwanath' );
+
+		$protocols = array(
+			'kashi_vishwanath' => array(
+				'temple_name'          => 'Shri Kashi Vishwanath Jyotirlinga Corridor (Varanasi)',
+				'aarti_schedule'       => array(
+					'Mangala Aarti'   => '03:00 AM - 04:00 AM (Advance booking compulsory via official temple portal shrikashivishwanath.org)',
+					'Bhog Aarti'      => '11:15 AM - 12:20 PM',
+					'Saptarishi Aarti' => '07:00 PM - 08:30 PM (Highly auspicious evening ritual by seven revered priests)',
+					'Night Shringar'  => '09:00 PM - 10:15 PM',
+					'Shayan Aarti'    => '10:30 PM (Sanctum closes at 11:00 PM)',
+				),
+				'sparsh_darshan_rules' => 'Allowed only during morning Mangala Aarti & designated afternoon slots. Strict dress code: Men must wear traditional unstitched Dhoti-Kurta; Women must wear Saree or Salwar-Kameez. Jeans, t-shirts, leather belts, and shoes strictly forbidden inside Garbhagriha.',
+				'sugam_darshan_pass'   => 'VIP Sugam Darshan tickets (₹300/person) allow fast-track priority entry via Gate No. 4 (Chhatrapati Shivaji Maharaj Gate) through the riverfront corridor, avoiding 3-4 hour general queues.',
+				'locker_mobile_policy' => 'Smartphones, smartwatches, leather wallets, cigarettes, and electronic keys must be deposited at official digital lockers near Gate 4 or temple trust counter.',
+				'wheelchair_facility'  => 'Battery-operated e-rickshaws available from Godowlia crossing and Maidagin to corridor entrance for senior citizens. Free wheelchairs available at Gate 4.',
+			),
+			'ayodhya_ram_mandir' => array(
+				'temple_name'     => 'Shri Ram Janmabhoomi Mandir (Ayodhya)',
+				'aarti_schedule'  => array(
+					'Mangala Aarti' => '04:30 AM',
+					'Shringar Aarti'=> '06:30 AM',
+					'Bhog Aarti'    => '12:00 PM',
+					'Sandhya Aarti' => '07:30 PM',
+					'Shayan Aarti'  => '10:00 PM',
+				),
+				'darshan_timings' => '07:00 AM to 11:30 AM and 02:00 PM to 07:00 PM (Sanctum closes briefly between 12:00 PM - 02:00 PM for Bhog).',
+				'entry_protocol'  => 'Entry through Sugriva Qila Gate and Ram Janmabhoomi Path. Government photo ID (Aadhaar / Voter ID / Passport) mandatory.',
+				'facilities'      => 'Pilgrim Facilitation Center (PFC) provides 25,000+ lockers, clean RO drinking water, and complimentary golf carts / wheelchairs for senior citizens and differently abled pilgrims.',
+				'nearby_visits'   => 'Hanumangarhi (mandatory first darshan as per Ramayan tradition), Kanak Bhavan, Dashrath Mahal, and Saryu Aarti at Ram Ki Paidi at 06:30 PM.',
+			),
+			'prayagraj_sangam' => array(
+				'temple_name'       => 'Triveni Sangam & Sacred Shrines (Prayagraj)',
+				'holy_dip_protocol' => 'Confluence of Ganga, Yamuna, and mythical Saraswati. Morning sunrise holy dip (05:30 AM - 08:30 AM) considered most spiritually uplifting.',
+				'boat_rates'        => 'Authorized hand-rowed boats cost ₹150-250/person round-trip or ₹1,200 - ₹2,000 for full private boat to the exact Sangam wooden platform.',
+				'rituals_pind_daan' => 'Pind Daan and Tarpan rituals for ancestors performed by authentic Tirth Purohits on the Sangam banks (arranged with verified priests by TripCosmos).',
+				'key_shrines'       => 'Bade Hanuman Ji (reclining posture temple near fort), Akshayavat (immortal banyan tree), Patalpuri temple, and Alopi Devi Shaktipeeth.',
+			),
+			'bodhgaya_mahabodhi' => array(
+				'temple_name'    => 'Mahabodhi Temple Complex & Gaya (Bodhgaya, Bihar)',
+				'temple_timings' => '05:00 AM to 09:00 PM daily. Meditation under the sacred Bodhi Tree where Lord Buddha attained enlightenment.',
+				'gaya_pind_daan' => 'Vishnupad Temple & Falgu River (Gaya, 12 km from Bodhgaya). World-renowned sacred pilgrimage for ancestor salvation (Shraddha & Pind Daan rituals).',
+				'dress_code'     => 'Modest dress covering shoulders and knees. Shoes removed at outer security pavilion.',
+				'key_sites'      => '80-ft Great Buddha Statue, Sujata Kuti, Royal Bhutan Monastery, Thai Temple, Japanese Indosan Nipponji.',
+			),
+		);
+
+		return $protocols[ $temple ] ?? array(
+			'error'     => 'Specific temple not found. Choose kashi_vishwanath, ayodhya_ram_mandir, prayagraj_sangam, or bodhgaya_mahabodhi.',
+			'available' => array_keys( $protocols ),
+		);
 	}
 }

@@ -247,6 +247,7 @@ class TC_Agents_REST {
 			'user_agent' => sanitize_text_field( $_SERVER['HTTP_USER_AGENT'] ?? '' ),
 			'page_url'   => esc_url_raw( $params['page_url'] ?? '' ),
 			'page_title' => sanitize_text_field( $params['page_title'] ?? '' ),
+			'language'   => sanitize_text_field( $params['language'] ?? 'en' ),
 		);
 
 		$is_stream = ! empty( $params['stream'] );
@@ -273,12 +274,13 @@ class TC_Agents_REST {
 
 		return new WP_REST_Response(
 			array(
-				'success'       => true,
-				'session_id'    => $result['session_id'],
-				'reply'         => $result['reply'],
-				'handoff'       => $result['handoff'],
-				'provider_used' => $result['provider_used'],
-				'latency_ms'    => $result['latency_ms'],
+				'success'        => true,
+				'session_id'     => $result['session_id'],
+				'reply'          => $result['reply'],
+				'handoff'        => $result['handoff'],
+				'executed_tools' => $result['executed_tools'] ?? array(),
+				'provider_used'  => $result['provider_used'],
+				'latency_ms'     => $result['latency_ms'],
 			),
 			200
 		);
@@ -359,12 +361,13 @@ class TC_Agents_REST {
 		// Send final metadata
 		echo 'data: ' . wp_json_encode(
 			array(
-				'type'          => 'done',
-				'session_id'    => $result['session_id'],
-				'reply'         => $result['reply'],
-				'handoff'       => $result['handoff'],
-				'provider_used' => $result['provider_used'],
-				'latency_ms'    => $result['latency_ms'],
+				'type'           => 'done',
+				'session_id'     => $result['session_id'],
+				'reply'          => $result['reply'],
+				'handoff'        => $result['handoff'],
+				'executed_tools' => $result['executed_tools'] ?? array(),
+				'provider_used'  => $result['provider_used'],
+				'latency_ms'     => $result['latency_ms'],
 			)
 		) . "\n\n";
 		flush();

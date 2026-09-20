@@ -47,6 +47,68 @@
 			sessionStorage.setItem('tc_agent_session_id', sessionId);
 		}
 
+		// 1b. Multilingual Pilgrim Language Management
+		const langPills = document.querySelectorAll('#tc-agent-widget-root .tc-lang-pill');
+		let currentLang = sessionStorage.getItem('tc_chat_lang') || 'en';
+
+		const langStarters = {
+			en: [
+				{ label: '🛕 Kashi Ayodhya Tour', query: 'Tell me about Kashi Ayodhya Prayagraj 4 Days Tour Package' },
+				{ label: '🚗 Outstation Cabs', query: 'Book outstation cab Innova Crysta for Varanasi to Ayodhya' },
+				{ label: '⛵ Ganga Aarti Boat', query: 'Book private boat for evening Ganga Aarti at Dashashwamedh Ghat' },
+				{ label: '🏨 Ghat Hotels', query: 'Best ghat-view hotels in Varanasi near Kashi Vishwanath' }
+			],
+			hi: [
+				{ label: '🛕 काशी अयोध्या दर्शन', query: 'काशी अयोध्या प्रयागराज 4 दिवसीय दर्शन पैकेज की जानकारी और दरें बताएं' },
+				{ label: '🚗 आउटस्टेशन कैब', query: 'वाराणसी से अयोध्या के लिए इनोवा क्रिस्टा कैब का किराया बताएं' },
+				{ label: '⛵ गंगा आरती नाव', query: 'दशाश्वमेध घाट पर शाम की गंगा आरती के लिए नाव बुकिंग कैसे करें' },
+				{ label: '🏨 घाट होटल', query: 'काशी विश्वनाथ मंदिर के पास सर्वोत्तम घाट दृश्य वाले होटल' }
+			],
+			gu: [
+				{ label: '🛕 કાશી અયોધ્યા યાત્રા', query: 'કાશી અયોધ્યા પ્રયાગરાજ 4 દિવસના યાત્રા પેકેજની વિગતો અને ભાડું જણાવો' },
+				{ label: '🚗 આઉટસ્ટેશન કેબ', query: 'વારાણસી થી અયોધ્યા ઇનોવા ક્રિસ્ટા કેબનું ભાડું કેટલું થશે?' },
+				{ label: '⛵ ગંગા આરતી બોટ', query: 'દશાશ્વમેઘ ઘાટ પર સાંજની ગંગા આરતી માટે પ્રાઇવેટ બોટ બુકિંગ' },
+				{ label: '🏨 ઘાટ હોટેલ્સ', query: 'કાશી વિશ્વનાથ મંદિર નજીક શ્રેષ્ઠ ઘાટ ફેસિંગ હોટેલ' }
+			],
+			te: [
+				{ label: '🛕 కాశీ అయోధ్య యాత్ర', query: 'కాశీ అయోధ్య ప్రయాగ్రాజ్ 4 రోజుల యాత్రా ప్యాకేజీ వివరాలు మరియు ధరలు చెప్పండి' },
+				{ label: '🚗 క్యాబ్ బుకింగ్', query: 'వారణాసి నుండి అయోధ్య ఇన్నోవా క్రిస్టా క్యాబ్ ఛార్జీల వివరాలు' },
+				{ label: '⛵ గంగా హారతి బోట్', query: 'దశాశ్వమేధ ఘాట్ వద్ద సాయంత్రం గంగా హారతి కోసం ప్రైవేట్ బోట్ బుకింగ్' },
+				{ label: '🏨 ఘాట్ హోటళ్ళు', query: 'కాశీ విశ్వనాథ ఆలయం సమీపంలో గంగా నది కనిపించే ఉత్తమ హోటళ్ళు' }
+			]
+		};
+
+		function setChatLanguage(lang) {
+			currentLang = lang;
+			sessionStorage.setItem('tc_chat_lang', lang);
+			langPills.forEach(function(pill) {
+				const isActive = pill.getAttribute('data-lang') === lang;
+				pill.classList.toggle('active', isActive);
+			});
+			updateStarterChips(lang);
+			trackEvent('tc_agent_language_changed', { language: lang });
+		}
+
+		function updateStarterChips(lang) {
+			if (!starterChips) return;
+			const chips = langStarters[lang] || langStarters.en;
+			let html = '';
+			chips.forEach(function(item) {
+				html += '<button type="button" class="tc-chip" data-query="' + escapeHtml(item.query) + '">' + escapeHtml(item.label) + '</button>';
+			});
+			starterChips.innerHTML = html;
+		}
+
+		if (langPills.length) {
+			langPills.forEach(function(pill) {
+				pill.addEventListener('click', function() {
+					const lang = pill.getAttribute('data-lang');
+					if (lang) setChatLanguage(lang);
+				});
+			});
+			setChatLanguage(currentLang);
+		}
+
 		// 2. Omni-Channel Analytics & DataLayer Tracker
 		function trackEvent(eventName, params) {
 			params = params || {};
@@ -479,7 +541,8 @@
 					agent_slug: 'tripcosmos-guide',
 					stream: false,
 					page_url: window.location.href,
-					page_title: document.title
+					page_title: document.title,
+					language: currentLang
 				})
 			})
 			.then(function(res) { return res.json(); })
@@ -807,7 +870,8 @@
 					agent_slug: 'tripcosmos-guide',
 					stream: true,
 					page_url: window.location.href,
-					page_title: document.title
+					page_title: document.title,
+					language: currentLang
 				})
 			})
 			.then(function(response) {
@@ -855,6 +919,15 @@
 													if (t.tool === 'search_trips' && t.output && t.output.trips) {
 														renderTripCards(t.output.trips);
 													}
+													if (t.tool === 'calculate_cab_tariff' && t.output && !t.output.error) {
+														renderCabFareCard(t.output);
+													}
+													if (t.tool === 'generate_itinerary_pdf' && t.output && !t.output.error) {
+														renderItineraryCard(t.output);
+													}
+													if (t.tool === 'lookup_temple_protocol' && t.output && !t.output.error) {
+														renderTempleProtocolCard(t.output);
+													}
 													if (t.tool === 'request_voice_call' && t.output && t.output.phone) {
 														appendMessage('bot', '📞 ' + (t.output.message || 'AI phone call dispatched to ' + t.output.phone));
 													}
@@ -884,6 +957,15 @@
 								data.executed_tools.forEach(function(t) {
 									if (t.tool === 'search_trips' && t.output && t.output.trips) {
 										renderTripCards(t.output.trips);
+									}
+									if (t.tool === 'calculate_cab_tariff' && t.output && !t.output.error) {
+										renderCabFareCard(t.output);
+									}
+									if (t.tool === 'generate_itinerary_pdf' && t.output && !t.output.error) {
+										renderItineraryCard(t.output);
+									}
+									if (t.tool === 'lookup_temple_protocol' && t.output && !t.output.error) {
+										renderTempleProtocolCard(t.output);
 									}
 								});
 							}
@@ -959,6 +1041,88 @@
 			});
 			messagesContainer.appendChild(cta);
 			scrollToBottom();
+		}
+
+		function renderCabFareCard(data) {
+			if (!data || !data.origin || !data.destination) return;
+			const card = document.createElement('div');
+			card.className = 'tc-cab-fare-card';
+
+			const waNumber = tcChatWidget.whatsappNumber || '919876543210';
+			const waMsg = 'Namaste TripCosmos! I would like to book a cab for ' + data.origin + ' to ' + data.destination + ' (' + data.vehicle_name + ', ' + data.estimated_fare + '). Please confirm availability.';
+			const waUrl = 'https://wa.me/' + waNumber + '?text=' + encodeURIComponent(waMsg);
+
+			card.innerHTML =
+				'<div class="tc-card-header">' +
+					'<span class="tc-card-title">🚗 ' + escapeHtml(data.vehicle_name) + '</span>' +
+					'<span class="tc-card-badge">' + escapeHtml(data.origin) + ' &rarr; ' + escapeHtml(data.destination) + '</span>' +
+				'</div>' +
+				'<div class="tc-fare-amount">' + escapeHtml(data.estimated_fare) + ' <span>(All-inclusive est.)</span></div>' +
+				'<div class="tc-card-grid">' +
+					'<div class="tc-card-stat"><div class="tc-card-stat-label">Distance / Trip</div><div class="tc-card-stat-val">' + escapeHtml(String(data.total_billable_km || '')) + ' km (' + (data.is_round_trip ? 'Round Trip' : 'One Way') + ')</div></div>' +
+					'<div class="tc-card-stat"><div class="tc-card-stat-label">Duration</div><div class="tc-card-stat-val">' + escapeHtml(String(data.days || 1)) + ' Day(s)</div></div>' +
+					'<div class="tc-card-stat"><div class="tc-card-stat-label">Driver DA</div><div class="tc-card-stat-val">' + escapeHtml(data.driver_allowance || 'Included') + '</div></div>' +
+					'<div class="tc-card-stat"><div class="tc-card-stat-label">Toll & Parking</div><div class="tc-card-stat-val">' + escapeHtml(data.toll_tax_estimate || 'Est. Included') + '</div></div>' +
+				'</div>' +
+				'<a href="' + waUrl + '" target="_blank" rel="noopener" class="tc-card-action-btn">💬 Book This Cab via WhatsApp</a>';
+
+			messagesContainer.appendChild(card);
+			scrollToBottom(true);
+		}
+
+		function renderItineraryCard(data) {
+			if (!data || !data.destination) return;
+			const card = document.createElement('div');
+			card.className = 'tc-itinerary-card';
+
+			const viewUrl = data.view_url || '#';
+			const waUrl = data.whatsapp_url || ('https://wa.me/' + (tcChatWidget.whatsappNumber || '919876543210'));
+
+			card.innerHTML =
+				'<div class="tc-card-header">' +
+					'<span class="tc-card-title">🛕 ' + escapeHtml(data.destination) + '</span>' +
+					'<span class="tc-card-badge">Official Document</span>' +
+				'</div>' +
+				'<div class="tc-fare-amount">' + escapeHtml(data.total_fare || 'Personalized Pricing') + ' <span>for ' + escapeHtml(data.pax || 'Guests') + '</span></div>' +
+				'<div class="tc-card-grid">' +
+					'<div class="tc-card-stat"><div class="tc-card-stat-label">Dedicated Vehicle</div><div class="tc-card-stat-val">' + escapeHtml(data.vehicle || 'AC Cab Included') + '</div></div>' +
+					'<div class="tc-card-stat"><div class="tc-card-stat-label">Duration</div><div class="tc-card-stat-val">' + escapeHtml(data.duration || 'Flexible') + '</div></div>' +
+				'</div>' +
+				'<div style="display:flex; gap:6px; margin-top:8px;">' +
+					'<a href="' + viewUrl + '" target="_blank" rel="noopener" class="tc-card-action-btn" style="flex:1; background:linear-gradient(135deg,#0284c7,#0369a1);">📄 View / Print PDF</a>' +
+					'<a href="' + waUrl + '" target="_blank" rel="noopener" class="tc-card-action-btn" style="flex:1; background:linear-gradient(135deg,#16a34a,#15803d);">💬 Confirm on WA</a>' +
+				'</div>';
+
+			messagesContainer.appendChild(card);
+			scrollToBottom(true);
+		}
+
+		function renderTempleProtocolCard(data) {
+			if (!data || !data.temple_name) return;
+			const card = document.createElement('div');
+			card.className = 'tc-temple-card';
+
+			let aartiHtml = '';
+			if (data.aarti_schedule && typeof data.aarti_schedule === 'object') {
+				aartiHtml = '<div style="margin:6px 0; font-size:11px; background:#fffbeb; padding:6px 8px; border-radius:8px; border:1px solid #fef3c7;"><strong>⏰ Aarti Schedule:</strong><ul style="margin:4px 0 0 16px; padding:0;">';
+				for (const [k, v] of Object.entries(data.aarti_schedule)) {
+					aartiHtml += '<li><strong>' + escapeHtml(k) + ':</strong> ' + escapeHtml(v) + '</li>';
+				}
+				aartiHtml += '</ul></div>';
+			}
+
+			card.innerHTML =
+				'<div class="tc-card-header">' +
+					'<span class="tc-card-title">🛕 ' + escapeHtml(data.temple_name) + '</span>' +
+					'<span class="tc-card-badge">Verified Protocol</span>' +
+				'</div>' +
+				aartiHtml +
+				(data.sparsh_darshan_rules ? '<div style="margin:4px 0; font-size:11.5px; color:#334155;"><strong>👗 Dress Code & Sparsh:</strong> ' + escapeHtml(data.sparsh_darshan_rules) + '</div>' : '') +
+				(data.sugam_darshan_pass ? '<div style="margin:4px 0; font-size:11.5px; color:#065f46;"><strong>🎟️ VIP Sugam Entry:</strong> ' + escapeHtml(data.sugam_darshan_pass) + '</div>' : '') +
+				(data.wheelchair_facility ? '<div style="margin:4px 0; font-size:11.5px; color:#1e293b;"><strong>♿ Accessibility:</strong> ' + escapeHtml(data.wheelchair_facility) + '</div>' : '');
+
+			messagesContainer.appendChild(card);
+			scrollToBottom(true);
 		}
 
 		function scrollToBottom(force) {

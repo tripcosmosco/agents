@@ -3,7 +3,7 @@
  * Plugin Name: TripCosmos Agents
  * Plugin URI: https://tripcosmos.co
  * Description: Unified multi-provider AI conversational agent layer for TripCosmos.co, featuring customer chat widget, master control console, automated CRM/WhatsApp plumbings, and failover safety guardrails.
- * Version: 1.2.0
+ * Version: 1.3.0
  * Author: TripCosmos Team
  * Author URI: https://tripcosmos.co
  * Text Domain: tripcosmos-agents
@@ -19,7 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // 1. Plugin Constants
-define( 'TC_AGENTS_VERSION', '1.2.0' );
+define( 'TC_AGENTS_VERSION', '1.3.0' );
 define( 'TC_AGENTS_FILE', __FILE__ );
 define( 'TC_AGENTS_PATH', plugin_dir_path( __FILE__ ) );
 define( 'TC_AGENTS_URL', plugin_dir_url( __FILE__ ) );
@@ -50,6 +50,8 @@ require_once TC_AGENTS_PATH . 'includes/orchestrator/class-tc-agent-deal-math.ph
 require_once TC_AGENTS_PATH . 'includes/orchestrator/class-tc-agent-memory.php';
 require_once TC_AGENTS_PATH . 'includes/orchestrator/class-tc-agent-knowledge.php';
 require_once TC_AGENTS_PATH . 'includes/orchestrator/class-tc-agent-sequences.php';
+require_once TC_AGENTS_PATH . 'includes/orchestrator/class-tc-cab-fare-engine.php';
+require_once TC_AGENTS_PATH . 'includes/orchestrator/class-tc-itinerary-generator.php';
 require_once TC_AGENTS_PATH . 'includes/orchestrator/class-tc-agent-tools.php';
 require_once TC_AGENTS_PATH . 'includes/orchestrator/class-tc-agent-orchestrator.php';
 
@@ -108,6 +110,9 @@ add_action( 'plugins_loaded', function() {
 
 	// Initialize REST Routes
 	add_action( 'rest_api_init', array( 'TC_Agents_REST', 'register_routes' ) );
+
+	// Initialize Itinerary Renderer
+	add_action( 'template_redirect', array( 'TC_Itinerary_Generator', 'maybe_render_itinerary' ) );
 
 	// Initialize GitHub-based Updater
 	TC_Agents_GitHub_Updater::init();

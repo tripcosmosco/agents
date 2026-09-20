@@ -131,6 +131,25 @@ class TC_Agent_Orchestrator {
 			}
 		}
 
+		// Multilingual Pilgrim Adaptation:
+		$lang = sanitize_text_field( $metadata['language'] ?? 'en' );
+		$lang_names = array(
+			'hi' => 'Hindi (हिन्दी)',
+			'gu' => 'Gujarati (ગુજરાતી)',
+			'te' => 'Telugu (తెలుగు)',
+			'bn' => 'Bengali (বাংলা)',
+			'mr' => 'Marathi (मराठी)',
+			'ta' => 'Tamil (தமிழ்)',
+		);
+		if ( ! empty( $lang ) && 'en' !== $lang && isset( $lang_names[ $lang ] ) ) {
+			$system_prompt .= "\n\n--- MULTILINGUAL PILGRIM DIRECTIVE ---";
+			$system_prompt .= "\nThe traveler has selected to communicate in {$lang_names[$lang]}.";
+			$system_prompt .= "\nReply fluently, respectfully, and warmly in {$lang_names[$lang]} using its native script.";
+			$system_prompt .= "\nMaintain devotional warmth ('जय काशी विश्वनाथ', 'जय श्री राम', 'हर हर महादेव'), spiritual clarity, and high hospitality.";
+			$system_prompt .= "\nKeep key vehicle types ('Innova Crysta', 'Swift Dzire', 'Ertiga', 'Tempo Traveller'), train stations ('Varanasi Junction BSB', 'Pandit Deen Dayal Upadhyaya DDU'), flight codes ('VNS Babatpur', 'AYJ Ayodhya'), and currency pricing in clearly readable numbers (e.g. ₹3,500).";
+			$system_prompt .= "\n-----------------------------------------\n";
+		}
+
 		// 7. Assemble Context Messages for LLM
 		$allowed_tools    = ! empty( $persona['allowed_tools'] ) ? json_decode( $persona['allowed_tools'], true ) : array();
 		$tool_definitions = self::filter_tools( TC_Agent_Tools::get_definitions(), $allowed_tools );
@@ -399,6 +418,33 @@ class TC_Agent_Orchestrator {
 	}
 
 	/**
+	 * Retrieve recent conversation turns for context assembly.
+	 *
+	 * @param int $conversation_id
+	 * @param int $limit
+	 * @return array
+	 */
+	public static function get_recent_messages( $conversation_id, $limit = 10 ) {
+		global $wpdb;
+		$table = $wpdb->prefix . 'tc_agent_messages';
+		$rows  = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT role, content, tool_calls, tool_results FROM $table WHERE conversation_id = %d ORDER BY id DESC LIMIT %d",
+				(int) $conversation_id,
+				(int) $limit
+			),
+			ARRAY_A
+		);
+
+		if ( empty( $rows ) ) {
+			return array();
+		}
+
+		// Reverse to chronological order (oldest to newest)
+		return array_reverse( $rows );
+	}
+
+	/**
 	 * Update conversation status.
 	 */
 	public static function update_conversation_status( $conversation_id, $status ) {
@@ -468,5 +514,28 @@ class TC_Agent_Orchestrator {
 		);
 
 		return (int) $wpdb->insert_id;
+	}
+
+	/**
+	 * Filter tool definitions according to persona configuration.
+	 *
+	 * @param array $all_tools     All registered tool definitions.
+	 * @param array $allowed_slugs Allowed tool function names.
+	 * @return array
+	 */
+	public static function filter_tools( array $all_tools, array $allowed_slugs = array() ) {
+		if ( empty( $allowed_slugs ) ) {
+			return $all_tools;
+		}
+
+		$filtered = array();
+		foreach ( $all_tools as $tool ) {
+			$name = $tool['function']['name'] ?? '';
+			if ( in_array( $name, $allowed_slugs, true ) ) {
+				$filtered[] = $tool;
+			}
+		}
+
+		return ! empty( $filtered ) ? $filtered : $all_tools;
 	}
 }
