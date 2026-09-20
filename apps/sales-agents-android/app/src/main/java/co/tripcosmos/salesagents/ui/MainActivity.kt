@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -113,7 +114,7 @@ fun MainAppContainer(
     callDuration: Long,
     onDismissPostCall: () -> Unit
 ) {
-    var currentTab by remember { mutableStateOf(0) } // 0 = Pipeline, 1 = Settings
+    var currentTab by remember { mutableStateOf(0) } // 0 = Pipeline, 1 = Contacts, 2 = Calls, 3 = Settings
 
     Scaffold(
         bottomBar = {
@@ -133,6 +134,30 @@ fun MainAppContainer(
                 NavigationBarItem(
                     selected = currentTab == 1,
                     onClick = { currentTab = 1 },
+                    icon = { Icon(Icons.Default.Person, contentDescription = "Contacts") },
+                    label = { Text("Contacts") },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = OrangePrimary,
+                        selectedTextColor = OrangePrimary,
+                        indicatorColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
+                )
+
+                NavigationBarItem(
+                    selected = currentTab == 2,
+                    onClick = { currentTab = 2 },
+                    icon = { Icon(Icons.Default.Call, contentDescription = "Call History") },
+                    label = { Text("Calls") },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = OrangePrimary,
+                        selectedTextColor = OrangePrimary,
+                        indicatorColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
+                )
+
+                NavigationBarItem(
+                    selected = currentTab == 3,
+                    onClick = { currentTab = 3 },
                     icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") },
                     label = { Text("Settings") },
                     colors = NavigationBarItemDefaults.colors(
@@ -151,7 +176,9 @@ fun MainAppContainer(
         ) {
             when (currentTab) {
                 0 -> PipelineScreen(onLeadSelected = { /* open detail */ })
-                1 -> SettingsScreen()
+                1 -> co.tripcosmos.salesagents.ui.screens.ContactsScreen()
+                2 -> co.tripcosmos.salesagents.ui.screens.CallHistoryScreen()
+                3 -> SettingsScreen()
             }
 
             // Post-Call Fast Action Dialog (triggers automatically when call terminates)
