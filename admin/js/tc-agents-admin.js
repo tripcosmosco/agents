@@ -419,12 +419,15 @@
 		const $select = $('#tc_agents_aipuffer_bot_id');
 		const $manual = $('#tc_agents_aipuffer_bot_id_manual');
 
+		const $status = $('#tc-aipuffer-bot-status');
+
 		if (!$syncBtn.length) return;
 
 		$syncBtn.on('click', function(e) {
 			e.preventDefault();
 			const originalHtml = $syncBtn.html();
 			$syncBtn.prop('disabled', true).html('<span class="dashicons dashicons-update spin"></span> Syncing...');
+			$status.hide();
 
 			$.ajax({
 				url: tcAgentsAdmin.ajaxUrl,
@@ -437,7 +440,7 @@
 				},
 				success: function(res) {
 					$syncBtn.prop('disabled', false).html(originalHtml);
-					if (res.success && res.data && res.data.bots) {
+					if (res.success && res.data && res.data.bots && res.data.bots.length) {
 						const currentVal = $select.val() || $manual.val();
 						$select.empty().append('<option value="">— Select Remote/Local Brain —</option>');
 						$.each(res.data.bots, function(i, b) {
@@ -446,14 +449,22 @@
 						});
 						$select.show();
 						$manual.hide();
-						alert(res.data.message || 'Synced bots successfully!');
+						$toggleBtn.text('Manual ID');
+						$status.html('<span style="color:#10b981;font-weight:600;">✓ ' + (res.data.message || 'Synced bots successfully!') + '</span>').slideDown(200);
 					} else {
-						alert('Bot discovery result: ' + (res.data ? res.data.message : 'No bots detected.'));
+						// Standard AIPKit host detected - auto-reveal manual ID field with helpful instructions
+						$select.hide();
+						$manual.show().focus();
+						$toggleBtn.text('Dropdown');
+						$status.html('<span style="color:#d97706;font-weight:600;">ℹ️ Connected to AIPKit host. Standard AIPKit keeps bot catalogs protected for security. Please look at your <strong>AI Puffer - Dashboard &rarr; Chatbots</strong> tab to find your Chatbot ID (e.g. <code>1</code> or <code>2</code>) and enter it above.</span>').slideDown(200);
 					}
 				},
 				error: function(xhr) {
 					$syncBtn.prop('disabled', false).html(originalHtml);
-					alert('Could not connect to AI Puffer / AIPKit endpoint.');
+					$select.hide();
+					$manual.show().focus();
+					$toggleBtn.text('Dropdown');
+					$status.html('<span style="color:#ef4444;font-weight:600;">⚠️ Could not automatically query bot catalog. Please enter your Bot ID manually above.</span>').slideDown(200);
 				}
 			});
 		});

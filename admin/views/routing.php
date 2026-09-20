@@ -248,7 +248,8 @@ $health_statuses = $router->check_all_health();
 										Manual ID
 									</button>
 								</div>
-								<p class="description">Discovers chatbots from local AI Power CPTs or remote <code>/wp-json/aipkit/v1/chat/list</code><?php echo $ap_synced ? ' (last synced: ' . esc_html( $ap_synced ) . ')' : ''; ?>.</p>
+								<div id="tc-aipuffer-bot-status" style="margin-top:6px; display:none;"></div>
+								<p class="description">Connects directly to AI Power / AIPKit on <code>https://tripcosmos.co</code>. To find your Bot ID, open your <strong>AI Puffer Dashboard &rarr; Chatbots</strong> tab and copy the Bot ID number (e.g. <code>1</code>, <code>2</code>).</p>
 							</td>
 						</tr>
 					</table>

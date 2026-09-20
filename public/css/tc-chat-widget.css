@@ -1586,12 +1586,30 @@
 }
 
 /* ==========================================================================
-   13. Mobile Responsive Full-Screen Dialog
+   13. Mobile Responsive Full-Screen Dialog (< 640px)
    ========================================================================== */
-@media (max-width: 480px) {
+@media (max-width: 640px) {
 	#tc-agent-widget-root {
 		bottom: 16px !important;
 		right: 16px !important;
+	}
+
+	#tc-agent-widget-root.tc-window-open {
+		position: fixed !important;
+		inset: 0 !important;
+		width: 100vw !important;
+		height: 100dvh !important;
+		max-height: 100dvh !important;
+		pointer-events: auto !important;
+		z-index: 2147483647 !important;
+	}
+
+	#tc-agent-widget-root.tc-window-open .tc-widget-fab {
+		display: none !important;
+	}
+
+	#tc-agent-widget-root.tc-window-open .tc-widget-teaser {
+		display: none !important;
 	}
 
 	#tc-agent-widget-root .tc-widget-window {
@@ -1604,6 +1622,53 @@
 		bottom: 0 !important;
 		right: 0 !important;
 		border: none !important;
+		box-shadow: none !important;
+	}
+
+	#tc-agent-widget-root .tc-widget-header {
+		padding: 14px 16px !important;
+		border-radius: 0 !important;
+	}
+
+	#tc-agent-widget-root .tc-lang-picker-bar {
+		overflow-x: auto !important;
+		-webkit-overflow-scrolling: touch !important;
+		scrollbar-width: none !important;
+		padding: 8px 12px !important;
+	}
+	#tc-agent-widget-root .tc-lang-picker-bar::-webkit-scrollbar {
+		display: none !important;
+	}
+	#tc-agent-widget-root .tc-lang-pills {
+		flex-shrink: 0 !important;
+	}
+
+	#tc-agent-widget-root .tc-chat-bubble {
+		max-width: 90% !important;
+		font-size: 13.5px !important;
+	}
+
+	#tc-agent-widget-root .tc-chat-input {
+		font-size: 16px !important; /* Prevents auto-zoom on iOS */
+	}
+
+	#tc-agent-widget-root .tc-chips-container {
+		padding: 4px 0 !important;
+		gap: 6px !important;
+	}
+
+	#tc-agent-widget-root .tc-chip {
+		font-size: 11.5px !important;
+		padding: 6px 12px !important;
+	}
+
+	#tc-agent-widget-root .tc-widget-footer {
+		padding: 6px 4px !important;
+	}
+
+	#tc-agent-widget-root .tc-tab-btn {
+		font-size: 10px !important;
+		padding: 6px 4px !important;
 	}
 
 	#tc-agent-widget-root .tc-widget-teaser {
