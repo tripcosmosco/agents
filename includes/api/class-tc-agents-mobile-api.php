@@ -95,6 +95,17 @@ class TC_Agents_Mobile_API {
 				'permission_callback' => array( __CLASS__, 'verify_token' ),
 			)
 		);
+
+		// 8. Multi-Channel Dispatch (Brevo SMS Driver Dispatch & FluentCRM Sync)
+		register_rest_route(
+			self::NAMESPACE,
+			'/mobile/send-dispatch',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( __CLASS__, 'handle_send_dispatch' ),
+				'permission_callback' => array( __CLASS__, 'verify_token' ),
+			)
+		);
 	}
 
 	/**
@@ -469,15 +480,19 @@ class TC_Agents_Mobile_API {
 		$pax         = max( 1, (int) ( $params['pax'] ?? 2 ) );
 		$name        = sanitize_text_field( $params['customer_name'] ?? 'Traveler' );
 		$dates       = sanitize_text_field( $params['dates'] ?? 'Upcoming Weekend' );
+		$rate_type   = sanitize_text_field( $params['rate_type'] ?? 'b2c' ); // 'b2c' or 'b2b'
 
-		$pricing = 14500;
-		$title   = "3D2N Spiritual Kashi Classical Tour";
+		$retail_pricing = 14500;
+		$net_pricing    = 12000;
+		$title          = "3D2N Spiritual Kashi Classical Tour";
 
 		switch ( $destination ) {
 			case 'ayodhya_day_trip':
-				$title   = "Varanasi to Ayodhya Ram Mandir Same-Day Excursion";
-				$pricing = ( 'luxury' === $tier ) ? 7500 : 4500;
-				$vehicle = ( 'luxury' === $tier ) ? 'Innova Crysta AC (6+1)' : 'Swift Dzire AC';
+				$title          = "Varanasi to Ayodhya Ram Mandir Same-Day Excursion";
+				$retail_pricing = ( 'luxury' === $tier ) ? 7500 : 4500;
+				$net_pricing    = ( 'luxury' === $tier ) ? 6200 : 3700;
+				$vehicle        = ( 'luxury' === $tier ) ? 'Innova Crysta AC (6+1)' : 'Swift Dzire AC';
+
 				$quote = "🚗 *TripCosmos Ayodhya Ram Janmabhoomi Day Excursion*\n\n" .
 						"Namaste {$name} ji! 🙏 Here is your customized private cab quote:\n\n" .
 						"• *Vehicle:* {$vehicle}\n" .
@@ -485,15 +500,27 @@ class TC_Agents_Mobile_API {
 						"• *Travelers:* {$pax} Pax\n" .
 						"• *Inclusions:* Fuel, Highway Tolls, Parking, Driver Allowance.\n" .
 						"• *Sightseeing:* Shri Ram Janmabhoomi Mandir, Hanuman Garhi, Kanak Bhavan, Sarayu Ghat Aarti.\n\n" .
-						"💰 *Total All-Inclusive Fare:* ₹" . number_format( $pricing ) . "\n" .
+						"💰 *Total All-Inclusive Fare:* ₹" . number_format( $retail_pricing ) . "\n" .
 						"🔒 *Token Advance to Block Cab:* ₹1,500 via UPI\n" .
 						"👉 *Instant Booking Link:* https://tripcosmos.co/book?ref=ayodhya-" . time();
+
+				$white_label = "🚗 *Ayodhya Ram Janmabhoomi Private Day Excursion Itinerary*\n\n" .
+						"Guest Name: {$name} | Travelers: {$pax} Pax\n" .
+						"Tour Dates: {$dates}\n\n" .
+						"• *Vehicle:* Dedicated {$vehicle} (Varanasi Pick to Drop)\n" .
+						"• *Sightseeing Covered:* Shri Ram Janmabhoomi Mandir, Hanuman Garhi, Kanak Bhavan, Dashrath Mahal, Sarayu River Evening Aarti.\n" .
+						"• *Inclusions:* Air-conditioned vehicle, all highway tolls, parking charges, verified driver.\n\n" .
+						"💰 *Package Price:* ₹" . number_format( $retail_pricing ) . " All-Inclusive";
 				break;
 
 			case 'varanasi_prayagraj_ayodhya_4d3n':
-				$title   = "4D3N Sacred Triangle (Varanasi, Prayagraj Sangam & Ayodhya)";
-				$pricing = ( 'luxury' === $tier ) ? ( 28000 * max( 1, ceil( $pax / 2 ) ) ) : ( 19500 * max( 1, ceil( $pax / 2 ) ) );
-				$hotel   = ( 'luxury' === $tier ) ? '4-Star Luxury Heritage Hotel' : '3-Star Deluxe Hotel near Ghats';
+				$title          = "4D3N Sacred Triangle (Varanasi, Prayagraj Sangam & Ayodhya)";
+				$multiplier     = max( 1, ceil( $pax / 2 ) );
+				$retail_pricing = ( 'luxury' === $tier ) ? ( 28000 * $multiplier ) : ( 19500 * $multiplier );
+				$net_pricing    = ( 'luxury' === $tier ) ? ( 23500 * $multiplier ) : ( 16000 * $multiplier );
+				$hotel          = ( 'luxury' === $tier ) ? '4-Star Luxury Heritage Hotel' : '3-Star Deluxe Hotel near Ghats';
+				$vehicle        = ( 'luxury' === $tier ) ? 'Innova Crysta AC' : 'Dedicated AC Sedan';
+
 				$quote = "🌟 *TripCosmos 4D3N Sacred Triangle Pilgrimage Tour*\n\n" .
 						"Namaste {$name} ji! 🙏 Here is your comprehensive spiritual itinerary:\n\n" .
 						"• *Day 1:* Varanasi Arrival, Hotel Check-in, Dashashwamedh Ghat Evening Ganga Aarti with Reserved Boat Seating.\n" .
@@ -501,40 +528,105 @@ class TC_Agents_Mobile_API {
 						"• *Day 3:* Early Drive to Prayagraj, Triveni Sangam Holy Snan & Boat, Bade Hanuman Mandir, Anand Bhavan, Drive to Ayodhya & Overnight Hotel.\n" .
 						"• *Day 4:* Ayodhya Shri Ram Janmabhoomi VIP Darshan, Hanuman Garhi, Sarayu Ghat Aarti, Return to Varanasi Airport Drop.\n\n" .
 						"🏨 *Hotel:* {$hotel} with Daily Breakfast\n" .
-						"🚗 *Vehicle:* Dedicated AC Sedan / Innova throughout\n" .
-						"💰 *Total Package Price ({$pax} Pax):* ₹" . number_format( $pricing ) . "\n" .
+						"🚗 *Vehicle:* {$vehicle} throughout\n" .
+						"💰 *Total Package Price ({$pax} Pax):* ₹" . number_format( $retail_pricing ) . "\n" .
 						"🔒 *Token Advance to Secure Booking:* ₹3,000 via UPI / Card\n" .
 						"👉 *Official Booking Link:* https://tripcosmos.co/book?ref=triangle-" . time();
+
+				$white_label = "🌟 *4D3N Sacred Triangle Pilgrimage Itinerary*\n" .
+						"(Varanasi • Prayagraj Sangam • Ayodhya Ram Mandir)\n\n" .
+						"Guest: {$name} | Travelers: {$pax} Pax | Dates: {$dates}\n\n" .
+						"• *Day 1:* Varanasi Arrival, Ghat transfer, Evening Ganga Aarti boat cruise with reserved seating.\n" .
+						"• *Day 2:* Sunrise boat cruise, Kashi Vishwanath VIP Darshan Pass, Annapurna Temple, Kaal Bhairav, Sarnath Tour.\n" .
+						"• *Day 3:* Triveni Sangam Holy Snan at Prayagraj, Bade Hanuman Mandir, Anand Bhavan, Drive to Ayodhya & Overnight stay.\n" .
+						"• *Day 4:* Ayodhya Shri Ram Janmabhoomi Darshan, Hanuman Garhi, Sarayu Aarti, Return to Varanasi Drop.\n\n" .
+						"🏨 *Accommodation:* {$hotel} (with Breakfast)\n" .
+						"🚗 *Transportation:* Private {$vehicle}\n" .
+						"💰 *Package Price ({$pax} Pax):* ₹" . number_format( $retail_pricing );
 				break;
 
 			case 'varanasi_3d2n':
 			default:
-				$title   = "3D2N Spiritual Kashi Tour";
-				$pricing = ( 'luxury' === $tier ) ? ( 22500 * max( 1, ceil( $pax / 2 ) ) ) : ( 14500 * max( 1, ceil( $pax / 2 ) ) );
-				$hotel   = ( 'luxury' === $tier ) ? '4-Star Premium Hotel with Swimming Pool' : '3-Star Deluxe Hotel with Breakfast near Ghats';
+				$title          = "3D2N Spiritual Kashi Tour";
+				$multiplier     = max( 1, ceil( $pax / 2 ) );
+				$retail_pricing = ( 'luxury' === $tier ) ? ( 22500 * $multiplier ) : ( 14500 * $multiplier );
+				$net_pricing    = ( 'luxury' === $tier ) ? ( 18500 * $multiplier ) : ( 12000 * $multiplier );
+				$hotel          = ( 'luxury' === $tier ) ? '4-Star Premium Hotel with Swimming Pool' : '3-Star Deluxe Hotel with Breakfast near Ghats';
+				$vehicle        = ( 'luxury' === $tier ) ? 'Innova Crysta AC' : 'Dedicated AC Sedan';
+
 				$quote = "🌟 *TripCosmos 3D2N Spiritual Varanasi Pilgrimage*\n\n" .
 						"Namaste {$name} ji! 🙏 Here is your complete private package itinerary:\n\n" .
 						"• *Day 1:* Airport/Station Pickup, Hotel Check-in, Evening Ganga Aarti VIP Boat Cruise at Dashashwamedh Ghat.\n" .
 						"• *Day 2:* Sunrise Morning Boat Ride, Kashi Vishwanath VIP Darshan Pass, Annapurna Temple, Sankat Mochan, BHU, Sarnath Deer Park.\n" .
 						"• *Day 3:* Morning Ghat Walk, Local Banarasi Silk Weaving Tour, Airport Drop.\n\n" .
 						"🏨 *Accommodation:* {$hotel}\n" .
-						"🚗 *Transportation:* Private AC Cab for all days (Pick to Drop)\n" .
+						"🚗 *Transportation:* {$vehicle} for all days (Pick to Drop)\n" .
 						"🚤 *Boating:* Private Ghat Boat Cruise included\n" .
-						"💰 *Total All-Inclusive Package ({$pax} Pax):* ₹" . number_format( $pricing ) . "\n" .
+						"💰 *Total All-Inclusive Package ({$pax} Pax):* ₹" . number_format( $retail_pricing ) . "\n" .
 						"🔒 *Token Advance to Confirm Dates:* ₹2,000 via UPI\n" .
 						"👉 *Official Booking Link:* https://tripcosmos.co/book?ref=varanasi-" . time();
+
+				$white_label = "🌟 *3D2N Spiritual Varanasi Pilgrimage Itinerary*\n\n" .
+						"Guest: {$name} | Travelers: {$pax} Pax | Dates: {$dates}\n\n" .
+						"• *Day 1:* Airport/Station Pickup, Hotel Check-in, Evening Ganga Aarti VIP Boat Cruise.\n" .
+						"• *Day 2:* Sunrise Ganga Boat Ride, Kashi Vishwanath VIP Darshan, Annapurna Temple, Sankat Mochan, Sarnath Tour.\n" .
+						"• *Day 3:* Morning Ghat Heritage Walk, Banarasi Silk Weaving, Airport Drop.\n\n" .
+						"🏨 *Hotel:* {$hotel} (Breakfast included)\n" .
+						"🚗 *Vehicle:* Private {$vehicle}\n" .
+						"💰 *Package Price ({$pax} Pax):* ₹" . number_format( $retail_pricing );
 				break;
+		}
+
+		$commission = $retail_pricing - $net_pricing;
+
+		return new WP_REST_Response(
+			array(
+				'ok'                => true,
+				'destination'       => $destination,
+				'package_title'     => $title,
+				'pax'               => $pax,
+				'rate_type'         => $rate_type,
+				'pricing'           => ( 'b2b' === $rate_type ) ? $net_pricing : $retail_pricing,
+				'retail_price'      => $retail_pricing,
+				'net_price'         => $net_pricing,
+				'commission'        => $commission,
+				'advance_required'  => min( 3000, max( 1500, (int) ( $retail_pricing * 0.15 ) ) ),
+				'quote_text'        => ( 'b2b' === $rate_type ) ? $white_label : $quote,
+				'white_label_quote' => $white_label,
+			),
+			200
+		);
+	}
+
+	/**
+	 * Send Transactional Driver Dispatch / Confirmation via Brevo SMS.
+	 */
+	public static function handle_send_dispatch( WP_REST_Request $request ) {
+		$params   = $request->get_json_params() ?: $request->get_params();
+		$phone    = sanitize_text_field( $params['phone'] ?? '' );
+		$name     = sanitize_text_field( $params['customer_name'] ?? 'Traveler' );
+		$driver   = sanitize_text_field( $params['driver_name'] ?? 'Santosh Yadav' );
+		$cab_no   = sanitize_text_field( $params['vehicle_number'] ?? 'UP65-BT-4219' );
+		$cab_type = sanitize_text_field( $params['vehicle_type'] ?? 'Swift Dzire AC' );
+
+		if ( empty( $phone ) ) {
+			return new WP_REST_Response( array( 'ok' => false, 'error' => 'Phone parameter required' ), 400 );
+		}
+
+		$sms_text = "Namaste {$name} ji! Your TripCosmos cab is dispatched: {$cab_type} ({$cab_no}), Driver: {$driver}. For support, call our Varanasi desk.";
+
+		$sms_sent = false;
+		if ( class_exists( 'TC_Integration_Brevo' ) && TC_Integration_Brevo::is_configured() ) {
+			$res = TC_Integration_Brevo::send_sms( $phone, $sms_text );
+			$sms_sent = ! is_wp_error( $res );
 		}
 
 		return new WP_REST_Response(
 			array(
-				'ok'               => true,
-				'destination'      => $destination,
-				'package_title'    => $title,
-				'pax'              => $pax,
-				'pricing'          => $pricing,
-				'advance_required' => min( 3000, max( 1500, (int) ( $pricing * 0.15 ) ) ),
-				'quote_text'       => $quote,
+				'ok'       => true,
+				'message'  => 'Dispatch alert prepared',
+				'sms_sent' => $sms_sent,
+				'text'     => $sms_text,
 			),
 			200
 		);

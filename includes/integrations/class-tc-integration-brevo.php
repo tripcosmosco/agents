@@ -31,6 +31,57 @@ class TC_Integration_Brevo {
 		return new WP_Error( 'brevo_api_error', $error_msg );
 	}
 	/**
+	 * Send Transactional SMS via Brevo (Driver dispatch / OTP / Booking confirmation).
+	 */
+	public static function send_sms( $to, $content, $sender = 'TRIPCO' ) {
+		if ( ! self::is_configured() ) {
+			return new WP_Error( 'brevo_not_configured', __( 'Brevo API key missing.', 'tripcosmos-agents' ) );
+		}
+		if ( empty( $to ) ) {
+			return new WP_Error( 'brevo_no_recipient', __( 'Recipient missing.', 'tripcosmos-agents' ) );
+		}
+
+		$clean_phone = preg_replace( '/[^\d]/', '', $to );
+		if ( strlen( $clean_phone ) === 10 ) {
+			$clean_phone = '91' . $clean_phone;
+		}
+
+		$res = wp_remote_post(
+			'https://api.brevo.com/v3/transactionalSMS/sms',
+			array(
+				'timeout'   => 12,
+				'sslverify' => true,
+				'headers'   => array(
+					'api-key'      => self::get_api_key(),
+					'Content-Type' => 'application/json',
+					'Accept'       => 'application/json',
+				),
+				'body'      => wp_json_encode(
+					array(
+						'sender'    => substr( $sender, 0, 11 ),
+						'recipient' => '+' . $clean_phone,
+						'content'   => $content,
+						'type'      => 'transactional',
+					)
+				),
+			)
+		);
+
+		if ( is_wp_error( $res ) ) {
+			return $res;
+		}
+
+		$code = wp_remote_retrieve_response_code( $res );
+		$body = json_decode( wp_remote_retrieve_body( $res ), true );
+		if ( $code >= 200 && $code < 300 ) {
+			return array( 'success' => true, 'body' => $body );
+		}
+
+		$error_msg = ! empty( $body['message'] ) ? $body['message'] : sprintf( __( 'Brevo SMS HTTP %d', 'tripcosmos-agents' ), $code );
+		return new WP_Error( 'brevo_sms_error', $error_msg );
+	}
+
+	/**
 	 * Push B2B outreach: send to agency contact, log outcome.
 	 */
 	public static function send_b2b_outreach( $agency ) {
