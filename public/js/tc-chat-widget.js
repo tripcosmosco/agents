@@ -147,10 +147,13 @@
 				trackEvent('tc_agent_chat_opened');
 				scrollToBottom();
 				setTimeout(function() {
-					if (chatInput && quotePanel.style.display !== 'block') {
+					if (chatInput && quotePanel && quotePanel.style.display !== 'block') {
 						chatInput.focus();
 					}
 				}, 100);
+			} else {
+				stopVisualizerLoop();
+				if (isInVoiceCall) endVoiceCall();
 			}
 		}
 
@@ -200,149 +203,7 @@
 			});
 		}
 
-		// 5. Tabs Navigation (Chat vs Quote Form vs AI WebCall vs History)
-		function renderHistoryList() {
-			if (!historyList) return;
-			let history = [];
-			try {
-				history = JSON.parse(sessionStorage.getItem('tc_chat_history')) || [];
-			} catch (e) {}
-
-			if (!history.length) {
-				historyList.innerHTML = '<div class="tc-history-empty"><span style="font-size:28px;">🛕</span><p>No past chat transcripts yet. Ask a question or request an itinerary to start saving your journey history!</p></div>';
-				return;
-			}
-
-			let html = '';
-			history.forEach(function(item, idx) {
-				const isBot = item.role === 'bot' || item.role === 'assistant';
-				const icon = isBot ? '🛕 Trip Guide' : '👤 You';
-				const snippet = (item.text || '').replace(/<[^>]*>?/gm, '').substring(0, 100) + (item.text.length > 100 ? '...' : '');
-				html += '<div class="tc-history-item" data-idx="' + idx + '">';
-				html += '<div class="tc-history-date">' + icon + '</div>';
-				html += '<div class="tc-history-snippet">' + escapeHtml(snippet) + '</div>';
-				html += '</div>';
-			});
-			historyList.innerHTML = html;
-		}
-
-		if (clearHistoryBtn) {
-			clearHistoryBtn.addEventListener('click', function() {
-				sessionStorage.removeItem('tc_chat_history');
-				renderHistoryList();
-				if (restartBtn) restartBtn.click();
-			});
-		}
-
-		const panels = {
-			chat: messagesContainer,
-			quote: quotePanel,
-			voice: voicePanel,
-			history: historyPanel
-		};
-
-		const inputArea = document.getElementById('tc-widget-input-area');
-
-		tabBtns.forEach(function(btn) {
-			btn.addEventListener('click', function() {
-				const tab = btn.getAttribute('data-tab');
-				tabBtns.forEach(function(b) {
-					const isActive = b.getAttribute('data-tab') === tab;
-					b.classList.toggle('active', isActive);
-					b.setAttribute('aria-selected', isActive ? 'true' : 'false');
-				});
-
-				Object.keys(panels).forEach(function(key) {
-					if (panels[key]) {
-						panels[key].classList.toggle('active', key === tab);
-					}
-				});
-
-				if (inputArea) {
-					inputArea.style.display = (tab === 'chat') ? 'block' : 'none';
-				}
-
-				if (tab === 'chat') {
-					scrollToBottom(true);
-				} else if (tab === 'voice') {
-					startVisualizerLoop();
-				} else if (tab === 'history') {
-					renderHistoryList();
-				}
-				trackEvent('tc_agent_' + tab + '_tab_opened');
-			});
-		});
-
-		// 6. Fast Quote Form Lead Capture
-		if (quoteForm) {
-			quoteForm.addEventListener('submit', function(e) {
-				e.preventDefault();
-				const submitBtn = document.getElementById('tc-q-submit');
-				const name  = (document.getElementById('tc-q-name').value || '').trim();
-				const phone = (document.getElementById('tc-q-phone').value || '').trim();
-				const email = (document.getElementById('tc-q-email').value || '').trim();
-				const dest  = (document.getElementById('tc-q-destination').value || '').trim();
-				const month = (document.getElementById('tc-q-month').value || '').trim();
-				const group = (document.getElementById('tc-q-group').value || '').trim();
-
-				if (!name || !phone) return;
-
-				submitBtn.disabled = true;
-				submitBtn.innerText = 'Syncing details...';
-
-				const payload = {
-					name: name,
-					phone: phone,
-					email: email,
-					destination: dest,
-					travel_month: month,
-					group_size: group,
-					session_id: sessionId,
-					page_url: window.location.href,
-					page_title: document.title
-				};
-
-				fetch(tcChatWidget.leadCaptureUrl, {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify(payload)
-				})
-				.then(function(res) {
-					if (!res.ok) throw new Error('Server returned HTTP ' + res.status);
-					return res.json();
-				})
-				.then(function(data) {
-					if (!data.success) {
-						throw new Error(data.message || data.error || 'Submission failed');
-					}
-					trackEvent('tc_agent_lead_captured', {
-						lead_name: name,
-						lead_phone: phone,
-						destination: dest
-					});
-
-					quoteForm.style.display = 'none';
-					quoteSuccess.style.display = 'block';
-
-					setTimeout(function() {
-						// Switch back to chat tab and have the AI greet the user by name!
-						const chatTabBtn = document.querySelector('#tc-agent-widget-root .tc-tab-btn[data-tab="chat"]');
-						if (chatTabBtn) chatTabBtn.click();
-
-						const followUpPrompt = "Namaste " + name + "! I have logged your inquiry for " + (dest || "your Varanasi & spiritual circuit tour") + " for " + (month || "upcoming dates") + ". Here is what we can arrange for you:";
-						appendMessage('bot', followUpPrompt);
-						saveToHistory('bot', followUpPrompt);
-					}, 2200);
-				})
-				.catch(function(err) {
-					submitBtn.disabled = false;
-					submitBtn.innerText = '⚡ Get Custom Itinerary & Pricing';
-					alert(err.message || 'Connection error. Please try again or reach out on WhatsApp.');
-				});
-			});
-		}
-
-		// 7. Voice Input (Web Speech Recognition)
+		// 5. Voice Input (Web Speech Recognition)
 		if (micBtn) {
 			const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 			if (!SpeechRecognition) {
@@ -397,6 +258,17 @@
 		let voiceRecInstance = null;
 		let animFrameId = null;
 		let wavePhase = 0;
+
+		function stopVisualizerLoop() {
+			if (animFrameId) {
+				cancelAnimationFrame(animFrameId);
+				animFrameId = null;
+			}
+			if (voiceCanvas) {
+				const ctx = voiceCanvas.getContext('2d');
+				if (ctx) ctx.clearRect(0, 0, voiceCanvas.width, voiceCanvas.height);
+			}
+		}
 
 		function startVisualizerLoop() {
 			if (!voiceCanvas) return;
@@ -527,6 +399,7 @@
 			if (window.speechSynthesis) {
 				window.speechSynthesis.cancel();
 			}
+			stopVisualizerLoop();
 			trackEvent('tc_agent_webcall_ended');
 		}
 
@@ -762,17 +635,21 @@
 			if (tabId === 'chat') {
 				if (messagesContainer) messagesContainer.classList.add('active');
 				if (inputArea) inputArea.style.display = 'block';
+				stopVisualizerLoop();
 				scrollToBottom();
 				if (chatInput) chatInput.focus();
 			} else if (tabId === 'quote') {
 				if (quotePanel) quotePanel.classList.add('active');
 				if (inputArea) inputArea.style.display = 'none';
+				stopVisualizerLoop();
 			} else if (tabId === 'voice') {
 				if (voicePanel) voicePanel.classList.add('active');
 				if (inputArea) inputArea.style.display = 'none';
+				startVisualizerLoop();
 			} else if (tabId === 'history') {
 				if (historyPanel) historyPanel.classList.add('active');
 				if (inputArea) inputArea.style.display = 'none';
+				stopVisualizerLoop();
 				renderHistoryPanel();
 			}
 		}
@@ -810,11 +687,29 @@
 				renderHistoryPanel();
 				const greeting = tcChatWidget.greeting || 'Namaste! How can I assist you today?';
 				messagesContainer.innerHTML = '<div class="tc-chat-bubble tc-bubble-bot"><div class="tc-bubble-text">' + escapeHtml(greeting).replace(/\n/g, '<br />') + '</div></div>';
+				if (starterChips) {
+					messagesContainer.appendChild(starterChips);
+					starterChips.style.display = 'flex';
+				}
 			});
 		}
 
 		// 10. Send Message Flow with Streaming & Context
+		let isSending = false;
+		const chatSubmitBtn = chatForm ? chatForm.querySelector('button[type="submit"]') : null;
+
+		function setSendingState(sending) {
+			isSending = sending;
+			if (chatInput) chatInput.disabled = sending;
+			if (chatSubmitBtn) chatSubmitBtn.disabled = sending;
+			if (micBtn) micBtn.disabled = sending;
+			if (!sending && chatInput) chatInput.focus();
+		}
+
 		function sendMessage(text) {
+			if (isSending) return;
+			setSendingState(true);
+
 			// Auto-detect phone / email on client side for immediate tracking and 1-click call option
 			const phoneMatch = text.match(/(?:\+91|91|0)?[6-9]\d{9}|\+?[0-9]{8,15}/);
 			if (phoneMatch) {
@@ -888,6 +783,7 @@
 					function readStream() {
 						return reader.read().then(function(result) {
 							if (result.done) {
+								setSendingState(false);
 								if (fullReply) saveToHistory('bot', fullReply);
 								return;
 							}
@@ -910,6 +806,7 @@
 											textDiv.innerHTML = formatMarkdown(fullReply);
 											scrollToBottom(false);
 										} else if (event.type === 'done') {
+											setSendingState(false);
 											scrollToBottom(true);
 											if (event.handoff && event.handoff.whatsapp_url) {
 												renderHandoffCta(event.handoff.whatsapp_url);
@@ -934,6 +831,7 @@
 												});
 											}
 										} else if (event.type === 'error') {
+											setSendingState(false);
 											textDiv.innerHTML = escapeHtml(event.error || 'Agent service is paused.');
 											scrollToBottom(true);
 										}
@@ -947,6 +845,7 @@
 				} else {
 					// Fallback to standard JSON
 					return response.json().then(function(data) {
+						setSendingState(false);
 						if (data.reply) {
 							textDiv.innerHTML = formatMarkdown(data.reply);
 							saveToHistory('bot', data.reply);
@@ -974,7 +873,8 @@
 				}
 			})
 			.catch(function(err) {
-				textDiv.innerHTML = 'Our expedition specialist is ready on WhatsApp for immediate custom planning.';
+				setSendingState(false);
+				textDiv.innerHTML = '<span style="color:#b91c1c; font-weight:600;">⚠️ Connection issue.</span> Our expedition specialist is ready on WhatsApp for immediate custom planning.';
 				renderHandoffCta();
 			});
 		}
@@ -1071,26 +971,23 @@
 		}
 
 		function renderItineraryCard(data) {
-			if (!data || !data.destination) return;
+			if (!data || !data.view_url) return;
 			const card = document.createElement('div');
 			card.className = 'tc-itinerary-card';
 
-			const viewUrl = data.view_url || '#';
-			const waUrl = data.whatsapp_url || ('https://wa.me/' + (tcChatWidget.whatsappNumber || '919876543210'));
+			const waNumber = tcChatWidget.whatsappNumber || '919876543210';
+			const waMsg = 'Namaste TripCosmos! I have reviewed my tour itinerary (' + (data.itinerary_id || '') + ' - ' + (data.summary || '') + '). I would like to proceed with booking.';
+			const waUrl = 'https://wa.me/' + waNumber + '?text=' + encodeURIComponent(waMsg);
 
 			card.innerHTML =
-				'<div class="tc-card-header">' +
-					'<span class="tc-card-title">🛕 ' + escapeHtml(data.destination) + '</span>' +
-					'<span class="tc-card-badge">Official Document</span>' +
-				'</div>' +
-				'<div class="tc-fare-amount">' + escapeHtml(data.total_fare || 'Personalized Pricing') + ' <span>for ' + escapeHtml(data.pax || 'Guests') + '</span></div>' +
-				'<div class="tc-card-grid">' +
-					'<div class="tc-card-stat"><div class="tc-card-stat-label">Dedicated Vehicle</div><div class="tc-card-stat-val">' + escapeHtml(data.vehicle || 'AC Cab Included') + '</div></div>' +
-					'<div class="tc-card-stat"><div class="tc-card-stat-label">Duration</div><div class="tc-card-stat-val">' + escapeHtml(data.duration || 'Flexible') + '</div></div>' +
-				'</div>' +
-				'<div style="display:flex; gap:6px; margin-top:8px;">' +
-					'<a href="' + viewUrl + '" target="_blank" rel="noopener" class="tc-card-action-btn" style="flex:1; background:linear-gradient(135deg,#0284c7,#0369a1);">📄 View / Print PDF</a>' +
-					'<a href="' + waUrl + '" target="_blank" rel="noopener" class="tc-card-action-btn" style="flex:1; background:linear-gradient(135deg,#16a34a,#15803d);">💬 Confirm on WA</a>' +
+				'<div class="tc-itin-badge">📜 OFFICIAL TRIPCOSMOS ITINERARY</div>' +
+				'<div class="tc-itin-title">🛕 ' + escapeHtml(data.summary || 'Custom Spiritual Circuit Itinerary') + '</div>' +
+				'<div class="tc-itin-meta"><strong>Reference ID:</strong> <code>' + escapeHtml(data.itinerary_id || '') + '</code></div>' +
+				(data.total_fare ? '<div class="tc-itin-meta"><strong>Estimated Package / Cab Fare:</strong> ' + escapeHtml(data.total_fare) + '</div>' : '') +
+				(data.vehicle ? '<div class="tc-itin-meta"><strong>Allocated Vehicle:</strong> ' + escapeHtml(data.vehicle) + '</div>' : '') +
+				'<div class="tc-itin-actions">' +
+					'<a href="' + escapeHtml(data.view_url) + '" target="_blank" rel="noopener" class="tc-itin-btn-view">📄 View & Print Itinerary</a>' +
+					'<a href="' + waUrl + '" target="_blank" rel="noopener" class="tc-itin-btn-wa">💬 Confirm via WhatsApp</a>' +
 				'</div>';
 
 			messagesContainer.appendChild(card);
@@ -1102,21 +999,10 @@
 			const card = document.createElement('div');
 			card.className = 'tc-temple-card';
 
-			let aartiHtml = '';
-			if (data.aarti_schedule && typeof data.aarti_schedule === 'object') {
-				aartiHtml = '<div style="margin:6px 0; font-size:11px; background:#fffbeb; padding:6px 8px; border-radius:8px; border:1px solid #fef3c7;"><strong>⏰ Aarti Schedule:</strong><ul style="margin:4px 0 0 16px; padding:0;">';
-				for (const [k, v] of Object.entries(data.aarti_schedule)) {
-					aartiHtml += '<li><strong>' + escapeHtml(k) + ':</strong> ' + escapeHtml(v) + '</li>';
-				}
-				aartiHtml += '</ul></div>';
-			}
-
 			card.innerHTML =
-				'<div class="tc-card-header">' +
-					'<span class="tc-card-title">🛕 ' + escapeHtml(data.temple_name) + '</span>' +
-					'<span class="tc-card-badge">Verified Protocol</span>' +
-				'</div>' +
-				aartiHtml +
+				'<div class="tc-temple-header">🛕 ' + escapeHtml(data.temple_name) + ' Protocol</div>' +
+				'<div style="margin:4px 0; font-size:11.5px; color:#475569;"><strong>⏱️ Timings:</strong> ' + escapeHtml(data.timings || 'Open for Darshan') + '</div>' +
+				'<div style="margin:4px 0; font-size:11.5px; color:#475569;"><strong>🕉️ Prime Aarti:</strong> ' + escapeHtml(data.mangala_aarti || 'Check schedule') + '</div>' +
 				(data.sparsh_darshan_rules ? '<div style="margin:4px 0; font-size:11.5px; color:#334155;"><strong>👗 Dress Code & Sparsh:</strong> ' + escapeHtml(data.sparsh_darshan_rules) + '</div>' : '') +
 				(data.sugam_darshan_pass ? '<div style="margin:4px 0; font-size:11.5px; color:#065f46;"><strong>🎟️ VIP Sugam Entry:</strong> ' + escapeHtml(data.sugam_darshan_pass) + '</div>' : '') +
 				(data.wheelchair_facility ? '<div style="margin:4px 0; font-size:11.5px; color:#1e293b;"><strong>♿ Accessibility:</strong> ' + escapeHtml(data.wheelchair_facility) + '</div>' : '');
@@ -1160,8 +1046,8 @@
 			safe = safe.replace(/^###\s+(.*)$/gm, '<h5 class="tc-md-h5">$1</h5>');
 			safe = safe.replace(/^##\s+(.*)$/gm, '<h4 class="tc-md-h4">$1</h4>');
 
-			// Links: [text](url)
-			safe = safe.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1 &nearr;</a>');
+			// Links: [text](url) - support http, https, relative (/), tel:, and mailto:
+			safe = safe.replace(/\[([^\]]+)\]\(((?:https?:\/\/|\/|tel:|mailto:)[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1 &nearr;</a>');
 
 			// Process lists and paragraphs line by line to prevent swallowing paragraphs
 			const lines = safe.split('\n');
@@ -1198,6 +1084,8 @@
 					}
 					if (line.trim().length > 0) {
 						out.push(line + '<br />');
+					} else {
+						out.push('<div class="tc-md-spacer"></div>');
 					}
 				}
 			}
@@ -1223,6 +1111,7 @@
 				const history = JSON.parse(sessionStorage.getItem('tc_chat_history'));
 				if (Array.isArray(history) && history.length > 0) {
 					if (starterChips) starterChips.style.display = 'none';
+					messagesContainer.innerHTML = '';
 					history.forEach(function(item) {
 						appendMessage(item.role, item.text);
 					});

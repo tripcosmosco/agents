@@ -96,6 +96,21 @@ if ( '0' === $preserve_data ) {
 		'tc_agents_launcher_teaser_text',
 		'tc_agents_discount_ceiling',
 		'tc_agents_mobile_api_token',
+		'tc_agents_vault',
+		'tc_agents_aipuffer_base_url',
+		'tc_agents_aipuffer_bots_cache',
+		'tc_agents_aipuffer_bots_synced_at',
+		'tc_agents_omniroute_api_key',
+		'tc_agents_omniroute_model',
+		'tc_agents_omniroute_base_url',
+		'tc_agents_vmstudio_api_key',
+		'tc_agents_vmstudio_model',
+		'tc_agents_vmstudio_base_url',
+		'tc_agents_gateway_models_cache',
+		'tc_agents_gateway_models_synced_at',
+		'tc_agents_b2b_last_import',
+		'tc_agents_models_last_sync',
+		'tc_agents_vector_dimensions',
 	);
 
 	foreach ( $options as $opt ) {

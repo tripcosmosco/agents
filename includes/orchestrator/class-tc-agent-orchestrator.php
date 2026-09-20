@@ -161,13 +161,15 @@ class TC_Agent_Orchestrator {
 			),
 		);
 
-		// Fetch past turns (last 10 messages)
+		// Fetch past turns (last 10 conversational dialogue turns)
 		$history = self::get_recent_messages( $conversation['id'], 10 );
 		foreach ( $history as $h ) {
-			$messages[] = array(
-				'role'    => $h['role'],
-				'content' => $h['content'],
-			);
+			if ( in_array( $h['role'], array( 'user', 'assistant' ), true ) && '' !== trim( (string) $h['content'] ) ) {
+				$messages[] = array(
+					'role'    => $h['role'],
+					'content' => $h['content'],
+				);
+			}
 		}
 
 		// Options
@@ -429,7 +431,7 @@ class TC_Agent_Orchestrator {
 		$table = $wpdb->prefix . 'tc_agent_messages';
 		$rows  = $wpdb->get_results(
 			$wpdb->prepare(
-				"SELECT role, content, tool_calls, tool_results FROM $table WHERE conversation_id = %d ORDER BY id DESC LIMIT %d",
+				"SELECT role, content FROM $table WHERE conversation_id = %d AND role IN ('user', 'assistant') AND content != '' ORDER BY id DESC LIMIT %d",
 				(int) $conversation_id,
 				(int) $limit
 			),

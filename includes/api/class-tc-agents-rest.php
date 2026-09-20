@@ -302,7 +302,7 @@ class TC_Agents_REST {
 
 		$messages = $wpdb->get_results(
 			$wpdb->prepare(
-				"SELECT role, content, provider_used, created_at FROM $table_msg WHERE conversation_id = %d ORDER BY id ASC LIMIT 50",
+				"SELECT role, content, provider_used, created_at FROM $table_msg WHERE conversation_id = %d AND role IN ('user', 'assistant') AND content != '' ORDER BY id ASC LIMIT 50",
 				$convo['id']
 			),
 			ARRAY_A

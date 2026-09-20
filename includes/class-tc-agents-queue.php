@@ -218,11 +218,11 @@ class TC_Agents_Queue {
 					$contact = $payload['contact'];
 					// FluentCRM
 					if ( class_exists( 'TC_Integration_FluentCRM' ) ) {
-						TC_Integration_FluentCRM::create_or_update_contact( $contact );
+						TC_Integration_FluentCRM::sync_lead( $contact );
 					}
 					// TwentyCRM
 					if ( class_exists( 'TC_Integration_TwentyCRM' ) ) {
-						TC_Integration_TwentyCRM::sync_lead( $contact );
+						TC_Integration_TwentyCRM::push_lead( $contact );
 					}
 					// Google Sheets
 					if ( class_exists( 'TC_Integration_Sheets' ) ) {

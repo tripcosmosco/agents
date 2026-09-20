@@ -32,8 +32,8 @@ class TC_Itinerary_Generator {
 		$total_fare  = sanitize_text_field( $args['total_fare'] ?? '₹18,500' );
 		$days_text   = $args['itinerary_text'] ?? '';
 
-		$itinerary_id = 'TC-' . date( 'ymd' ) . '-' . substr( strtoupper( md5( $name . $phone . time() ) ), 0, 5 );
-		$token        = substr( md5( $itinerary_id . NONCE_KEY ), 0, 10 );
+		$salt         = defined( 'NONCE_KEY' ) ? NONCE_KEY : ( defined( 'AUTH_KEY' ) ? AUTH_KEY : 'tc_itinerary_salt' );
+		$token        = substr( md5( $itinerary_id . $salt ), 0, 10 );
 
 		$itinerary_data = array(
 			'id'           => $itinerary_id,

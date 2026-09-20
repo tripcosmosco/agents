@@ -249,6 +249,13 @@ class TC_Integration_FluentCRM {
 	}
 
 	/**
+	 * Defensive alias for sync_lead.
+	 */
+	public static function create_or_update_contact( array $data ) {
+		return self::sync_lead( $data );
+	}
+
+	/**
 	 * Create or update a contact in Fluent CRM with rich metadata and tags.
 	 *
 	 * @param array $data Contact data ['name', 'email', 'phone', 'destination', 'channel', 'score', 'stage', 'requirements']

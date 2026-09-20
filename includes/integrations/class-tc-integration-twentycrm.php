@@ -59,6 +59,13 @@ class TC_Integration_TwentyCRM {
 	}
 
 	/**
+	 * Defensive alias for push_lead.
+	 */
+	public static function sync_lead( array $data ) {
+		return self::push_lead( $data );
+	}
+
+	/**
 	 * Push a new lead to Twenty CRM:
 	 * 1. Creates/Upserts Person (/rest/people)
 	 * 2. Creates Opportunity / Deal (/rest/opportunities)

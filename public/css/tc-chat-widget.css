@@ -560,6 +560,12 @@
 	font-size: 12px !important;
 }
 
+#tc-agent-widget-root .tc-md-spacer {
+	height: 8px !important;
+	display: block !important;
+	content: '' !important;
+}
+
 /* Loading Dots */
 #tc-agent-widget-root .tc-bubble-loading {
 	align-self: flex-start !important;
