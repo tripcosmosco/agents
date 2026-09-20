@@ -652,7 +652,12 @@ class TC_Agents_Admin {
 			// Migrate any retired slugs submitted by stale forms.
 			$map = array( 'omniroute' => 'gateway', 'vmstudio' => 'gateway' );
 			$priority = array_values( array_unique( array_map( function( $s ) use ( $map ) { return $map[ $s ] ?? $s; }, $priority ) ) );
-			if ( empty( $priority ) ) { $priority = array( 'openrouter', 'gateway', 'aipuffer', 'gemini' ); }
+			$canonical_slugs = array( 'aipuffer', 'openrouter', 'gateway', 'gemini' );
+			foreach ( $canonical_slugs as $c_slug ) {
+				if ( ! in_array( $c_slug, $priority, true ) ) {
+					$priority[] = $c_slug;
+				}
+			}
 			update_option( 'tc_agents_provider_priority', $priority );
 			update_option( 'tc_agents_circuit_breaker_threshold', absint( $_POST['circuit_breaker_threshold'] ?? 2 ) );
 			update_option( 'tc_agents_timeout_seconds', absint( $_POST['timeout_seconds'] ?? 8 ) );

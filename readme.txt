@@ -4,7 +4,7 @@ Tags: ai, chatbot, agent, travel, crm, whatsapp, openrouter, gemini, b2b
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 8.0
-Stable tag: 1.4.2
+Stable tag: 1.4.3
 License: Proprietary
 License URI: https://tripcosmos.co
 
@@ -36,6 +36,12 @@ TripCosmos Agents provides TripCosmos.co with a reliable, supervised AI conversa
 5. Connect CRM, WhatsApp, and Voice settings in `Tripcosmos Agents -> Integrations`.
 
 == Changelog ==
+
+= 1.4.3 =
+* Fix: Guaranteed all 4 canonical providers (AI Puffer, OpenRouter, OmniRoute Gateway, Google Gemini) are rendered in Failover Chain Priority (#1 to #4), preventing missing slots when database option was partially populated.
+* Audit: Enhanced AI Puffer (AIPKit) bot discovery with additional REST endpoints (`/wp-json/wpaicg/v1/chatbots` and `/wp-json/aipkit/v1/chatbots`).
+* Audit: Added `get_models()` method to `TC_Provider_AIPuffer` for full integration with background model catalogue sync.
+* Audit: Expanded AI Puffer `chat()` response parser to handle all AI Power/AIPKit response variations including string `message`, `data.message`, and `result`.
 
 = 1.4.2 =
 * Fix: Hardened `TC_Agents_Vault` encryption and decryption with defensive Throwable error boundaries, preventing fatal `ValueError` tag exceptions on PHP 8+.

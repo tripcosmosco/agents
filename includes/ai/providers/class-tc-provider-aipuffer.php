@@ -83,6 +83,15 @@ class TC_Provider_AIPuffer implements TC_AI_Provider_Interface {
 	}
 
 	/**
+	 * Retrieve chatbots/models for live sync across router.
+	 *
+	 * @return array[]
+	 */
+	public function get_models() {
+		return self::discover_bots();
+	}
+
+	/**
 	 * Discover chatbots from local WordPress install or remote AI Puffer/AIPKit endpoint.
 	 * Mirrors pattern from ai-link-genius-pro and vmai-sales-agent.
 	 *
@@ -215,6 +224,8 @@ class TC_Provider_AIPuffer implements TC_AI_Provider_Interface {
 		$endpoints = array(
 			'/wp-json/aipkit/v1/chat/list',
 			'/wp-json/wpaicg/v1/chat/list',
+			'/wp-json/wpaicg/v1/chatbots',
+			'/wp-json/aipkit/v1/chatbots',
 			'/wp-json/aipuffer/v1/bots',
 			'/wp-json/aipuffer/v1/chat/list',
 			'/wp-json/mwai/v1/bots',
@@ -383,7 +394,9 @@ class TC_Provider_AIPuffer implements TC_AI_Provider_Interface {
 			$latency = (int) round( ( microtime( true ) - $start_time ) * 1000 );
 			if ( ! is_wp_error( $response ) && wp_remote_retrieve_response_code( $response ) < 400 ) {
 				$body = json_decode( wp_remote_retrieve_body( $response ), true );
-				$content = $body['reply'] ?? $body['data']['reply'] ?? $body['content'] ?? $body['response'] ?? $body['answer'] ?? $body['text'] ?? $body['choices'][0]['message']['content'] ?? '';
+				$raw_msg = ( isset( $body['message'] ) && is_string( $body['message'] ) ) ? $body['message'] : '';
+				$raw_data_msg = ( isset( $body['data']['message'] ) && is_string( $body['data']['message'] ) ) ? $body['data']['message'] : '';
+				$content = $body['reply'] ?? $body['data']['reply'] ?? $body['content'] ?? $body['response'] ?? $body['answer'] ?? $body['result'] ?? ( $raw_msg ?: $raw_data_msg ) ?? $body['text'] ?? $body['choices'][0]['message']['content'] ?? '';
 				if ( '' !== $content ) {
 					return array( 'content' => $content, 'tool_calls' => $body['choices'][0]['message']['tool_calls'] ?? array(), 'prompt_tokens' => 0, 'completion_tokens' => 0, 'latency_ms' => $latency );
 				}
@@ -448,14 +461,20 @@ class TC_Provider_AIPuffer implements TC_AI_Provider_Interface {
 		// Parse AIPKit/OpenAI response format
 		if ( isset( $body['choices'][0]['message'] ) ) {
 			$choice     = $body['choices'][0]['message'];
-			$content    = $choice['content'] ?? '';
-			$tool_calls = $choice['tool_calls'] ?? array();
+			$content    = is_string( $choice ) ? $choice : ( $choice['content'] ?? '' );
+			$tool_calls = is_array( $choice ) ? ( $choice['tool_calls'] ?? array() ) : array();
 		} elseif ( isset( $body['reply'] ) ) {
 			$content = $body['reply'];
 		} elseif ( isset( $body['data']['reply'] ) ) {
 			$content = $body['data']['reply'];
 		} elseif ( isset( $body['content'] ) ) {
 			$content = $body['content'];
+		} elseif ( isset( $body['result'] ) ) {
+			$content = $body['result'];
+		} elseif ( isset( $body['message'] ) && is_string( $body['message'] ) ) {
+			$content = $body['message'];
+		} elseif ( isset( $body['data']['message'] ) && is_string( $body['data']['message'] ) ) {
+			$content = $body['data']['message'];
 		}
 
 		return array(

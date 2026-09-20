@@ -105,18 +105,25 @@ class TC_AI_Router {
 	 * @return string[]
 	 */
 	public function get_priority_chain() {
-		$chain = get_option( 'tc_agents_provider_priority', array( 'aipuffer', 'openrouter', 'gateway', 'gemini' ) );
+		$chain = get_option( 'tc_agents_provider_priority', self::CANONICAL_SLUGS );
 		if ( ! is_array( $chain ) || empty( $chain ) ) {
-			$chain = array( 'aipuffer', 'openrouter', 'gateway', 'gemini' );
+			$chain = self::CANONICAL_SLUGS;
 		}
 		// Migrate retired slugs (omniroute/vmstudio) to gateway (dedupe, preserve order).
 		$map = array( 'omniroute' => 'gateway', 'vmstudio' => 'gateway' );
 		$out = array();
 		foreach ( $chain as $s ) {
 			$s = $map[ $s ] ?? $s;
-			if ( ! in_array( $s, $out, true ) ) { $out[] = $s; }
+			if ( in_array( $s, self::CANONICAL_SLUGS, true ) && ! in_array( $s, $out, true ) ) {
+				$out[] = $s;
+			}
 		}
-		if ( empty( $out ) ) { $out = array( 'aipuffer', 'openrouter', 'gateway', 'gemini' ); }
+		// Guarantee all 4 canonical providers are present in the failover chain.
+		foreach ( self::CANONICAL_SLUGS as $canonical ) {
+			if ( ! in_array( $canonical, $out, true ) ) {
+				$out[] = $canonical;
+			}
+		}
 		return $out;
 	}
 

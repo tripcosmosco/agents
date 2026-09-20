@@ -82,11 +82,17 @@ $health_statuses = $router->check_all_health();
 
 					<?php
 					$options = array(
+						'aipuffer'   => 'AI Puffer (AIPKit / AI Power Bot Bridge)',
 						'openrouter' => 'OpenRouter (Claude, OpenAI, Mistral)',
 						'gateway'    => 'OmniRoute Gateway (ai.vmstudio.digital / OpenAI-compatible)',
-						'aipuffer'   => 'AI Puffer (AIPKit / AI Power Bot Bridge)',
 						'gemini'     => 'Google Gemini (Native Generative Language API)',
 					);
+					// Always ensure all 4 slots are displayed (#1 to #4)
+					foreach ( array_keys( $options ) as $opt_slug ) {
+						if ( ! in_array( $opt_slug, $priority_chain, true ) ) {
+							$priority_chain[] = $opt_slug;
+						}
+					}
 					?>
 
 					<div class="tc-priority-list">
