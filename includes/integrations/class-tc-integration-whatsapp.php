@@ -36,7 +36,7 @@ class TC_Integration_WhatsApp {
 	 * @return WP_REST_Response
 	 */
 	public static function handle_incoming_webhook( WP_REST_Request $request ) {
-		$secret_configured = get_option( 'tc_agents_whatsapp_webhook_secret', '' );
+		$secret_configured = TC_Agents_Security::webhook_secret( 'whatsapp' );
 
 		// 1. Meta Cloud API / WhatsApp GET verification challenge
 		$hub_mode      = $request->get_param( 'hub_mode' ) ?: $request->get_param( 'hub.mode' );
@@ -44,7 +44,7 @@ class TC_Integration_WhatsApp {
 		$hub_challenge = $request->get_param( 'hub_challenge' ) ?: $request->get_param( 'hub.challenge' );
 
 		if ( 'subscribe' === $hub_mode ) {
-			if ( empty( $secret_configured ) || $hub_token === $secret_configured ) {
+			if ( is_string( $hub_token ) && '' !== $hub_token && hash_equals( $secret_configured, $hub_token ) ) {
 				status_header( 200 );
 				header( 'Content-Type: text/plain; charset=utf-8' );
 				echo sanitize_text_field( (string) $hub_challenge );
@@ -55,7 +55,7 @@ class TC_Integration_WhatsApp {
 
 		$provided_token = $request->get_header( 'x-webhook-secret' ) ?: $request->get_param( 'token' );
 
-		if ( ! empty( $secret_configured ) && $secret_configured !== $provided_token ) {
+		if ( ! is_string( $provided_token ) || '' === $provided_token || ! hash_equals( $secret_configured, $provided_token ) ) {
 			TC_Agents_Logger::log( 'whatsapp_webhook_auth_failed', 'warning', array( 'ip' => $_SERVER['REMOTE_ADDR'] ?? '' ), '', 'whatsapp' );
 			return new WP_REST_Response( array( 'error' => 'Unauthorized' ), 401 );
 		}

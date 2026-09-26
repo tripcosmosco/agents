@@ -468,6 +468,10 @@ class TC_Agents_REST {
 			return new WP_REST_Response( array( 'error' => 'Please provide at least a name and phone number or email.' ), 400 );
 		}
 
+		if ( ! TC_Agents_Security::rate_limit( 'lead_capture_ip', TC_Agents_Security::client_ip(), 20, HOUR_IN_SECONDS ) ) {
+			return new WP_REST_Response( array( 'error' => 'Too many submissions. Please try again later.' ), 429 );
+		}
+
 		$result = TC_Agent_Tools::execute(
 			'sync_lead_crm',
 			array(
@@ -506,6 +510,13 @@ class TC_Agents_REST {
 
 		if ( empty( $phone ) ) {
 			return new WP_REST_Response( array( 'success' => false, 'error' => 'A valid phone number is required.' ), 400 );
+		}
+
+		// This endpoint is public and each call costs money: cap per visitor and per number.
+		$phone_key = preg_replace( '/[^0-9]/', '', $phone );
+		if ( ! TC_Agents_Security::rate_limit( 'trigger_call_ip', TC_Agents_Security::client_ip(), 5, HOUR_IN_SECONDS )
+			|| ! TC_Agents_Security::rate_limit( 'trigger_call_phone', $phone_key, 2, DAY_IN_SECONDS ) ) {
+			return new WP_REST_Response( array( 'success' => false, 'error' => 'Too many call requests. Please try again later or message us on WhatsApp.' ), 429 );
 		}
 
 		$result = TC_Agent_Tools::execute(

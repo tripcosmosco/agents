@@ -3,7 +3,7 @@
  * Plugin Name: TripCosmos Agents
  * Plugin URI: https://tripcosmos.co
  * Description: Unified multi-provider AI conversational agent layer for TripCosmos.co, featuring customer chat widget, master control console, automated CRM/WhatsApp plumbings, and failover safety guardrails.
- * Version: 1.4.5
+ * Version: 1.5.0
  * Author: TripCosmos Team
  * Author URI: https://tripcosmos.co
  * Text Domain: tripcosmos-agents
@@ -19,7 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // 1. Plugin Constants
-define( 'TC_AGENTS_VERSION', '1.4.5' );
+define( 'TC_AGENTS_VERSION', '1.5.0' );
 define( 'TC_AGENTS_FILE', __FILE__ );
 define( 'TC_AGENTS_PATH', plugin_dir_path( __FILE__ ) );
 define( 'TC_AGENTS_URL', plugin_dir_url( __FILE__ ) );
@@ -29,6 +29,7 @@ require_once TC_AGENTS_PATH . 'includes/class-tc-agents-vault.php';
 require_once TC_AGENTS_PATH . 'includes/class-tc-agents-activator.php';
 require_once TC_AGENTS_PATH . 'includes/class-tc-agents-deactivator.php';
 require_once TC_AGENTS_PATH . 'includes/class-tc-agents-logger.php';
+require_once TC_AGENTS_PATH . 'includes/class-tc-agents-security.php';
 require_once TC_AGENTS_PATH . 'includes/class-tc-agents-guardrails.php';
 require_once TC_AGENTS_PATH . 'includes/class-tc-agents-github-updater.php';
 require_once TC_AGENTS_PATH . 'includes/class-tc-agents-queue.php';
@@ -106,7 +107,8 @@ add_action( 'plugins_loaded', function() {
 	} );
 
 	// Initialize Mobile Companion Telephony API
-	TC_Agents_Mobile_API::init();
+	TC_Agents_Security::init();
+		TC_Agents_Mobile_API::init();
 
 	// Initialize REST Routes
 	add_action( 'rest_api_init', array( 'TC_Agents_REST', 'register_routes' ) );

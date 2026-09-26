@@ -37,6 +37,14 @@ TripCosmos Agents provides TripCosmos.co with a reliable, supervised AI conversa
 
 == Changelog ==
 
+= 1.5.0 =
+* Security: Removed the hardcoded default mobile API token. The mobile API now accepts only the site master token, per-agent tokens, or a logged-in administrator, and only via the X-Mobile-Token header.
+* Feature: Per-agent mobile tokens (create and revoke under Integrations > Mobile App Access). Tokens are stored hashed and each call is attributed to its agent.
+* Security: Failed mobile authentication is rate limited per IP.
+* Security: /trigger-call (5 per hour per IP, 2 per day per number) and /lead-capture (20 per hour per IP) are rate limited.
+* Security: The voice and Twenty CRM webhooks now require a shared secret, shown under Integrations. WhatsApp webhook secret checks are now constant-time and no longer open when the secret is empty. Update your voice provider's server secret and the Twenty CRM webhook after upgrading.
+* Fix: /mobile/send-dispatch no longer falls back to a placeholder driver and vehicle, requires all dispatch fields, and reports SMS failure instead of always returning ok.
+
 = 1.4.4 =
 * Fix: Fixed launcher FAB chat button styling glitch where `.tc-status-pulse` was sticking outside the corner radius and hovering awkwardly over the close 'X' button when active.
 * Feature: Implemented proactive sales agent auto-talking and auto-initiation. The agent reaches out proactively after 3.5s or on scroll with an authentic sales greeting, live presence indicator, and interactive action chips ("🛕 4D Tour", "🚗 Cab Fares", "🕉️ VIP Darshan").

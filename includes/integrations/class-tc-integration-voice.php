@@ -134,6 +134,11 @@ class TC_Integration_Voice {
 	 * Handle voice call webhook (transcript and recording update).
 	 */
 	public static function handle_webhook( WP_REST_Request $request ) {
+		if ( ! TC_Agents_Security::webhook_authorized( $request, 'voice' ) ) {
+			TC_Agents_Logger::log( 'voice_webhook_auth_failed', 'warning', array( 'ip' => TC_Agents_Security::client_ip() ), '', 'voice' );
+			return new WP_REST_Response( array( 'error' => 'Unauthorized' ), 401 );
+		}
+
 		$data = $request->get_json_params();
 		if ( empty( $data ) ) {
 			$data = $request->get_params();

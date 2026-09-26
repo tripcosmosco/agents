@@ -225,6 +225,11 @@ class TC_Integration_TwentyCRM {
 	 * Handle inbound webhook from Twenty CRM (updates lead stage).
 	 */
 	public static function handle_incoming_webhook( WP_REST_Request $request ) {
+		if ( ! TC_Agents_Security::webhook_authorized( $request, 'twentycrm' ) ) {
+			TC_Agents_Logger::log( 'twentycrm_webhook_auth_failed', 'warning', array( 'ip' => TC_Agents_Security::client_ip() ) );
+			return new WP_REST_Response( array( 'ok' => false, 'error' => 'Unauthorized' ), 401 );
+		}
+
 		$data = $request->get_json_params();
 		if ( empty( $data ) || ! is_array( $data ) ) {
 			return new WP_REST_Response( array( 'ok' => false, 'error' => 'Empty payload' ), 400 );

@@ -124,19 +124,34 @@ class TC_Agents_Mobile_API {
 	 * Verify mobile API token from header or query param.
 	 */
 	public static function verify_token( WP_REST_Request $request ) {
-		$token = $request->get_header( 'X-Mobile-Token' ) ?: $request->get_param( 'token' );
-		if ( empty( $token ) ) {
-			return false;
+		$ip = TC_Agents_Security::client_ip();
+		if ( TC_Agents_Security::rate_exceeded( 'mobile_auth_fail', $ip, 30 ) ) {
+			return new WP_Error( 'tc_rate_limited', 'Too many failed attempts. Try again later.', array( 'status' => 429 ) );
 		}
 
-		$configured_token = self::get_api_token();
+		// Identity of the caller, set here so handlers can trust it (never taken from the request body).
+		$request->set_param( '_tc_agent', '' );
+		$token = (string) $request->get_header( 'X-Mobile-Token' );
 
-		// Accept configured token or default mobile pairing secret
-		if ( hash_equals( (string) $configured_token, (string) $token ) || hash_equals( 'tc_mobile_secret_2026', (string) $token ) ) {
+		if ( '' !== $token ) {
+			if ( hash_equals( (string) self::get_api_token(), $token ) ) {
+				$request->set_param( '_tc_agent', 'master' );
+				return true;
+			}
+			$label = TC_Agents_Security::match_agent_token( $token );
+			if ( false !== $label ) {
+				$request->set_param( '_tc_agent', $label );
+				return true;
+			}
+		}
+
+		if ( current_user_can( 'manage_options' ) ) {
+			$request->set_param( '_tc_agent', 'admin' );
 			return true;
 		}
 
-		return current_user_can( 'manage_options' );
+		TC_Agents_Security::rate_limit( 'mobile_auth_fail', $ip, 30, 600 );
+		return false;
 	}
 
 	/**
@@ -235,6 +250,7 @@ class TC_Agents_Mobile_API {
 				'type'       => $call_type,
 				'duration'   => $duration,
 				'notes'      => $notes,
+				'agent'      => (string) $request->get_param( '_tc_agent' ),
 			)
 		);
 
@@ -447,6 +463,7 @@ class TC_Agents_Mobile_API {
 		$meta = json_decode( (string) ( $contact['meta_data'] ?? '' ), true ) ?: array();
 		$meta['assigned_manager'] = $manager_name;
 		$meta['assigned_at']      = current_time( 'mysql' );
+		$meta['assigned_by']      = (string) $request->get_param( '_tc_agent' );
 
 		$wpdb->update(
 			$table_contacts,
@@ -604,28 +621,45 @@ class TC_Agents_Mobile_API {
 	public static function handle_send_dispatch( WP_REST_Request $request ) {
 		$params   = $request->get_json_params() ?: $request->get_params();
 		$phone    = sanitize_text_field( $params['phone'] ?? '' );
-		$name     = sanitize_text_field( $params['customer_name'] ?? 'Traveler' );
-		$driver   = sanitize_text_field( $params['driver_name'] ?? 'Santosh Yadav' );
-		$cab_no   = sanitize_text_field( $params['vehicle_number'] ?? 'UP65-BT-4219' );
-		$cab_type = sanitize_text_field( $params['vehicle_type'] ?? 'Swift Dzire AC' );
+		$name     = sanitize_text_field( $params['customer_name'] ?? '' );
+		$driver   = sanitize_text_field( $params['driver_name'] ?? '' );
+		$cab_no   = sanitize_text_field( $params['vehicle_number'] ?? '' );
+		$cab_type = sanitize_text_field( $params['vehicle_type'] ?? '' );
 
-		if ( empty( $phone ) ) {
-			return new WP_REST_Response( array( 'ok' => false, 'error' => 'Phone parameter required' ), 400 );
+		if ( '' === $name ) {
+			$name = 'Traveler';
+		}
+
+		// Never fall back to placeholder driver/vehicle details: a customer would receive them as real.
+		$missing = array();
+		foreach ( array( 'phone' => $phone, 'driver_name' => $driver, 'vehicle_number' => $cab_no, 'vehicle_type' => $cab_type ) as $field => $value ) {
+			if ( '' === $value ) {
+				$missing[] = $field;
+			}
+		}
+		if ( $missing ) {
+			return new WP_REST_Response( array( 'ok' => false, 'error' => 'Missing required fields: ' . implode( ', ', $missing ) ), 400 );
+		}
+
+		if ( ! class_exists( 'TC_Integration_Brevo' ) || ! TC_Integration_Brevo::is_configured() ) {
+			return new WP_REST_Response( array( 'ok' => false, 'sms_sent' => false, 'error' => 'SMS provider is not configured.' ), 503 );
 		}
 
 		$sms_text = "Namaste {$name} ji! Your TripCosmos cab is dispatched: {$cab_type} ({$cab_no}), Driver: {$driver}. For support, call our Varanasi desk.";
+		$res      = TC_Integration_Brevo::send_sms( $phone, $sms_text );
 
-		$sms_sent = false;
-		if ( class_exists( 'TC_Integration_Brevo' ) && TC_Integration_Brevo::is_configured() ) {
-			$res = TC_Integration_Brevo::send_sms( $phone, $sms_text );
-			$sms_sent = ! is_wp_error( $res );
+		if ( is_wp_error( $res ) ) {
+			TC_Agents_Logger::log( 'mobile_dispatch_failed', 'warning', array( 'agent' => (string) $request->get_param( '_tc_agent' ), 'error' => $res->get_error_message() ) );
+			return new WP_REST_Response( array( 'ok' => false, 'sms_sent' => false, 'error' => 'SMS delivery failed.' ), 502 );
 		}
+
+		TC_Agents_Logger::log( 'mobile_dispatch_sent', 'info', array( 'agent' => (string) $request->get_param( '_tc_agent' ), 'vehicle' => $cab_no ) );
 
 		return new WP_REST_Response(
 			array(
 				'ok'       => true,
-				'message'  => 'Dispatch alert prepared',
-				'sms_sent' => $sms_sent,
+				'message'  => 'Dispatch SMS sent.',
+				'sms_sent' => true,
 				'text'     => $sms_text,
 			),
 			200

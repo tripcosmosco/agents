@@ -271,6 +271,8 @@ $secret_token       = get_option( 'tc_agents_whatsapp_webhook_secret', '' );
 					<th scope="row"><label>Transcript Webhook URL</label></th>
 					<td>
 						<code><?php echo esc_html( rest_url( 'tc-agents/v1/voice-webhook' ) ); ?></code>
+						<p class="description">Authentication is required. Set your voice provider's server secret (sent as <code>X-Vapi-Secret</code> or <code>x-webhook-secret</code>) to: <code style="user-select:all;"><?php echo esc_html( TC_Agents_Security::webhook_secret( 'voice' ) ); ?></code></p>
+						<p class="description"><strong>Twenty CRM webhook:</strong> <code><?php echo esc_html( rest_url( 'tc-agents/v1/twentycrm-webhook' ) ); ?></code> with header <code>x-webhook-secret</code> (or <code>?token=</code>) set to: <code style="user-select:all;"><?php echo esc_html( TC_Agents_Security::webhook_secret( 'twentycrm' ) ); ?></code></p>
 					</td>
 				</tr>
 			</table>
@@ -280,6 +282,61 @@ $secret_token       = get_option( 'tc_agents_whatsapp_webhook_secret', '' );
 			<input type="submit" class="button button-primary button-large" value="Save Integration Settings" />
 		</p>
 	</form>
+
+	<?php
+	$tcag_new = get_transient( 'tcag_new_token_' . get_current_user_id() );
+	if ( $tcag_new ) {
+		delete_transient( 'tcag_new_token_' . get_current_user_id() );
+	}
+	$tcag_tokens = TC_Agents_Security::agent_tokens();
+	?>
+	<div class="tc-card" id="tc-mobile-access">
+		<h3>Mobile App Access (Sales Agents app)</h3>
+		<p class="description">Create one token per agent or phone and paste it into the app's Settings. Revoking a token cuts that device off immediately. API base URL: <code><?php echo esc_html( rest_url( 'tc-agents/v1/' ) ); ?></code></p>
+
+		<?php if ( $tcag_new ) : ?>
+			<div class="notice notice-warning inline">
+				<p><strong>Copy this token now. It will not be shown again.</strong><br />
+				<code style="font-size:14px;user-select:all;"><?php echo esc_html( $tcag_new['token'] ); ?></code></p>
+			</div>
+		<?php endif; ?>
+
+		<?php if ( isset( $_GET['token_revoked'] ) ) : ?>
+			<div class="notice notice-success inline"><p>Token revoked.</p></div>
+		<?php endif; ?>
+
+		<table class="widefat striped" style="margin:12px 0;">
+			<thead><tr><th>Agent / device</th><th>Created</th><th>Last used</th><th></th></tr></thead>
+			<tbody>
+			<?php if ( empty( $tcag_tokens ) ) : ?>
+				<tr><td colspan="4">No agent tokens yet.</td></tr>
+			<?php else : ?>
+				<?php foreach ( $tcag_tokens as $tcag_id => $tcag_row ) : ?>
+					<tr>
+						<td><?php echo esc_html( $tcag_row['label'] ?? '' ); ?></td>
+						<td><?php echo esc_html( wp_date( 'd M Y, H:i', (int) ( $tcag_row['created'] ?? 0 ) ) ); ?></td>
+						<td><?php echo ! empty( $tcag_row['last_used'] ) ? esc_html( wp_date( 'd M Y, H:i', (int) $tcag_row['last_used'] ) ) : 'Never'; ?></td>
+						<td>
+							<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" onsubmit="return confirm('Revoke this token? The device will stop working.');">
+								<input type="hidden" name="action" value="tc_agents_revoke_token" />
+								<input type="hidden" name="token_id" value="<?php echo esc_attr( $tcag_id ); ?>" />
+								<?php wp_nonce_field( 'tc_agents_token_action' ); ?>
+								<button type="submit" class="button button-link-delete">Revoke</button>
+							</form>
+						</td>
+					</tr>
+				<?php endforeach; ?>
+			<?php endif; ?>
+			</tbody>
+		</table>
+
+		<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+			<input type="hidden" name="action" value="tc_agents_create_token" />
+			<?php wp_nonce_field( 'tc_agents_token_action' ); ?>
+			<input type="text" name="agent_label" class="regular-text" placeholder="Agent name or device, e.g. Santosh - Redmi" required />
+			<button type="submit" class="button button-primary">Generate token</button>
+		</form>
+	</div>
 </div>
 
 <script>
