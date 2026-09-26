@@ -1,6 +1,9 @@
 package co.tripcosmos.salesagents.data.api
 
 import co.tripcosmos.salesagents.data.model.*
+import co.tripcosmos.salesagents.AppConfig
+import co.tripcosmos.salesagents.BuildConfig
+import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Response
@@ -37,24 +40,24 @@ interface TripCosmosApiService {
 
     @GET("mobile/whatsapp-leads")
     suspend fun getWhatsAppLeads(
-        @Header("X-Mobile-Token") token: String = "test"
+        @Header("X-Mobile-Token") token: String = ""
     ): Response<WhatsAppLeadsResponse>
 
     @POST("mobile/assign-lead")
     suspend fun assignLead(
-        @Header("X-Mobile-Token") token: String = "test",
+        @Header("X-Mobile-Token") token: String = "",
         @Body payload: AssignLeadPayload
     ): Response<ApiResponse<Any>>
 
     @POST("mobile/generate-quote")
     suspend fun generateQuote(
-        @Header("X-Mobile-Token") token: String = "test",
+        @Header("X-Mobile-Token") token: String = "",
         @Body payload: GenerateQuotePayload
     ): Response<QuoteResponse>
 
     @POST("mobile/send-dispatch")
     suspend fun sendDispatch(
-        @Header("X-Mobile-Token") token: String = "test",
+        @Header("X-Mobile-Token") token: String = "",
         @Body payload: DriverDispatchPayload
     ): Response<DriverDispatchResponse>
 
@@ -64,10 +67,19 @@ interface TripCosmosApiService {
 
         fun create(baseUrl: String = DEFAULT_BASE_URL): TripCosmosApiService {
             val logger = HttpLoggingInterceptor().apply {
-                level = HttpLoggingInterceptor.Level.BODY
+                level = if (BuildConfig.DEBUG) HttpLoggingInterceptor.Level.BASIC else HttpLoggingInterceptor.Level.NONE
+                redactHeader("X-Mobile-Token")
+            }
+
+            val authInterceptor = Interceptor { chain ->
+                val builder = chain.request().newBuilder()
+                val token = AppConfig.token()
+                if (token.isNotBlank()) builder.header("X-Mobile-Token", token)
+                chain.proceed(builder.build())
             }
 
             val client = OkHttpClient.Builder()
+                .addInterceptor(authInterceptor)
                 .addInterceptor(logger)
                 .connectTimeout(15, TimeUnit.SECONDS)
                 .readTimeout(15, TimeUnit.SECONDS)

@@ -1,5 +1,7 @@
 package co.tripcosmos.salesagents.telephony
 
+import co.tripcosmos.salesagents.AppConfig
+
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -80,7 +82,7 @@ class PhoneStateReceiver : BroadcastReceiver() {
 
     private fun lookupAndShowCallerId(context: Context, phone: String) {
         val prefs = context.getSharedPreferences("tc_agents_prefs", Context.MODE_PRIVATE)
-        val token = prefs.getString("mobile_api_token", "tc_mobile_secret_2026") ?: ""
+        val token = AppConfig.token()
         val baseUrl = prefs.getString("base_url", "https://tripcosmos.co/wp-json/tc-agents/v1/") ?: ""
 
         CoroutineScope(Dispatchers.IO).launch {
@@ -112,7 +114,7 @@ class PhoneStateReceiver : BroadcastReceiver() {
         val callType = if (durationSeconds == 0L && isIncoming) "missed" else if (isIncoming) "incoming" else "outgoing"
 
         val prefs = context.getSharedPreferences("tc_agents_prefs", Context.MODE_PRIVATE)
-        val token = prefs.getString("mobile_api_token", "tc_mobile_secret_2026") ?: ""
+        val token = AppConfig.token()
         val baseUrl = prefs.getString("base_url", "https://tripcosmos.co/wp-json/tc-agents/v1/") ?: ""
 
         // 1. Ingest call log to WordPress / Twenty CRM backend silently

@@ -1,5 +1,7 @@
 package co.tripcosmos.salesagents.ui.screens
 
+import co.tripcosmos.salesagents.AppConfig
+
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
@@ -55,7 +57,7 @@ fun ContactsScreen() {
     }
 
     val prefs = context.getSharedPreferences("tc_agents_prefs", Context.MODE_PRIVATE)
-    val token = prefs.getString("mobile_api_token", "tc_mobile_secret_2026") ?: ""
+    val token = AppConfig.token()
     val baseUrl = prefs.getString("base_url", "https://tripcosmos.co/wp-json/tc-agents/v1/") ?: ""
 
     fun loadDeviceContacts() {

@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import co.tripcosmos.salesagents.AppConfig
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -39,7 +41,7 @@ fun SettingsScreen(
     val prefs = context.getSharedPreferences("tc_agents_prefs", Context.MODE_PRIVATE)
 
     var baseUrl by remember { mutableStateOf(prefs.getString("base_url", "https://tripcosmos.co/wp-json/tc-agents/v1/") ?: "") }
-    var apiToken by remember { mutableStateOf(prefs.getString("mobile_api_token", "tc_mobile_secret_2026") ?: "") }
+    var apiToken by remember { mutableStateOf(AppConfig.token()) }
     var agentName by remember { mutableStateOf(prefs.getString("agent_name", "Varanasi Concierge Desk") ?: "") }
     var maskPhoneNumbers by remember { mutableStateOf(prefs.getBoolean("mask_phone_numbers", false)) }
 
@@ -158,6 +160,15 @@ fun SettingsScreen(
                 }
             }
 
+            if (apiToken.isBlank()) {
+                Text(
+                    "Not paired: paste the API token from WordPress (Integrations > Mobile App Access) to load leads and quotes.",
+                    color = Color(0xFFB91C1C),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+
             Text("TripCosmos Backend Connection", fontWeight = FontWeight.Bold, fontSize = 16.sp)
 
             OutlinedTextField(
@@ -170,7 +181,9 @@ fun SettingsScreen(
             OutlinedTextField(
                 value = apiToken,
                 onValueChange = { apiToken = it },
-                label = { Text("Mobile API Secret Token") },
+                label = { Text("Mobile API Token") },
+                visualTransformation = PasswordVisualTransformation(),
+                singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
 
@@ -254,10 +267,10 @@ fun SettingsScreen(
                 onClick = {
                     prefs.edit()
                         .putString("base_url", baseUrl.trim())
-                        .putString("mobile_api_token", apiToken.trim())
                         .putString("agent_name", agentName.trim())
                         .putBoolean("mask_phone_numbers", maskPhoneNumbers)
                         .apply()
+                    AppConfig.setToken(apiToken.trim())
                     Toast.makeText(context, "Settings saved successfully!", Toast.LENGTH_SHORT).show()
                 },
                 modifier = Modifier.fillMaxWidth(),

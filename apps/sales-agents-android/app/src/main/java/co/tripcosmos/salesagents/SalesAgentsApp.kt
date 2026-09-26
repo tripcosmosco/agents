@@ -17,6 +17,7 @@ class SalesAgentsApp : Application() {
     override fun onCreate() {
         super.onCreate()
         instance = this
+        AppConfig.init(this)
         createNotificationChannels()
     }
 

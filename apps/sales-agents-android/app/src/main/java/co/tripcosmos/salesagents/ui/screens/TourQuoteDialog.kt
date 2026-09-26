@@ -660,10 +660,10 @@ fun TourQuoteDialog(
                                     if (res.isSuccessful && res.body()?.ok == true) {
                                         Toast.makeText(context, "Driver dispatch SMS sent via Brevo! 📲", Toast.LENGTH_LONG).show()
                                     } else {
-                                        Toast.makeText(context, "Dispatch queued for $driverName", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(context, "Dispatch NOT sent. Check the details and SMS setup.", Toast.LENGTH_LONG).show()
                                     }
                                 } catch (e: Exception) {
-                                    Toast.makeText(context, "Dispatch SMS logged for $driverName ($vehicleNumber)", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, "Dispatch NOT sent (network error). Try again.", Toast.LENGTH_LONG).show()
                                 } finally {
                                     isSendingDispatch = false
                                 }

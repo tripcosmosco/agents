@@ -249,10 +249,11 @@ fun DispatchScreen() {
                                                     )
                                                 )
                                             }
+                                            if (!(res.isSuccessful && res.body()?.ok == true)) throw IllegalStateException("dispatch rejected")
                                             booking.isDispatched = true
                                             Toast.makeText(context, "Driver dispatch SMS sent via Brevo! 📲", Toast.LENGTH_LONG).show()
                                         } catch (e: Exception) {
-                                            Toast.makeText(context, "Dispatch logged for driver $driverName ($cabNo)", Toast.LENGTH_SHORT).show()
+                                            Toast.makeText(context, "Dispatch NOT sent. Check driver, vehicle, SMS setup and connection.", Toast.LENGTH_LONG).show()
                                         } finally {
                                             isSending = false
                                         }
