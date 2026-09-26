@@ -97,11 +97,22 @@ class TC_Integration_WhatsApp {
 		$session_id   = 'wa_' . $sender_phone;
 
 		// Unify or lookup contact
-		self::ensure_whatsapp_contact( $sender_phone, $sender_name );
+		$contact_id = self::ensure_whatsapp_contact( $sender_phone, $sender_name );
+
+		// Web-to-WhatsApp attribution: the first message carries "(Ref TC-XXXXX)" added by the site's WhatsApp button.
+		if ( class_exists( 'TC_Agents_WA_Attribution' ) ) {
+			$extracted = TC_Agents_WA_Attribution::extract_ref( $message_text );
+			if ( '' !== $extracted['ref'] ) {
+				TC_Agents_WA_Attribution::attach_to_contact( $extracted['ref'], $contact_id );
+				if ( '' !== $extracted['text'] ) {
+					$message_text = $extracted['text'];
+				}
+			}
+		}
 
 		// Stop-on-Reply Governor: Cancel active automated follow-up sequences when lead replies on WhatsApp
 		global $wpdb;
-		$lead_contact_id = $wpdb->get_var( $wpdb->prepare( "SELECT id FROM {$wpdb->prefix}tc_agent_contacts WHERE phone = %s LIMIT 1", $sender_phone ) );
+		$lead_contact_id = $contact_id;
 		if ( $lead_contact_id && class_exists( 'TC_Agent_Sequences' ) ) {
 			TC_Agent_Sequences::cancel_for_contact( $lead_contact_id );
 		}
@@ -204,19 +215,47 @@ class TC_Integration_WhatsApp {
 		global $wpdb;
 		$table = $wpdb->prefix . 'tc_agent_contacts';
 
-		$exists = $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $table WHERE phone = %s LIMIT 1", $phone ) );
-		if ( ! $exists ) {
-			$wpdb->insert(
-				$table,
-				array(
-					'phone'          => $phone,
-					'name'           => $name ?: 'WhatsApp Traveler',
-					'source_channel' => 'whatsapp',
-					'created_at'     => current_time( 'mysql' ),
-					'updated_at'     => current_time( 'mysql' ),
-				),
-				array( '%s', '%s', '%s', '%s', '%s' )
-			);
+		$existing = self::find_contact_id( $phone );
+		if ( $existing ) {
+			return $existing;
 		}
+
+		$wpdb->insert(
+			$table,
+			array(
+				'phone'          => $phone,
+				'name'           => $name ?: 'WhatsApp Traveler',
+				'source_channel' => 'whatsapp',
+				'created_at'     => current_time( 'mysql' ),
+				'updated_at'     => current_time( 'mysql' ),
+			),
+			array( '%s', '%s', '%s', '%s', '%s' )
+		);
+
+		return (int) $wpdb->insert_id;
+	}
+
+	/**
+	 * Match on the last 10 digits so "+91 93361 16210", "9336116210" and "919336116210" are one person.
+	 */
+	public static function find_contact_id( $phone ) {
+		global $wpdb;
+		$table  = $wpdb->prefix . 'tc_agent_contacts';
+		$digits = preg_replace( '/[^0-9]/', '', (string) $phone );
+		if ( strlen( $digits ) < 7 ) {
+			return 0;
+		}
+		$suffix = substr( $digits, -10 );
+
+		$id = $wpdb->get_var(
+			$wpdb->prepare( "SELECT id FROM $table WHERE RIGHT(REGEXP_REPLACE(phone, '[^0-9]', ''), %d) = %s ORDER BY id ASC LIMIT 1", strlen( $suffix ), $suffix )
+		);
+
+		// Older MySQL without REGEXP_REPLACE: fall back to an exact match.
+		if ( '' !== $wpdb->last_error ) {
+			$id = $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $table WHERE phone = %s LIMIT 1", $digits ) );
+		}
+
+		return (int) $id;
 	}
 }

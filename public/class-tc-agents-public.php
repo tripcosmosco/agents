@@ -48,6 +48,19 @@ class TC_Agents_Public {
 
 		$clean_wa = preg_replace( '/[^0-9]/', '', get_option( 'tc_agents_human_whatsapp_number', '+919876543210' ) );
 
+		$wa_attr_file = TC_AGENTS_PATH . 'public/js/tc-wa-attribution.js';
+		$wa_attr_ver  = file_exists( $wa_attr_file ) ? TC_AGENTS_VERSION . '.' . filemtime( $wa_attr_file ) : TC_AGENTS_VERSION;
+		wp_enqueue_script( 'tc-wa-attribution-js', TC_AGENTS_URL . 'public/js/tc-wa-attribution.js', array(), $wa_attr_ver, true );
+		wp_localize_script(
+			'tc-wa-attribution-js',
+			'tcWaAttr',
+			array(
+				'clickUrl'    => esc_url_raw( rest_url( 'tc-agents/v1/wa-click' ) ),
+				'number'      => $clean_wa,
+				'defaultText' => 'Hi TripCosmos!',
+			)
+		);
+
 		wp_localize_script(
 			'tc-chat-widget-js',
 			'tcChatWidget',

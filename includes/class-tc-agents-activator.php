@@ -296,6 +296,28 @@ class TC_Agents_Activator {
 			KEY phone (phone)
 		) $charset_collate;";
 		dbDelta( $sql_agencies );
+
+		// 13. WhatsApp click attribution (ref code -> website visit).
+		$table_wa = $wpdb->prefix . 'tc_agent_wa_clicks';
+		$sql_wa   = "CREATE TABLE $table_wa (
+			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+			ref varchar(12) NOT NULL,
+			session_id varchar(64) DEFAULT '',
+			page_url varchar(500) DEFAULT '',
+			referrer varchar(500) DEFAULT '',
+			utm_source varchar(100) DEFAULT '',
+			utm_medium varchar(100) DEFAULT '',
+			utm_campaign varchar(150) DEFAULT '',
+			context varchar(200) DEFAULT '',
+			matched_contact_id bigint(20) unsigned NOT NULL DEFAULT 0,
+			matched_at datetime DEFAULT NULL,
+			created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY  (id),
+			UNIQUE KEY ref (ref),
+			KEY created_at (created_at),
+			KEY matched_contact_id (matched_contact_id)
+		) $charset_collate;";
+		dbDelta( $sql_wa );
 	}
 
 	/**
