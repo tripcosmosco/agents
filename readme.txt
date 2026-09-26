@@ -4,7 +4,7 @@ Tags: ai, chatbot, agent, travel, crm, whatsapp, openrouter, gemini, b2b
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 8.0
-Stable tag: 1.4.5
+Stable tag: 1.5.1
 License: Proprietary
 License URI: https://tripcosmos.co
 
@@ -36,6 +36,10 @@ TripCosmos Agents provides TripCosmos.co with a reliable, supervised AI conversa
 5. Connect CRM, WhatsApp, and Voice settings in `Tripcosmos Agents -> Integrations`.
 
 == Changelog ==
+
+= 1.5.1 =
+* Feature: Web-to-WhatsApp attribution. Clicks on the business WhatsApp link (including theme and Elementor buttons) get a short "Ref TC-XXXXX" code in the pre-filled message, and the visit (page, ad source, referrer, chat session) is recorded. When the message arrives, the webhook links the contact to that visit. Creates the tc_agent_wa_clicks table on upgrade.
+* Fix: WhatsApp contacts are now matched to existing leads by the last 10 digits of the phone, so a website-form lead and the same person on WhatsApp are one contact instead of two.
 
 = 1.5.0 =
 * Security: Removed the hardcoded default mobile API token. The mobile API now accepts only the site master token, per-agent tokens, or a logged-in administrator, and only via the X-Mobile-Token header.
