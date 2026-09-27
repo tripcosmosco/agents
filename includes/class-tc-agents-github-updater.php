@@ -338,6 +338,22 @@ class TC_Agents_GitHub_Updater {
 			$message = sprintf( __( 'WordPress and GitHub are in sync at version v%s.', 'tripcosmos-agents' ), $local_version );
 		}
 
+		if ( class_exists( 'TC_Agents_Logger' ) ) {
+			TC_Agents_Logger::log(
+				'github_sync_check',
+				'info',
+				array(
+					'sync_status'    => $status,
+					'local_version'  => $local_version,
+					'remote_version' => $remote_version ?: 'None',
+					'repo'           => $repo_info['slug'],
+					'branch'         => $branch,
+				),
+				'',
+				'system'
+			);
+		}
+
 		return array(
 			'success'        => true,
 			'local_version'  => $local_version,
@@ -405,13 +421,29 @@ class TC_Agents_GitHub_Updater {
 
 		if ( 0 !== $code ) {
 			if ( strpos( $clean_out, '403' ) !== false || strpos( $clean_out, 'Write access to repository not granted' ) !== false ) {
-				return new WP_Error(
+				$err_obj = new WP_Error(
 					'git_push_403',
 					__( 'GitHub rejected write access: Your Personal Access Token needs "Contents: Read and write" permission (or Classic token with "repo" scope).', 'tripcosmos-agents' ),
 					array( 'output' => $clean_out )
 				);
+			} else {
+				$err_obj = new WP_Error( 'git_push_failed', __( 'Git push failed: ', 'tripcosmos-agents' ) . $clean_out, array( 'output' => $clean_out ) );
 			}
-			return new WP_Error( 'git_push_failed', __( 'Git push failed: ', 'tripcosmos-agents' ) . $clean_out, array( 'output' => $clean_out ) );
+			if ( class_exists( 'TC_Agents_Logger' ) ) {
+				TC_Agents_Logger::log(
+					'github_push_error',
+					'error',
+					array(
+						'repo'    => "$owner/$repo",
+						'branch'  => $branch,
+						'message' => $err_obj->get_error_message(),
+						'output'  => $clean_out,
+					),
+					'',
+					'system'
+				);
+			}
+			return $err_obj;
 		}
 
 		$sha = '';
@@ -421,6 +453,21 @@ class TC_Agents_GitHub_Updater {
 		}
 
 		delete_transient( self::CACHE_KEY );
+
+		if ( class_exists( 'TC_Agents_Logger' ) ) {
+			TC_Agents_Logger::log(
+				'github_push_success',
+				'info',
+				array(
+					'commit'  => $sha,
+					'repo'    => "$owner/$repo",
+					'branch'  => $branch,
+					'message' => $msg,
+				),
+				'',
+				'system'
+			);
+		}
 
 		return array(
 			'success'    => true,

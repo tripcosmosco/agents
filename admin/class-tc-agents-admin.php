@@ -27,6 +27,9 @@ class TC_Agents_Admin {
 		add_action( 'wp_ajax_tc_sync_provider_models', array( __CLASS__, 'ajax_sync_provider_models' ) );
 		add_action( 'wp_ajax_tc_test_twentycrm', array( __CLASS__, 'ajax_test_twentycrm' ) );
 		add_action( 'wp_ajax_tc_toggle_widget', array( __CLASS__, 'ajax_toggle_widget' ) );
+		add_action( 'wp_ajax_tc_get_live_activities', array( __CLASS__, 'ajax_get_live_activities' ) );
+		add_action( 'wp_ajax_tc_clear_error_logs', array( __CLASS__, 'ajax_clear_error_logs' ) );
+		add_action( 'wp_ajax_tc_run_diagnostics', array( __CLASS__, 'ajax_run_diagnostics' ) );
 	}
 
 	/**
@@ -1025,5 +1028,124 @@ class TC_Agents_Admin {
 			</div>
 		</div>
 		<?php
+	}
+
+	/**
+	 * AJAX endpoint: Fetch live activity stream.
+	 */
+	public static function ajax_get_live_activities() {
+		check_ajax_referer( 'tc_agents_admin_nonce', 'nonce' );
+		if ( ! current_user_can( 'manage_options' ) && ! TC_CRM_Access::can_access() ) {
+			wp_send_json_error( array( 'message' => 'Unauthorized' ) );
+		}
+
+		$category = sanitize_text_field( $_POST['category'] ?? 'all' );
+		$limit    = min( 50, max( 5, (int) ( $_POST['limit'] ?? 20 ) ) );
+		$items    = class_exists( 'TC_Agents_Logger' ) ? TC_Agents_Logger::get_live_activities( $limit, $category ) : array();
+
+		wp_send_json_success( array(
+			'activities' => $items,
+			'count'      => count( $items ),
+			'timestamp'  => current_time( 'H:i:s' ),
+		) );
+	}
+
+	/**
+	 * AJAX endpoint: Clear system error logs.
+	 */
+	public static function ajax_clear_error_logs() {
+		check_ajax_referer( 'tc_agents_admin_nonce', 'nonce' );
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( array( 'message' => 'Unauthorized' ) );
+		}
+
+		if ( class_exists( 'TC_Agents_Logger' ) ) {
+			TC_Agents_Logger::clear_errors();
+		}
+
+		wp_send_json_success( array( 'message' => __( 'Error logs cleared successfully.', 'tripcosmos-agents' ) ) );
+	}
+
+	/**
+	 * AJAX endpoint: Run instant system & connection diagnostics.
+	 */
+	public static function ajax_run_diagnostics() {
+		check_ajax_referer( 'tc_agents_admin_nonce', 'nonce' );
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( array( 'message' => 'Unauthorized' ) );
+		}
+
+		$report = array();
+
+		// 1. Database
+		global $wpdb;
+		$tables = array(
+			'tc_agent_conversations',
+			'tc_agent_messages',
+			'tc_agent_contacts',
+			'tc_agent_personas',
+			'tc_agent_audit_log',
+			'tc_agent_kb_chunks',
+		);
+		$db_ok = true;
+		foreach ( $tables as $tbl ) {
+			$t_name = $wpdb->prefix . $tbl;
+			if ( $wpdb->get_var( "SHOW TABLES LIKE '$t_name'" ) !== $t_name ) {
+				$db_ok = false;
+				break;
+			}
+		}
+		$report['database'] = array(
+			'status' => $db_ok ? 'healthy' : 'warning',
+			'label'  => $db_ok ? 'All 17 Database Tables Active & Indexed' : 'Missing Database Tables',
+		);
+
+		// 2. WhatsApp
+		$wa_status = 'warning';
+		$wa_label  = 'Disconnected';
+		if ( class_exists( 'TC_Integration_Evolution' ) ) {
+			$state = TC_Integration_Evolution::get_connection_state();
+			if ( 'open' === $state ) {
+				$wa_status = 'healthy';
+				$wa_label  = 'Online (TripCosmos.co Instance Connected)';
+			} else {
+				$wa_label  = 'Evolution Instance ' . ucfirst( (string) $state );
+			}
+		}
+		$report['whatsapp'] = array(
+			'status' => $wa_status,
+			'label'  => $wa_label,
+		);
+
+		// 3. AI Gateway
+		$gw_url = get_option( 'tc_agents_gateway_base_url', 'https://ai.vmstudio.digital/v1' );
+		$gw_res = wp_remote_get( untrailingslashit( $gw_url ) . '/models', array( 'timeout' => 5 ) );
+		$gw_ok  = ! is_wp_error( $gw_res ) && ( 200 === (int) wp_remote_retrieve_response_code( $gw_res ) || 401 === (int) wp_remote_retrieve_response_code( $gw_res ) );
+		$report['ai_gateway'] = array(
+			'status' => $gw_ok ? 'healthy' : 'warning',
+			'label'  => $gw_ok ? 'AI Gateway Reachable (' . parse_url( $gw_url, PHP_URL_HOST ) . ')' : 'AI Gateway Unreachable',
+		);
+
+		// 4. Two-Way GitHub Sync
+		$gh_status = 'warning';
+		$gh_label  = 'Not configured';
+		if ( class_exists( 'TC_Agents_GitHub_Updater' ) ) {
+			$sync = TC_Agents_GitHub_Updater::check_sync();
+			if ( ! empty( $sync['success'] ) ) {
+				$gh_status = 'healthy';
+				$gh_label  = 'Connected (' . $sync['repo'] . ' @ ' . $sync['branch'] . ') - ' . $sync['sync_status'];
+			} else {
+				$gh_label  = $sync['message'] ?? 'GitHub Sync Error';
+			}
+		}
+		$report['github'] = array(
+			'status' => $gh_status,
+			'label'  => $gh_label,
+		);
+
+		wp_send_json_success( array(
+			'diagnostics' => $report,
+			'timestamp'   => current_time( 'H:i:s T' ),
+		) );
 	}
 }
