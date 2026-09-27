@@ -56,7 +56,7 @@ class TC_Provider_Omniroute implements TC_AI_Provider_Interface {
 			$url,
 			array(
 				'timeout'   => 5,
-				'sslverify' => false,
+				'sslverify' => true,
 				'headers'   => array(
 					'Authorization' => 'Bearer ' . $this->get_api_key(),
 				),
@@ -114,7 +114,7 @@ class TC_Provider_Omniroute implements TC_AI_Provider_Interface {
 			$url,
 			array(
 				'timeout'   => $timeout,
-				'sslverify' => false,
+				'sslverify' => true,
 				'headers'   => array(
 					'Authorization' => 'Bearer ' . $this->get_api_key(),
 					'Content-Type'  => 'application/json',

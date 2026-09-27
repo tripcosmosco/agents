@@ -38,7 +38,7 @@ class TC_Integration_TwentyCRM {
 			$endpoint,
 			array(
 				'timeout'   => 5,
-				'sslverify' => false,
+				'sslverify' => true,
 				'headers'   => array(
 					'Authorization' => 'Bearer ' . self::get_api_key(),
 					'Accept'        => 'application/json',
@@ -115,7 +115,7 @@ class TC_Integration_TwentyCRM {
 			$endpoint,
 			array(
 				'timeout'   => 8,
-				'sslverify' => false,
+				'sslverify' => true,
 				'headers'   => array(
 					'Authorization' => 'Bearer ' . self::get_api_key(),
 					'Content-Type'  => 'application/json',
@@ -178,7 +178,7 @@ class TC_Integration_TwentyCRM {
 			$endpoint,
 			array(
 				'timeout'   => 5,
-				'sslverify' => false,
+				'sslverify' => true,
 				'headers'   => array(
 					'Authorization' => 'Bearer ' . self::get_api_key(),
 					'Content-Type'  => 'application/json',
@@ -211,7 +211,7 @@ class TC_Integration_TwentyCRM {
 			$endpoint,
 			array(
 				'timeout'   => 5,
-				'sslverify' => false,
+				'sslverify' => true,
 				'headers'   => array(
 					'Authorization' => 'Bearer ' . self::get_api_key(),
 					'Content-Type'  => 'application/json',

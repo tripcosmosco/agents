@@ -40,7 +40,7 @@ class TC_Provider_Gateway implements TC_AI_Provider_Interface {
 		if ( ! $this->is_configured() ) {
 			return array( 'status' => 'down', 'latency_ms' => 0, 'message' => __( 'Gateway Base URL or API Key missing.', 'tripcosmos-agents' ) );
 		}
-		$res = wp_remote_get( $this->get_base_url() . '/models', array( 'timeout' => 5, 'sslverify' => false, 'headers' => array( 'Authorization' => 'Bearer ' . $this->get_api_key() ) ) );
+		$res = wp_remote_get( $this->get_base_url() . '/models', array( 'timeout' => 5, 'sslverify' => true, 'headers' => array( 'Authorization' => 'Bearer ' . $this->get_api_key() ) ) );
 		$lat = (int) round( ( microtime( true ) - $start ) * 1000 );
 		if ( is_wp_error( $res ) ) { return array( 'status' => 'down', 'latency_ms' => $lat, 'message' => $res->get_error_message() ); }
 		$code = wp_remote_retrieve_response_code( $res );
@@ -60,7 +60,7 @@ class TC_Provider_Gateway implements TC_AI_Provider_Interface {
 	}
 	public function fetch_live_models() {
 		if ( ! $this->is_configured() ) { return array(); }
-		$res = wp_remote_get( $this->get_base_url() . '/models', array( 'timeout' => 10, 'sslverify' => false, 'headers' => array( 'Authorization' => 'Bearer ' . $this->get_api_key() ) ) );
+		$res = wp_remote_get( $this->get_base_url() . '/models', array( 'timeout' => 10, 'sslverify' => true, 'headers' => array( 'Authorization' => 'Bearer ' . $this->get_api_key() ) ) );
 		if ( is_wp_error( $res ) || wp_remote_retrieve_response_code( $res ) >= 400 ) { return array(); }
 		$body = json_decode( wp_remote_retrieve_body( $res ), true );
 		$list = $body['data'] ?? $body['models'] ?? array();
@@ -78,7 +78,7 @@ class TC_Provider_Gateway implements TC_AI_Provider_Interface {
 		$payload = array( 'model' => $options['model'] ?? $this->get_model(), 'messages' => $messages, 'temperature' => $options['temperature'] ?? 0.7 );
 		if ( ! empty( $tools ) ) { $payload['tools'] = $tools; }
 		$timeout = (int) get_option( 'tc_agents_timeout_seconds', 8 );
-		$res = wp_remote_post( $url, array( 'timeout' => $timeout, 'sslverify' => false, 'headers' => array( 'Authorization' => 'Bearer ' . $this->get_api_key(), 'Content-Type' => 'application/json' ), 'body' => wp_json_encode( $payload ) ) );
+		$res = wp_remote_post( $url, array( 'timeout' => $timeout, 'sslverify' => true, 'headers' => array( 'Authorization' => 'Bearer ' . $this->get_api_key(), 'Content-Type' => 'application/json' ), 'body' => wp_json_encode( $payload ) ) );
 		$lat = (int) round( ( microtime( true ) - $start ) * 1000 );
 		if ( is_wp_error( $res ) ) { return new WP_Error( 'gateway_http_error', $res->get_error_message(), array( 'latency_ms' => $lat ) ); }
 		$code = wp_remote_retrieve_response_code( $res );

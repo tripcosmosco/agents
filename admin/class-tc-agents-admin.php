@@ -532,6 +532,8 @@ class TC_Agents_Admin {
 		}
 		if ( class_exists( 'TC_Agents_Vault' ) && ! TC_Agents_Vault::is_secure() ) {
 			echo '<div class="notice notice-error"><p><strong>TripCosmos Agents:</strong> the PHP OpenSSL extension (AES-256-GCM) is unavailable, so API keys are stored only base64-encoded. Enable OpenSSL and re-save your keys.</p></div>';
+		} elseif ( get_option( 'tc_agents_vault_insecure_fallback_seen' ) ) {
+			echo '<div class="notice notice-error"><p><strong>TripCosmos Agents:</strong> a secret was recently stored using the base64 fallback instead of real encryption (encryption failed at save time). This is not real encryption. Check the activity log for "vault_base64_fallback_used", fix the underlying cause, then re-save all API keys.</p></div>';
 		}
 		if ( ! defined( 'TC_AGENTS_VAULT_KEY' ) ) {
 			echo '<div class="notice notice-warning"><p><strong>TripCosmos Agents:</strong> add <code>define( \'TC_AGENTS_VAULT_KEY\', \'a-long-random-string\' );</code> to wp-config.php (any long random string) so saved API keys keep working if WordPress salts change or the site is cloned. Existing keys are moved to it automatically.</p></div>';

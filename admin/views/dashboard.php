@@ -47,7 +47,7 @@ $gh_repo_info = class_exists( 'TC_Agents_GitHub_Updater' ) ? TC_Agents_GitHub_Up
 $gh_branch    = class_exists( 'TC_Agents_GitHub_Updater' ) ? TC_Agents_GitHub_Updater::get_branch() : 'main';
 
 // Mobile Companion pairing token
-$mobile_token = class_exists( 'TC_Agents_Mobile_API' ) ? TC_Agents_Mobile_API::get_api_token() : get_option( 'tc_agents_mobile_api_token', 'a9P3cHjoyDq5Fkm0ucODllxnuuy35rXJ' );
+$mobile_token = class_exists( 'TC_Agents_Mobile_API' ) ? TC_Agents_Mobile_API::get_api_token() : get_option( 'tc_agents_mobile_api_token', '' );
 $rest_base_url = rest_url( 'tc-agents/v1' );
 $pairing_payload = wp_json_encode( array(
 	'app'      => 'X-Agents',

@@ -11,7 +11,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 $widget_enabled  = (string) get_option( 'tc_agents_widget_enabled', '1' );
 $is_widget_live  = ( '1' === $widget_enabled );
-$mobile_token    = get_option( 'tc_agents_mobile_api_token', 'a9P3cHjoyDq5Fkm0ucODllxnuuy35rXJ' );
+$mobile_token    = class_exists( 'TC_Agents_Mobile_API' ) ? TC_Agents_Mobile_API::get_api_token() : get_option( 'tc_agents_mobile_api_token', '' );
 $api_base_url    = rest_url( 'tc-agents/v1' );
 
 // Build mobile pairing payload for QR code

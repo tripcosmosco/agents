@@ -107,6 +107,7 @@ class TC_Agents_Vault {
 	 */
 	private static function encrypt( $plaintext ) {
 		if ( ! extension_loaded( 'openssl' ) || ! function_exists( 'openssl_encrypt' ) ) {
+			self::log_insecure_fallback( 'openssl_unavailable' );
 			return base64_encode( (string) $plaintext );
 		}
 
@@ -119,6 +120,7 @@ class TC_Agents_Vault {
 
 			$iv = function_exists( 'random_bytes' ) ? random_bytes( $iv_len ) : openssl_random_pseudo_bytes( $iv_len );
 			if ( false === $iv || strlen( $iv ) !== $iv_len ) {
+				self::log_insecure_fallback( 'iv_generation_failed' );
 				return base64_encode( (string) $plaintext );
 			}
 
@@ -126,12 +128,14 @@ class TC_Agents_Vault {
 			$ciphertext = openssl_encrypt( (string) $plaintext, self::CIPHER, $key, OPENSSL_RAW_DATA, $iv, $tag, '', 16 );
 
 			if ( false === $ciphertext || empty( $tag ) || strlen( $tag ) !== 16 ) {
+				self::log_insecure_fallback( 'encrypt_failed' );
 				return base64_encode( (string) $plaintext );
 			}
 
 			// Pack iv (12 bytes) + tag (16 bytes) + ciphertext
 			return 'v2:' . base64_encode( $iv . $tag . $ciphertext );
 		} catch ( \Throwable $e ) {
+			self::log_insecure_fallback( 'exception:' . $e->getMessage() );
 			return base64_encode( (string) $plaintext );
 		}
 	}
@@ -227,6 +231,34 @@ class TC_Agents_Vault {
 	 */
 	public static function is_secure() {
 		return extension_loaded( 'openssl' ) && function_exists( 'openssl_encrypt' ) && in_array( self::CIPHER, openssl_get_cipher_methods(), true );
+	}
+
+	/**
+	 * Loudly record that a secret was just stored via the reversible base64 fallback instead of
+	 * real encryption, so this is never a silent failure. Throttled to once per hour per reason
+	 * so a broken environment doesn't spam the log on every save.
+	 *
+	 * @param string $reason
+	 */
+	private static function log_insecure_fallback( $reason ) {
+		$throttle_key = 'tc_agents_vault_fallback_' . md5( $reason );
+		if ( false !== get_transient( $throttle_key ) ) {
+			return;
+		}
+		set_transient( $throttle_key, 1, HOUR_IN_SECONDS );
+
+		if ( class_exists( 'TC_Agents_Logger' ) ) {
+			TC_Agents_Logger::log(
+				'vault_base64_fallback_used',
+				'error',
+				array(
+					'reason'  => $reason,
+					'message' => 'A secret was just stored base64-encoded instead of AES-256-GCM encrypted. This is NOT real encryption and is trivially reversible. Fix the underlying cause (missing/broken OpenSSL) and re-save all API keys.',
+				)
+			);
+		}
+		// Also flip a persistent flag so the admin notice can warn even outside admin_notices timing.
+		update_option( 'tc_agents_vault_insecure_fallback_seen', time(), false );
 	}
 
 	/**

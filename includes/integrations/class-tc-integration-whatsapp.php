@@ -255,7 +255,7 @@ class TC_Integration_WhatsApp {
 			$endpoint,
 			array(
 				'timeout'   => 10,
-				'sslverify' => false,
+				'sslverify' => true,
 				'headers'   => array(
 					'Authorization' => 'Bearer ' . self::get_token(),
 					'Content-Type'  => 'application/json',

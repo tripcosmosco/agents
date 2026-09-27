@@ -248,7 +248,7 @@ class TC_Provider_AIPuffer implements TC_AI_Provider_Interface {
 
 			$res = wp_remote_get( $target, array(
 				'timeout'   => 10,
-				'sslverify' => false,
+				'sslverify' => true,
 				'headers'   => $headers,
 			) );
 
@@ -314,7 +314,7 @@ class TC_Provider_AIPuffer implements TC_AI_Provider_Interface {
 			$endpoint,
 			array(
 				'timeout'   => 5,
-				'sslverify' => false,
+				'sslverify' => true,
 				'headers'   => $headers,
 			)
 		);
@@ -323,7 +323,7 @@ class TC_Provider_AIPuffer implements TC_AI_Provider_Interface {
 
 		if ( is_wp_error( $response ) ) {
 			// Fallback: If health endpoint 404s, try a dummy handshake on root rest
-			$root_resp = wp_remote_get( $base . '/wp-json/wp/v2/', array( 'timeout' => 4, 'sslverify' => false ) );
+			$root_resp = wp_remote_get( $base . '/wp-json/wp/v2/', array( 'timeout' => 4, 'sslverify' => true ) );
 			if ( ! is_wp_error( $root_resp ) && wp_remote_retrieve_response_code( $root_resp ) < 500 ) {
 				return array(
 					'status'     => 'healthy',
@@ -390,7 +390,7 @@ class TC_Provider_AIPuffer implements TC_AI_Provider_Interface {
 				'messages' => $messages,
 			);
 
-			$response = wp_remote_post( $url, array( 'timeout' => $timeout, 'sslverify' => false, 'headers' => $headers, 'body' => wp_json_encode( $bridge_payload ) ) );
+			$response = wp_remote_post( $url, array( 'timeout' => $timeout, 'sslverify' => true, 'headers' => $headers, 'body' => wp_json_encode( $bridge_payload ) ) );
 			$latency = (int) round( ( microtime( true ) - $start_time ) * 1000 );
 			if ( ! is_wp_error( $response ) && wp_remote_retrieve_response_code( $response ) < 400 ) {
 				$body = json_decode( wp_remote_retrieve_body( $response ), true );
@@ -435,7 +435,7 @@ class TC_Provider_AIPuffer implements TC_AI_Provider_Interface {
 			$url,
 			array(
 				'timeout'   => $timeout,
-				'sslverify' => false,
+				'sslverify' => true,
 				'headers'   => $headers,
 				'body'      => wp_json_encode( $payload ),
 			)
