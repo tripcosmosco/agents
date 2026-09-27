@@ -1,0 +1,542 @@
+<?php
+/**
+ * Automated Follow-Up Drip Sequences Engine.
+ * Features Cross-Channel Failover, Quiet Hours Governor, Stop-on-Reply, and Domain Personalization.
+ *
+ * @package TripCosmos_Agents
+ */
+
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
+class TC_Agent_Sequences {
+
+	public static function init() {
+		add_action( 'tc_agents_run_sequences_cron', array( __CLASS__, 'process_due_steps' ) );
+
+		if ( ! wp_next_scheduled( 'tc_agents_run_sequences_cron' ) ) {
+			wp_schedule_event( time() + 120, 'hourly', 'tc_agents_run_sequences_cron' );
+		}
+
+		self::maybe_seed_defaults();
+	}
+
+	/**
+	 * Seed default high-converting tour & pilgrimage follow-up sequences.
+	 */
+	public static function maybe_seed_defaults() {
+		global $wpdb;
+		$table_seq = $wpdb->prefix . 'tc_agent_sequences';
+
+		// 1. Abandoned Chat Inquiry Recovery
+		$exists_abandoned = $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $table_seq WHERE trigger_event = %s LIMIT 1", 'inquiry_abandoned' ) );
+		if ( ! $exists_abandoned ) {
+			$steps_abandoned = array(
+				array(
+					'delay_hours' => 1,
+					'subject'     => 'Quick question regarding your Varanasi tour & cab inquiry - TripCosmos',
+					'message'     => "Namaste {name}! TripCosmos team here from Varanasi 🛕\n\nI noticed you were exploring tour packages & cabs for {destination}. Did you have any questions regarding temple darshan timings, outstation cab fares (Dzire / Innova Crysta / Tempo Traveller), or ghat-view hotel stays? Here is our full circuit guide: https://tripcosmos.co/packages\n\nLet me know if you would like me to customize the day-wise itinerary for your family or group!",
+				),
+				array(
+					'delay_hours' => 24,
+					'subject'     => 'Varanasi Travel Tip: Evening Ganga Aarti Boat & Temple Darshan',
+					'message'     => "Namaste {name}! Quick travel tip from Varanasi: reserving your private Ganga Aarti boat and temple darshan in advance saves hours of waiting in line ⛵\n\nWould you like us to block your Aarti boat or arrange an AC cab for your arrival at Varanasi (VNS) or Ayodhya airport?",
+				),
+				array(
+					'delay_hours' => 48,
+					'subject'     => 'TripCosmos: Cab & Hotel Availability for {destination}',
+					'message'     => "Namaste {name}, our travel desk is scheduling vehicle allocations and hotel blocks for next week. Would you like me to hold a tentative cab/hotel slot or connect on a quick 5-min briefing call?",
+				),
+			);
+
+			$wpdb->insert(
+				$table_seq,
+				array(
+					'name'          => 'Varanasi Tour & Cab Inquiry Recovery',
+					'channel'       => 'whatsapp',
+					'trigger_event' => 'inquiry_abandoned',
+					'steps_json'    => wp_json_encode( $steps_abandoned ),
+					'is_active'     => 1,
+					'created_at'    => current_time( 'mysql' ),
+				)
+			);
+		}
+
+		// 2. Fluent Forms Lead Nurture Sequence
+		$exists_fluent = $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $table_seq WHERE trigger_event = %s LIMIT 1", 'fluentform_submitted' ) );
+		if ( ! $exists_fluent ) {
+			$steps_fluent = array(
+				array(
+					'delay_hours' => 0.25, // 15 mins
+					'subject'     => 'TripCosmos: We received your Varanasi / Ayodhya tour request!',
+					'message'     => "Namaste {name}! 🛕 Thank you for reaching out to TripCosmos (Varanasi).\n\nOur travel desk has received your request for {destination}. We are calculating the best cab fare, hotel options, and temple circuit itinerary for your dates.\n\nAre you traveling with family or senior citizens, and would you like airport/railway station pickup included?",
+				),
+				array(
+					'delay_hours' => 24,
+					'subject'     => 'Your Detailed Tour Itinerary & Cab Quotation',
+					'message'     => "Namaste {name}, here is your customized day-wise tour itinerary and cab quotation for {destination}.\n\nWould you like to speak with our travel specialist on a quick 5-minute call to finalize the package or customize any stops?",
+				),
+			);
+
+			$wpdb->insert(
+				$table_seq,
+				array(
+					'name'          => 'Fluent Forms Lead Instant Nurture',
+					'channel'       => 'whatsapp',
+					'trigger_event' => 'fluentform_submitted',
+					'steps_json'    => wp_json_encode( $steps_fluent ),
+					'is_active'     => 1,
+					'created_at'    => current_time( 'mysql' ),
+				)
+			);
+		}
+
+		// 3. Pre-Arrival Chauffeur & VIP Darshan Concierge
+		$exists_pre = $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $table_seq WHERE trigger_event = %s LIMIT 1", 'pre_arrival' ) );
+		if ( ! $exists_pre ) {
+			$steps_pre = array(
+				array(
+					'delay_hours' => 0.1, // ~6 minutes after booking confirmed
+					'subject'     => 'Booking Confirmed! TripCosmos Pre-Arrival Welcome & Guidelines',
+					'message'     => "Namaste {name}! 🙏 Har Har Mahadev! Your tour & cab booking with TripCosmos for {destination} is confirmed (Ref: {deal_value}).\n\nHere is your Pre-Arrival Preparation Guide:\n1. Airport/Station Pickup: Our chauffeur will greet you at the designated exit gate holding a TripCosmos placard.\n2. Temple Guidelines: Mobile phones and leather belts are strictly restricted inside Kashi Vishwanath temple — locker arrangements are coordinated by our escort.\n3. Dress Code: Traditional modest attire recommended for morning Sugam Darshan & Rudrabhishek.\n\nFeel free to message here 24/7 if your train/flight timing changes!",
+				),
+				array(
+					'delay_hours' => 24,
+					'subject'     => 'Chauffeur & Vehicle Allocation Details - TripCosmos',
+					'message'     => "Namaste {name}, your dedicated air-conditioned vehicle and chauffeur details are being assigned for your arrival. We ensure sanitized vehicles, chilled mineral water bottles, and experienced local drivers who know Varanasi & Ayodhya routes inside-out.\n\nLooking forward to hosting you and your family in the sacred city!",
+				),
+			);
+
+			$wpdb->insert(
+				$table_seq,
+				array(
+					'name'          => 'Pre-Arrival Chauffeur & VIP Darshan Guide',
+					'channel'       => 'whatsapp',
+					'trigger_event' => 'pre_arrival',
+					'steps_json'    => wp_json_encode( $steps_pre ),
+					'is_active'     => 1,
+					'created_at'    => current_time( 'mysql' ),
+				)
+			);
+		}
+
+		// 4. Post-Trip Review & Referral Engine
+		$exists_review = $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $table_seq WHERE trigger_event = %s LIMIT 1", 'post_trip_feedback' ) );
+		if ( ! $exists_review ) {
+			$steps_review = array(
+				array(
+					'delay_hours' => 24,
+					'subject'     => 'Thank you for traveling with TripCosmos! How was your pilgrimage?',
+					'message'     => "Namaste {name}! 🙏 We hope you and your family had a peaceful, divine pilgrimage in {destination}.\n\nAs a local Varanasi team, your feedback means the world to our drivers and tour coordinators. If you enjoyed the service, could you take 30 seconds to share your review on Google? It deeply helps other pilgrims:\n👉 https://tripcosmos.co/review\n\nThank you for choosing TripCosmos!",
+				),
+				array(
+					'delay_hours' => 168, // 7 days
+					'subject'     => 'Plan your next spiritual journey with TripCosmos - VIP Privilege',
+					'message'     => "Namaste {name}! As a valued TripCosmos guest, we would love to welcome you and your loved ones back. Planning your next journey to Ayodhya Ram Mandir, Prayagraj Sangam, Bodh Gaya, or Chardham? Enjoy an exclusive 10% privilege discount on all premium cab bookings with code TC-DEVOTEE.\n\nReply anytime to speak with our specialist!",
+				),
+			);
+
+			$wpdb->insert(
+				$table_seq,
+				array(
+					'name'          => 'Post-Trip Google Review & Referral Engine',
+					'channel'       => 'whatsapp',
+					'trigger_event' => 'post_trip_feedback',
+					'steps_json'    => wp_json_encode( $steps_review ),
+					'is_active'     => 1,
+					'created_at'    => current_time( 'mysql' ),
+				)
+			);
+		}
+
+		// 5. B2B Travel Agency Partnership Outreach
+		$exists_b2b = $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $table_seq WHERE trigger_event = %s LIMIT 1", 'b2b_outreach' ) );
+		if ( ! $exists_b2b ) {
+			$steps_b2b = array(
+				array(
+					'delay_hours' => 1,
+					'subject'     => 'B2B Ground Handling & White-Label DMC Partnership - TripCosmos Varanasi',
+					'message'     => "Namaste {name} team! Greetings from TripCosmos (Varanasi).\n\nDo your clients travel to Varanasi, Ayodhya, Prayagraj, and Bodh Gaya? We operate as the premier on-ground DMC handling:\n✅ Verified Commercial AC Cabs (Innova Crysta, Dzire, Ertiga, Tempo Travellers)\n✅ Reserved Ganga Aarti Private Bajra Boats & VIP Sugam Darshan Escorts\n✅ Net B2B Commission Rates & White-Label Placards with your agency branding.\n\nWould you like our 2026 B2B Net Rate Sheet?",
+				),
+				array(
+					'delay_hours' => 48,
+					'subject'     => 'TripCosmos B2B Net Rates Sheet & Fleet Overview',
+					'message'     => "Namaste {name} team! Following up with our B2B Varanasi-Ayodhya circuit tariff sheet. We provide instant WhatsApp quotes for your sales executives and guaranteed on-time driver reporting. Let us know if we can assist with your next group or FIT inquiry!",
+				),
+			);
+
+			$wpdb->insert(
+				$table_seq,
+				array(
+					'name'          => 'B2B Travel Partner Outreach & White-Label DMC',
+					'channel'       => 'whatsapp',
+					'trigger_event' => 'b2b_outreach',
+					'steps_json'    => wp_json_encode( $steps_b2b ),
+					'is_active'     => 1,
+					'created_at'    => current_time( 'mysql' ),
+				)
+			);
+		}
+	}
+
+	/**
+	 * Enroll a contact into an automated follow-up sequence.
+	 *
+	 * @param int    $contact_id
+	 * @param string $trigger_event e.g. 'inquiry_abandoned', 'fluentform_submitted', 'pre_arrival', 'b2b_outreach'
+	 * @param int    $sequence_id   Optional explicit sequence ID.
+	 * @return bool
+	 */
+	public static function enroll_contact( $contact_id, $trigger_event = 'inquiry_abandoned', $sequence_id = 0 ) {
+		global $wpdb;
+		$table_seq    = $wpdb->prefix . 'tc_agent_sequences';
+		$table_enroll = $wpdb->prefix . 'tc_agent_sequence_enrollments';
+
+		if ( $sequence_id > 0 ) {
+			$seq = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $table_seq WHERE id = %d AND is_active = 1 LIMIT 1", $sequence_id ) );
+		} else {
+			$seq = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $table_seq WHERE trigger_event = %s AND is_active = 1 LIMIT 1", $trigger_event ) );
+		}
+
+		if ( ! $seq ) {
+			return false;
+		}
+
+		$exists = $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $table_enroll WHERE sequence_id = %d AND contact_id = %d AND status = 'active' LIMIT 1", $seq->id, $contact_id ) );
+		if ( $exists ) {
+			return false;
+		}
+
+		$steps = json_decode( $seq->steps_json, true ) ?: array();
+		if ( empty( $steps ) ) {
+			return false;
+		}
+
+		$delay_hours = (float) ( $steps[0]['delay_hours'] ?? 1 );
+		$next_run    = gmdate( 'Y-m-d H:i:s', time() + (int) round( $delay_hours * HOUR_IN_SECONDS ) );
+
+		return (bool) $wpdb->insert(
+			$table_enroll,
+			array(
+				'sequence_id'  => $seq->id,
+				'contact_id'   => $contact_id,
+				'current_step' => 0,
+				'status'       => 'active',
+				'next_run_at'  => $next_run,
+				'created_at'   => current_time( 'mysql' ),
+				'updated_at'   => current_time( 'mysql' ),
+			),
+			array( '%d', '%d', '%d', '%s', '%s', '%s', '%s' )
+		);
+	}
+
+	/**
+	 * Check if currently in quiet hours (9 PM to 8 AM local time).
+	 *
+	 * @return bool True if quiet hours active (dispatch should postpone).
+	 */
+	public static function is_quiet_hours() {
+		$local_hour = (int) current_time( 'G' );
+		return ( $local_hour < 8 || $local_hour >= 21 );
+	}
+
+	/**
+	 * Process all due follow-up steps across enrolled contacts.
+	 *
+	 * @param bool $ignore_quiet_hours Force execution for manual admin testing.
+	 * @return int Number of steps successfully processed.
+	 */
+	public static function process_due_steps( $ignore_quiet_hours = false ) {
+		if ( TC_Agents_Guardrails::is_kill_switch_active() ) {
+			return 0;
+		}
+
+		// Send Governor Quiet Hours Protection
+		if ( ! $ignore_quiet_hours && self::is_quiet_hours() ) {
+			return 0;
+		}
+
+		global $wpdb;
+		$table_seq     = $wpdb->prefix . 'tc_agent_sequences';
+		$table_enroll  = $wpdb->prefix . 'tc_agent_sequence_enrollments';
+		$table_contact = $wpdb->prefix . 'tc_agent_contacts';
+
+		$now = gmdate( 'Y-m-d H:i:s' );
+		$due = $wpdb->get_results(
+			$wpdb->prepare( "SELECT * FROM $table_enroll WHERE status = 'active' AND next_run_at <= %s LIMIT 20", $now ),
+			ARRAY_A
+		);
+
+		if ( empty( $due ) ) {
+			return 0;
+		}
+
+		$processed_count = 0;
+
+		foreach ( $due as $row ) {
+			$seq = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $table_seq WHERE id = %d", $row['sequence_id'] ), ARRAY_A );
+			$con = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $table_contact WHERE id = %d", $row['contact_id'] ), ARRAY_A );
+
+			if ( ! $seq || ! $con ) {
+				$wpdb->update( $table_enroll, array( 'status' => 'cancelled' ), array( 'id' => $row['id'] ) );
+				continue;
+			}
+
+			// If contact has neither phone nor email, sequence cannot be delivered
+			if ( empty( $con['phone'] ) && empty( $con['email'] ) ) {
+				$wpdb->update( $table_enroll, array( 'status' => 'cancelled', 'updated_at' => current_time( 'mysql' ) ), array( 'id' => $row['id'] ) );
+				TC_Agents_Logger::log( 'sequence_cancelled_no_contact', 'notice', array( 'enrollment_id' => $row['id'], 'contact_id' => $con['id'] ) );
+				continue;
+			}
+
+			// Consent: opted out of WhatsApp, unsubscribed/bounced email, or do-not-contact.
+			if ( ! TC_Contact_Service::can_contact( $con, 'whatsapp' ) && ! TC_Contact_Service::can_contact( $con, 'email' ) ) {
+				$wpdb->update( $table_enroll, array( 'status' => 'cancelled', 'updated_at' => current_time( 'mysql' ) ), array( 'id' => $row['id'] ) );
+				TC_Agents_Logger::log( 'sequence_cancelled_no_consent', 'notice', array( 'enrollment_id' => $row['id'], 'contact_id' => $con['id'] ) );
+				continue;
+			}
+
+			// If lead is already won, stop sequence unless it is post_trip_feedback
+			if ( 'won' === $con['stage'] && 'post_trip_feedback' !== $seq['trigger_event'] && 'pre_arrival' !== $seq['trigger_event'] ) {
+				$wpdb->update( $table_enroll, array( 'status' => 'completed' ), array( 'id' => $row['id'] ) );
+				continue;
+			}
+
+			$steps    = json_decode( $seq['steps_json'], true ) ?: array();
+			$step_idx = (int) $row['current_step'];
+
+			if ( ! isset( $steps[ $step_idx ] ) ) {
+				$wpdb->update( $table_enroll, array( 'status' => 'completed' ), array( 'id' => $row['id'] ) );
+				continue;
+			}
+
+			$step         = $steps[ $step_idx ];
+			$message_body = self::personalize_message( $step['message'] ?? '', $con );
+			$subject      = $step['subject'] ?? 'TripCosmos Tour & Pilgrimage Follow-up';
+
+			// Cross-Channel Smart Failover Dispatch
+			$sent         = false;
+			$used_channel = '';
+			$primary_wa   = ( 'whatsapp' === $seq['channel'] );
+
+			if ( $primary_wa && TC_Contact_Service::can_contact( $con, 'whatsapp' ) ) {
+				$check = TC_Agents_Guardrails::check_permission( 'whatsapp', $con['phone'] );
+				if ( ! is_wp_error( $check ) ) {
+					$sent = TC_Integration_WhatsApp::send_message( $con['phone'], $message_body );
+					if ( $sent ) {
+						$used_channel = 'whatsapp';
+						TC_Agents_Guardrails::record_outbound( 'whatsapp' );
+					}
+				}
+			} elseif ( ! $primary_wa && TC_Contact_Service::can_contact( $con, 'email' ) ) {
+				$sent = self::send_sequence_email( $con['email'], $subject, $message_body, $con['name'] ?? '' );
+				if ( $sent ) {
+					$used_channel = 'email';
+				}
+			}
+
+			// Failover to secondary channel if primary was unavailable or failed
+			if ( ! $sent ) {
+				if ( $primary_wa && TC_Contact_Service::can_contact( $con, 'email' ) ) {
+					$sent = self::send_sequence_email( $con['email'], $subject, $message_body, $con['name'] ?? '' );
+					if ( $sent ) {
+						$used_channel = 'email (failover)';
+					}
+				} elseif ( ! $primary_wa && TC_Contact_Service::can_contact( $con, 'whatsapp' ) ) {
+					$check = TC_Agents_Guardrails::check_permission( 'whatsapp', $con['phone'] );
+					if ( ! is_wp_error( $check ) ) {
+						$sent = TC_Integration_WhatsApp::send_message( $con['phone'], $message_body );
+						if ( $sent ) {
+							$used_channel = 'whatsapp (failover)';
+							TC_Agents_Guardrails::record_outbound( 'whatsapp' );
+						}
+					}
+				}
+			}
+
+			if ( $sent ) {
+				delete_transient( 'tc_seq_retries_' . $row['id'] );
+				TC_Contact_Service::add_activity( (int) $con['id'], 0 === strpos( $used_channel, 'email' ) ? 'email' : 'whatsapp', sprintf( 'Sequence "%s" step %d sent (%s)', $seq['name'] ?? '', $step_idx + 1, $used_channel ) );
+				$processed_count++;
+				TC_Agents_Logger::log(
+					'sequence_step_fired',
+					'info',
+					array(
+						'contact_id'   => $con['id'],
+						'step'         => $step_idx,
+						'channel'      => $used_channel,
+					)
+				);
+
+				// Advance to next step
+				$next_step_idx = $step_idx + 1;
+				if ( isset( $steps[ $next_step_idx ] ) ) {
+					$next_delay = (float) ( $steps[ $next_step_idx ]['delay_hours'] ?? 24 );
+					$wpdb->update(
+						$table_enroll,
+						array(
+							'current_step' => $next_step_idx,
+							'next_run_at'  => gmdate( 'Y-m-d H:i:s', time() + (int) round( $next_delay * HOUR_IN_SECONDS ) ),
+							'updated_at'   => current_time( 'mysql' ),
+						),
+						array( 'id' => $row['id'] )
+					);
+				} else {
+					$wpdb->update(
+						$table_enroll,
+						array( 'status' => 'completed', 'updated_at' => current_time( 'mysql' ) ),
+						array( 'id' => $row['id'] )
+					);
+				}
+			} else {
+				$retry_key = 'tc_seq_retries_' . $row['id'];
+				$retries   = (int) get_transient( $retry_key );
+				if ( $retries >= 3 ) {
+					$wpdb->update(
+						$table_enroll,
+						array(
+							'status'     => 'failed',
+							'updated_at' => current_time( 'mysql' ),
+						),
+						array( 'id' => $row['id'] )
+					);
+					delete_transient( $retry_key );
+					TC_Agents_Logger::log( 'sequence_step_failed_max_retries', 'error', array( 'enrollment_id' => $row['id'], 'step' => $step_idx ) );
+				} else {
+					set_transient( $retry_key, $retries + 1, DAY_IN_SECONDS );
+					// Retry in 2 hours
+					$wpdb->update(
+						$table_enroll,
+						array(
+							'next_run_at' => gmdate( 'Y-m-d H:i:s', time() + 7200 ),
+							'updated_at'  => current_time( 'mysql' ),
+						),
+						array( 'id' => $row['id'] )
+					);
+				}
+			}
+		}
+
+		return $processed_count;
+	}
+
+	/**
+	 * Send high-deliverability email using Brevo if configured, falling back to wp_mail.
+	 *
+	 * @param string $to_email
+	 * @param string $subject
+	 * @param string $message_text
+	 * @param string $name
+	 * @return bool
+	 */
+	public static function send_sequence_email( $to_email, $subject, $message_text, $name = '' ) {
+		$html_content = self::build_luxury_email_html( $subject, $message_text, $name );
+
+		if ( class_exists( 'TC_Integration_Brevo' ) && TC_Integration_Brevo::is_configured() ) {
+			$res = TC_Integration_Brevo::send_email( $to_email, $subject, $html_content, $message_text );
+			if ( ! is_wp_error( $res ) ) {
+				return true;
+			}
+			TC_Agents_Logger::log( 'brevo_sequence_email_fallback', 'warning', array( 'error' => $res->get_error_message() ) );
+		}
+
+		$headers = array( 'Content-Type: text/html; charset=UTF-8' );
+		return (bool) wp_mail( $to_email, $subject, $html_content, $headers );
+	}
+
+	/**
+	 * Generate a clean, responsive luxury email template for TripCosmos communications.
+	 */
+	public static function build_luxury_email_html( $subject, $message_text, $name = '' ) {
+		$formatted_body = nl2br( esc_html( $message_text ) );
+		$safe_name      = esc_html( $name ?: 'Traveler' );
+		$site_url       = esc_url( home_url() );
+		$raw_wa         = get_option( 'tc_agents_human_whatsapp_number', '' );
+		$clean_num      = preg_replace( '/[^0-9]/', '', $raw_wa ) ?: '';
+		$helpline       = '+' . substr( $clean_num, 0, 2 ) . ' ' . substr( $clean_num, 2, 5 ) . ' ' . substr( $clean_num, 7 );
+
+		return '<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>' . esc_html( $subject ) . '</title>
+<style>
+body { margin: 0; padding: 0; background-color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+.wrapper { max-width: 600px; margin: 24px auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 16px rgba(0,0,0,0.06); border: 1px solid #e2e8f0; }
+.header { background: linear-gradient(135deg, #f97316 0%, #ea580c 25%, #9333ea 72%, #6366f1 100%); padding: 28px 24px; text-align: center; color: #ffffff; }
+.header h1 { margin: 0; font-size: 22px; font-weight: 800; letter-spacing: -0.5px; }
+.header p { margin: 6px 0 0; font-size: 13px; opacity: 0.9; }
+.content { padding: 32px 28px; color: #1e293b; font-size: 15px; line-height: 1.65; }
+.cta-box { margin: 24px 0 12px; text-align: center; }
+.cta-btn { display: inline-block; background: #25d366; color: #ffffff !important; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-weight: 700; font-size: 14px; }
+.footer { background: #f1f5f9; padding: 18px 24px; text-align: center; font-size: 12px; color: #64748b; border-top: 1px solid #e2e8f0; }
+.footer a { color: #ea580c; text-decoration: none; }
+</style>
+</head>
+<body>
+<div class="wrapper">
+	<div class="header">
+		<h1>TripCosmos</h1>
+		<p>Sacred Pilgrimage & Premium Cab Experiences • Varanasi</p>
+	</div>
+	<div class="content">
+		' . $formatted_body . '
+		<div class="cta-box">
+			<a href="https://wa.me/' . esc_attr( $clean_num ) . '" class="cta-btn" target="_blank">Connect with Concierge on WhatsApp</a>
+		</div>
+	</div>
+	<div class="footer">
+		TripCosmos • Dashashwamedh Ghat Road, Varanasi, UP, India<br>
+		<a href="' . $site_url . '">Visit Website</a> • 24/7 Helpline: ' . esc_html( $helpline ) . '
+	</div>
+</div>
+</body>
+</html>';
+	}
+
+	/**
+	 * Personalize message placeholders.
+	 */
+	private static function personalize_message( $template, array $contact ) {
+		$name     = ! empty( $contact['name'] ) ? $contact['name'] : 'Traveler';
+		$deal_val = ! empty( $contact['deal_value'] ) ? '₹' . number_format( (float) $contact['deal_value'] ) : 'custom group package';
+		$phone    = ! empty( $contact['phone'] ) ? $contact['phone'] : '';
+		$email    = ! empty( $contact['email'] ) ? $contact['email'] : '';
+
+		$meta = json_decode( (string) ( $contact['meta_data'] ?? '' ), true ) ?: array();
+		$dest = ! empty( $meta['destination'] ) ? $meta['destination'] : 'Varanasi & Spiritual Circuit';
+
+		$replacements = array(
+			'{name}'         => $name,
+			'{{name}}'       => $name,
+			'{Name}'         => $name,
+			'{{Name}}'       => $name,
+			'{deal_value}'   => $deal_val,
+			'{{deal_value}}' => $deal_val,
+			'{destination}'  => $dest,
+			'{{destination}}'=> $dest,
+			'{phone}'        => $phone,
+			'{{phone}}'      => $phone,
+			'{email}'        => $email,
+			'{{email}}'      => $email,
+		);
+
+		return str_replace( array_keys( $replacements ), array_values( $replacements ), $template );
+	}
+
+	/**
+	 * Cancel all active enrollments for a contact when they reply or book.
+	 */
+	public static function cancel_for_contact( $contact_id ) {
+		global $wpdb;
+		$table_enroll = $wpdb->prefix . 'tc_agent_sequence_enrollments';
+		return $wpdb->update(
+			$table_enroll,
+			array( 'status' => 'replied', 'updated_at' => current_time( 'mysql' ) ),
+			array( 'contact_id' => (int) $contact_id, 'status' => 'active' )
+		);
+	}
+}
+
