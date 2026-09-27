@@ -31,6 +31,17 @@
 		// Restore history if saved in this session
 		restoreChatHistory();
 
+		// Auto-open if query param open_master_chat=1 is present
+		if (window.location.search.indexOf('open_master_chat=1') !== -1) {
+			setTimeout(function() {
+				openPopup();
+				if (window.history && window.history.replaceState) {
+					var cleanUrl = window.location.href.replace(/([&?])open_master_chat=1(&|$)/, '$1').replace(/[?&]$/, '');
+					window.history.replaceState({}, document.title, cleanUrl);
+				}
+			}, 300);
+		}
+
 		// Toggle Popup via FAB
 		$fab.on('click', function(e) {
 			e.preventDefault();

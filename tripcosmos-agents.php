@@ -2,7 +2,7 @@
 /**
  * Plugin Name: TripCosmos Agents
  * Plugin URI: https://tripcosmos.co
- * Description: Unified multi-provider AI conversational agent layer for TripCosmos.co, featuring customer chat widget, master control console, automated CRM/WhatsApp plumbings, and failover safety guardrails.
+ * Description: Unified multi-provider AI conversational agent layer for TripCosmos.co, featuring customer chat widget, omnipresent master control console popup, automated CRM/WhatsApp plumbings, and failover safety guardrails.
  * Version: 1.9.0
  * Author: TripCosmos Team
  * Author URI: https://tripcosmos.co
@@ -24,72 +24,95 @@ define( 'TC_AGENTS_FILE', __FILE__ );
 define( 'TC_AGENTS_PATH', plugin_dir_path( __FILE__ ) );
 define( 'TC_AGENTS_URL', plugin_dir_url( __FILE__ ) );
 
-// 2. Core Includes
-require_once TC_AGENTS_PATH . 'includes/class-tc-agents-vault.php';
-require_once TC_AGENTS_PATH . 'includes/class-tc-agents-security.php';
-require_once TC_AGENTS_PATH . 'includes/class-tc-agents-wa-attribution.php';
-require_once TC_AGENTS_PATH . 'includes/class-tc-agents-activator.php';
-require_once TC_AGENTS_PATH . 'includes/class-tc-agents-deactivator.php';
-require_once TC_AGENTS_PATH . 'includes/class-tc-agents-logger.php';
-require_once TC_AGENTS_PATH . 'includes/class-tc-agents-guardrails.php';
-require_once TC_AGENTS_PATH . 'includes/class-tc-agents-github-updater.php';
-require_once TC_AGENTS_PATH . 'includes/class-tc-agents-queue.php';
-require_once TC_AGENTS_PATH . 'includes/class-tc-agents-privacy.php';
-require_once TC_AGENTS_PATH . 'includes/class-tc-contact-service.php';
-require_once TC_AGENTS_PATH . 'includes/class-tc-crm-access.php';
-require_once TC_AGENTS_PATH . 'includes/class-tc-crm-notify.php';
-require_once TC_AGENTS_PATH . 'includes/class-tc-quote-service.php';
-require_once TC_AGENTS_PATH . 'includes/class-tc-payments.php';
-require_once TC_AGENTS_PATH . 'includes/class-tc-whatsapp-hub.php';
-require_once TC_AGENTS_PATH . 'public/class-tc-quote-page.php';
+// 2. High-Performance Class Autoloader (Zero-I/O Lazy Loading)
+spl_autoload_register( function( $class ) {
+	if ( strpos( $class, 'TC_' ) !== 0 ) {
+		return;
+	}
 
-// 3. AI Layer Includes
-require_once TC_AGENTS_PATH . 'includes/ai/interface-tc-ai-provider.php';
-require_once TC_AGENTS_PATH . 'includes/ai/providers/class-tc-provider-aipuffer.php';
-require_once TC_AGENTS_PATH . 'includes/ai/providers/class-tc-provider-openrouter.php';
-require_once TC_AGENTS_PATH . 'includes/ai/providers/class-tc-provider-omniroute.php';
-require_once TC_AGENTS_PATH . 'includes/ai/providers/class-tc-provider-vmstudio.php';
-require_once TC_AGENTS_PATH . 'includes/ai/providers/class-tc-provider-gateway.php';
-require_once TC_AGENTS_PATH . 'includes/ai/providers/class-tc-provider-gemini.php';
-require_once TC_AGENTS_PATH . 'includes/ai/class-tc-ai-router.php';
+	static $map = null;
+	if ( null === $map ) {
+		$map = array(
+			// Core
+			'TC_Agents_Vault'                => 'includes/class-tc-agents-vault.php',
+			'TC_Agents_Security'             => 'includes/class-tc-agents-security.php',
+			'TC_Agents_WA_Attribution'       => 'includes/class-tc-agents-wa-attribution.php',
+			'TC_Agents_Activator'            => 'includes/class-tc-agents-activator.php',
+			'TC_Agents_Deactivator'          => 'includes/class-tc-agents-deactivator.php',
+			'TC_Agents_Logger'               => 'includes/class-tc-agents-logger.php',
+			'TC_Agents_Guardrails'           => 'includes/class-tc-agents-guardrails.php',
+			'TC_Agents_GitHub_Updater'       => 'includes/class-tc-agents-github-updater.php',
+			'TC_Agents_Queue'                => 'includes/class-tc-agents-queue.php',
+			'TC_Agents_Privacy'              => 'includes/class-tc-agents-privacy.php',
+			'TC_Contact_Service'             => 'includes/class-tc-contact-service.php',
+			'TC_CRM_Access'                  => 'includes/class-tc-crm-access.php',
+			'TC_CRM_Notify'                  => 'includes/class-tc-crm-notify.php',
+			'TC_Quote_Service'               => 'includes/class-tc-quote-service.php',
+			'TC_Payments'                    => 'includes/class-tc-payments.php',
+			'TC_WhatsApp_Hub'                => 'includes/class-tc-whatsapp-hub.php',
+			'TC_Quote_Page'                  => 'public/class-tc-quote-page.php',
 
-// 4. Orchestrator & Tools Includes
-require_once TC_AGENTS_PATH . 'includes/orchestrator/class-tc-agent-chunker.php';
-require_once TC_AGENTS_PATH . 'includes/orchestrator/class-tc-agent-vector-store.php';
-require_once TC_AGENTS_PATH . 'includes/orchestrator/class-tc-agent-deal-math.php';
-require_once TC_AGENTS_PATH . 'includes/orchestrator/class-tc-agent-memory.php';
-require_once TC_AGENTS_PATH . 'includes/orchestrator/class-tc-agent-knowledge.php';
-require_once TC_AGENTS_PATH . 'includes/orchestrator/class-tc-agent-sequences.php';
-require_once TC_AGENTS_PATH . 'includes/orchestrator/class-tc-cab-fare-engine.php';
-require_once TC_AGENTS_PATH . 'includes/orchestrator/class-tc-itinerary-generator.php';
-require_once TC_AGENTS_PATH . 'includes/orchestrator/class-tc-agent-tools.php';
-require_once TC_AGENTS_PATH . 'includes/orchestrator/class-tc-agent-orchestrator.php';
+			// AI Layer
+			'TC_AI_Provider_Interface'       => 'includes/ai/interface-tc-ai-provider.php',
+			'TC_Provider_AIPuffer'           => 'includes/ai/providers/class-tc-provider-aipuffer.php',
+			'TC_Provider_Gateway'            => 'includes/ai/providers/class-tc-provider-gateway.php',
+			'TC_Provider_Gemini'             => 'includes/ai/providers/class-tc-provider-gemini.php',
+			'TC_Provider_Omniroute'          => 'includes/ai/providers/class-tc-provider-omniroute.php',
+			'TC_Provider_OpenRouter'         => 'includes/ai/providers/class-tc-provider-openrouter.php',
+			'TC_Provider_VMStudio'           => 'includes/ai/providers/class-tc-provider-vmstudio.php',
+			'TC_AI_Router'                   => 'includes/ai/class-tc-ai-router.php',
 
-// 5. Integrations Includes
-require_once TC_AGENTS_PATH . 'includes/integrations/class-tc-integration-fluentcrm.php';
-require_once TC_AGENTS_PATH . 'includes/integrations/class-tc-integration-twentycrm.php';
-require_once TC_AGENTS_PATH . 'includes/integrations/class-tc-integration-whatsapp.php';
-require_once TC_AGENTS_PATH . 'includes/integrations/class-tc-integration-evolution.php';
-require_once TC_AGENTS_PATH . 'includes/integrations/class-tc-integration-brevo.php';
-require_once TC_AGENTS_PATH . 'includes/integrations/class-tc-integration-google-business.php';
-require_once TC_AGENTS_PATH . 'includes/integrations/class-tc-integration-sheets.php';
-require_once TC_AGENTS_PATH . 'includes/integrations/class-tc-integration-voice.php';
+			// Orchestrator & Tools
+			'TC_Agent_Chunker'               => 'includes/orchestrator/class-tc-agent-chunker.php',
+			'TC_Agent_Vector_Store'          => 'includes/orchestrator/class-tc-agent-vector-store.php',
+			'TC_Agent_Deal_Math'             => 'includes/orchestrator/class-tc-agent-deal-math.php',
+			'TC_Agent_Memory'                => 'includes/orchestrator/class-tc-agent-memory.php',
+			'TC_Agent_Knowledge'             => 'includes/orchestrator/class-tc-agent-knowledge.php',
+			'TC_Agent_Sequences'             => 'includes/orchestrator/class-tc-agent-sequences.php',
+			'TC_Cab_Fare_Engine'             => 'includes/orchestrator/class-tc-cab-fare-engine.php',
+			'TC_Itinerary_Generator'         => 'includes/orchestrator/class-tc-itinerary-generator.php',
+			'TC_Agent_Tools'                 => 'includes/orchestrator/class-tc-agent-tools.php',
+			'TC_Agent_Orchestrator'          => 'includes/orchestrator/class-tc-agent-orchestrator.php',
 
-// 6. API Includes
-require_once TC_AGENTS_PATH . 'includes/api/class-tc-agents-rest.php';
-require_once TC_AGENTS_PATH . 'includes/api/class-tc-agents-mobile-api.php';
-require_once TC_AGENTS_PATH . 'includes/api/class-tc-agents-mobile-crm-api.php';
+			// Integrations
+			'TC_Integration_FluentCRM'       => 'includes/integrations/class-tc-integration-fluentcrm.php',
+			'TC_Integration_TwentyCRM'       => 'includes/integrations/class-tc-integration-twentycrm.php',
+			'TC_Integration_WhatsApp'        => 'includes/integrations/class-tc-integration-whatsapp.php',
+			'TC_Integration_Evolution'       => 'includes/integrations/class-tc-integration-evolution.php',
+			'TC_Integration_Brevo'           => 'includes/integrations/class-tc-integration-brevo.php',
+			'TC_Integration_Google_Business' => 'includes/integrations/class-tc-integration-google-business.php',
+			'TC_Integration_Sheets'          => 'includes/integrations/class-tc-integration-sheets.php',
+			'TC_Integration_Voice'           => 'includes/integrations/class-tc-integration-voice.php',
 
-// 7. Admin & Public Includes
-require_once TC_AGENTS_PATH . 'admin/class-tc-agents-admin.php';
-require_once TC_AGENTS_PATH . 'admin/class-tc-contacts-admin.php';
-require_once TC_AGENTS_PATH . 'public/class-tc-agents-public.php';
+			// API
+			'TC_Agents_REST'                 => 'includes/api/class-tc-agents-rest.php',
+			'TC_Agents_Mobile_API'           => 'includes/api/class-tc-agents-mobile-api.php',
+			'TC_Agents_Mobile_CRM_API'       => 'includes/api/class-tc-agents-mobile-crm-api.php',
 
-// 8. Lifecycle Hooks
+			// Admin & Public
+			'TC_Agents_Admin'                => 'admin/class-tc-agents-admin.php',
+			'TC_Contacts_Admin'              => 'admin/class-tc-contacts-admin.php',
+			'TC_Agents_Public'               => 'public/class-tc-agents-public.php',
+		);
+	}
+
+	if ( isset( $map[ $class ] ) ) {
+		// If loading an AI provider, ensure interface is declared first
+		if ( strpos( $class, 'TC_Provider_' ) === 0 && ! interface_exists( 'TC_AI_Provider_Interface', false ) ) {
+			require_once TC_AGENTS_PATH . 'includes/ai/interface-tc-ai-provider.php';
+		}
+		$file = TC_AGENTS_PATH . $map[ $class ];
+		if ( file_exists( $file ) ) {
+			require_once $file;
+		}
+	}
+} );
+
+// 3. Lifecycle Hooks
 register_activation_hook( __FILE__, array( 'TC_Agents_Activator', 'activate' ) );
 register_deactivation_hook( __FILE__, array( 'TC_Agents_Deactivator', 'deactivate' ) );
 
-// 9. Bootstrap Plugin Services
+// 4. Bootstrap Plugin Services
 add_action( 'plugins_loaded', function() {
 	// Auto-upgrade database tables if version bumped
 	TC_Agents_Activator::maybe_upgrade();
@@ -162,4 +185,3 @@ add_action( 'plugins_loaded', function() {
 		TC_Agents_Public::init();
 	}
 } );
-

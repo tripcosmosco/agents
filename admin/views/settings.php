@@ -492,54 +492,126 @@ $qr_image_url = 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin
 			</table>
 		</div>
 
-		<!-- 5. GITHUB AUTO-SYNC & UPDATES -->
+		<!-- 5. TWO-WAY GITHUB CODE SYNCHRONIZER & UPDATES -->
+		<?php
+		$gh_repo_info = class_exists( 'TC_Agents_GitHub_Updater' ) ? TC_Agents_GitHub_Updater::get_repo() : array( 'slug' => 'tripcosmosco/TripCosmos.co-Agentd', 'owner' => 'tripcosmosco', 'repo' => 'TripCosmos.co-Agentd' );
+		$gh_branch    = class_exists( 'TC_Agents_GitHub_Updater' ) ? TC_Agents_GitHub_Updater::get_branch() : 'main';
+		?>
 		<div class="tc-card-lux" id="tc-github-updater-card">
-			<div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 16px;">
+			<div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px; margin-bottom: 20px;">
 				<div>
 					<div class="tc-card-title">
-						<span>🚀</span>
-						Plugin Updates &amp; GitHub Synchronization
+						<span>🔄</span>
+						Two-Way GitHub Code Synchronization
 					</div>
-					<p class="tc-card-desc" style="margin: 0;">
-						Directly synchronize and update TripCosmos Agents from its official repository (<code>tripcosmosco/agents</code>).
+					<p class="tc-card-desc" style="margin: 0; max-width: 680px;">
+						Bidirectionally sync code between this WordPress site and GitHub. The system detects which code is newer, allowing you to <strong>push updates to GitHub</strong> when you customize code on WordPress, or <strong>pull &amp; update from GitHub</strong> when remote releases are published.
 					</p>
 				</div>
-				<div style="display: flex; align-items: center; gap: 10px;">
-					<button type="button" id="tc-check-github-update-btn" class="button button-secondary" style="border-radius: 8px; font-weight: 600;">
-						<span class="dashicons dashicons-update" style="margin-top: 3px;"></span> Check for GitHub Updates
+				<div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+					<button type="button" id="tc-check-github-sync-btn" class="button button-secondary" style="border-radius: 8px; font-weight: 600; padding: 6px 14px; height: auto;">
+						<span class="dashicons dashicons-randomize" style="margin-top: 2px;"></span> Compare Versions
 					</button>
-					<button type="button" id="tc-perform-github-update-btn" class="button button-primary" style="display: none; border-radius: 8px; font-weight: 700; background: #16a34a; border-color: #15803d;">
-						<span class="dashicons dashicons-download" style="margin-top: 3px;"></span> Update Now
+					<button type="button" id="tc-push-github-btn" class="button button-primary" style="display: none; border-radius: 8px; font-weight: 700; background: #0284c7; border-color: #0369a1; padding: 6px 16px; height: auto;">
+						<span class="dashicons dashicons-upload" style="margin-top: 2px;"></span> Push to GitHub
+					</button>
+					<button type="button" id="tc-perform-github-update-btn" class="button button-primary" style="display: none; border-radius: 8px; font-weight: 700; background: #16a34a; border-color: #15803d; padding: 6px 16px; height: auto;">
+						<span class="dashicons dashicons-download" style="margin-top: 2px;"></span> Update from GitHub
 					</button>
 				</div>
 			</div>
 
-			<div id="tc-github-update-status-box" style="display: none; padding: 14px 18px; border-radius: 8px; margin-bottom: 18px; font-size: 13px; line-height: 1.5;"></div>
+			<!-- Comparison Display Card -->
+			<div style="display: grid; grid-template-columns: 1fr auto 1fr; gap: 16px; align-items: center; background: #0f172a; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 18px 24px; margin-bottom: 20px;">
+				<!-- Local WordPress -->
+				<div style="text-align: left;">
+					<div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8; font-weight: 700; margin-bottom: 4px;">
+						🌐 WordPress Site (Local)
+					</div>
+					<div style="display: flex; align-items: center; gap: 10px;">
+						<span style="font-size: 20px; font-weight: 800; color: #f8fafc;" id="tc-local-version-label">
+							v<?php echo esc_html( TC_AGENTS_VERSION ); ?>
+						</span>
+						<span class="tc-badge-gold" style="font-size: 11px; padding: 3px 8px;">Active</span>
+					</div>
+					<div style="font-size: 12px; color: #64748b; margin-top: 4px;">
+						Directory: <code>plugins/tripcosmos-agents</code>
+					</div>
+				</div>
+
+				<!-- Center Sync Direction Indicator -->
+				<div style="text-align: center; padding: 0 12px;">
+					<div id="tc-sync-direction-badge" style="background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 20px; padding: 6px 14px; font-size: 12px; font-weight: 600; color: #cbd5e1; display: inline-flex; align-items: center; gap: 6px;">
+						<span class="dashicons dashicons-leftright" style="font-size: 16px; width: 16px; height: 16px; margin-top: 2px;"></span>
+						<span id="tc-sync-direction-text">Click "Compare Versions"</span>
+					</div>
+				</div>
+
+				<!-- Remote GitHub -->
+				<div style="text-align: right;">
+					<div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8; font-weight: 700; margin-bottom: 4px;">
+						🐙 GitHub Repository (Remote)
+					</div>
+					<div style="display: flex; align-items: center; justify-content: flex-end; gap: 10px;">
+						<span style="font-size: 20px; font-weight: 800; color: #93c5fd;" id="tc-remote-version-label">
+							--
+						</span>
+						<span style="background: rgba(59, 130, 246, 0.2); color: #93c5fd; border: 1px solid rgba(59, 130, 246, 0.4); border-radius: 12px; padding: 2px 8px; font-size: 11px; font-weight: 600;" id="tc-remote-branch-label">
+							<?php echo esc_html( $gh_branch ); ?>
+						</span>
+					</div>
+					<div style="font-size: 12px; color: #64748b; margin-top: 4px;">
+						<a href="https://github.com/<?php echo esc_attr( $gh_repo_info['slug'] ); ?>" target="_blank" rel="noopener noreferrer" style="color: #60a5fa; text-decoration: none;">
+							<?php echo esc_html( $gh_repo_info['slug'] ); ?> ↗
+						</a>
+					</div>
+				</div>
+			</div>
+
+			<!-- Dynamic Status and Feedback Box -->
+			<div id="tc-github-update-status-box" style="display: none; padding: 14px 18px; border-radius: 10px; margin-bottom: 20px; font-size: 13px; line-height: 1.6;"></div>
+
+			<!-- Commit Details Box (Populated on Check) -->
+			<div id="tc-github-commit-card" style="display: none; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 10px; padding: 12px 16px; margin-bottom: 20px; font-size: 12px;">
+				<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+					<strong style="color: #e2e8f0;">Latest Remote Commit on GitHub:</strong>
+					<a id="tc-commit-link" href="#" target="_blank" rel="noopener noreferrer" style="color: #38bdf8; font-family: monospace; font-weight: 700; text-decoration: none;"></a>
+				</div>
+				<div id="tc-commit-message" style="color: #cbd5e1; font-family: monospace; font-size: 12px; background: rgba(0,0,0,0.3); padding: 8px 12px; border-radius: 6px; white-space: pre-wrap; margin-bottom: 6px;"></div>
+				<div style="display: flex; justify-content: space-between; color: #64748b; font-size: 11px;">
+					<span id="tc-commit-author"></span>
+					<span id="tc-commit-date"></span>
+				</div>
+			</div>
 
 			<table class="form-table" style="margin-top: 0;">
 				<tr>
-					<th scope="row">Installed Version</th>
+					<th scope="row"><label for="github_repo">GitHub Repository</label></th>
 					<td>
-						<span style="background: #e0f2fe; color: #0369a1; font-weight: 700; font-size: 13px; padding: 4px 12px; border-radius: 12px; display: inline-flex; align-items: center; gap: 6px;">
-							<span style="display: inline-block; width: 8px; height: 8px; background: #0284c7; border-radius: 50%;"></span>
-							v<?php echo esc_html( TC_AGENTS_VERSION ); ?>
-						</span>
-						<span class="description" style="margin-left: 8px;">Active production build.</span>
+						<input type="text" name="github_repo" id="github_repo" class="tc-input-lux" value="<?php echo esc_attr( $gh_repo_info['slug'] ); ?>" placeholder="owner/repository (e.g. tripcosmosco/TripCosmos.co-Agentd)" style="max-width: 460px;" />
+						<p class="description">Format: <code>owner/repository-name</code></p>
 					</td>
 				</tr>
 				<tr>
-					<th scope="row">Repository</th>
+					<th scope="row"><label for="github_branch">Git Branch</label></th>
 					<td>
-						<a href="https://github.com/tripcosmosco/agents" target="_blank" rel="noopener noreferrer" style="font-weight: 600; text-decoration: none; color: #2563eb;">
-							github.com/tripcosmosco/agents ↗
-						</a>
+						<input type="text" name="github_branch" id="github_branch" class="tc-input-lux" value="<?php echo esc_attr( $gh_branch ); ?>" placeholder="main" style="max-width: 200px;" />
+						<p class="description">Branch to push to and track (default: <code>main</code>).</p>
 					</td>
 				</tr>
 				<tr>
-					<th scope="row"><label for="github_token">GitHub Access Token (Optional)</label></th>
+					<th scope="row"><label for="github_token">GitHub Personal Access Token</label></th>
 					<td>
-						<input type="password" name="github_token" id="github_token" class="tc-input-lux" value="" placeholder="<?php echo esc_attr( TC_Agents_Vault::hint( 'github_token' ) ?: 'ghp_••••••••••••••••••••' ); ?>" autocomplete="new-password" />
-						<?php if ( TC_Agents_Vault::has( 'github_token' ) ) : ?><span class="dashicons dashicons-yes-alt" style="color:#10b981; vertical-align: middle;"></span> <small style="color:#10b981; font-weight: 600;">Vault Encrypted</small><?php endif; ?>
+						<input type="password" name="github_token" id="github_token" class="tc-input-lux" value="" placeholder="<?php echo esc_attr( TC_Agents_Vault::hint( 'github_token' ) ?: 'ghp_••••••••••••••••••••' ); ?>" autocomplete="new-password" style="max-width: 460px;" />
+						<?php if ( TC_Agents_Vault::has( 'github_token' ) ) : ?>
+							<span class="dashicons dashicons-yes-alt" style="color:#10b981; vertical-align: middle; margin-left: 6px;"></span> <small style="color:#10b981; font-weight: 600;">Vault Encrypted</small>
+						<?php endif; ?>
+						<p class="description" style="margin-top: 6px; line-height: 1.5;">
+							To push or pull private repositories, generate a token on GitHub at <a href="https://github.com/settings/tokens" target="_blank" rel="noopener noreferrer">GitHub &rarr; Settings &rarr; Developer Settings &rarr; Personal access tokens</a>.<br />
+							<strong style="color: #f59e0b;">Required permissions for two-way sync:</strong><br />
+							&bull; <strong>Fine-grained token:</strong> Under <em>Repository permissions</em>, set <strong>Contents: Read and write</strong>.<br />
+							&bull; <strong>Classic token:</strong> Check the <strong><code>repo</code></strong> scope (full control of private repositories).
+						</p>
 					</td>
 				</tr>
 			</table>

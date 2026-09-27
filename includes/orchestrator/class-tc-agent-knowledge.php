@@ -29,9 +29,9 @@ class TC_Agent_Knowledge {
 
 		$limit = max( 1, (int) $limit );
 
-		// 1. Try Semantic Vector Retrieval
+		// 1. Try Semantic Vector Retrieval ONLY if embeddings exist in the database
 		$is_vector_enabled = '1' === (string) get_option( 'tc_agents_enable_vector_search', '1' );
-		if ( $is_vector_enabled ) {
+		if ( $is_vector_enabled && class_exists( 'TC_Agent_Vector_Store' ) && TC_Agent_Vector_Store::has_embeddings() ) {
 			$query_vector = TC_Agent_Vector_Store::generate_embedding( $query );
 			if ( ! empty( $query_vector ) ) {
 				$vector_matches = TC_Agent_Vector_Store::search_semantic( $query_vector, $limit, 0.42 );
@@ -97,8 +97,20 @@ class TC_Agent_Knowledge {
 	 * @return string
 	 */
 	public static function get_relevant_context( $user_message ) {
-		$docs = self::search( $user_message, 2 );
+		$clean_msg = trim( (string) $user_message );
+		if ( '' === $clean_msg ) {
+			return '';
+		}
+
+		$cache_key = 'tc_kb_ctx_' . md5( mb_strtolower( $clean_msg ) );
+		$cached    = wp_cache_get( $cache_key, 'tc_agents' );
+		if ( false !== $cached ) {
+			return $cached;
+		}
+
+		$docs = self::search( $clean_msg, 2 );
 		if ( empty( $docs ) ) {
+			wp_cache_set( $cache_key, '', 'tc_agents', 600 );
 			return '';
 		}
 
@@ -110,6 +122,7 @@ class TC_Agent_Knowledge {
 		}
 		$out .= "\n--------------------------------------------------\n";
 
+		wp_cache_set( $cache_key, $out, 'tc_agents', 600 );
 		return $out;
 	}
 

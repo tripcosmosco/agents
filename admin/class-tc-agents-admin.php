@@ -17,6 +17,7 @@ class TC_Agents_Admin {
 		add_action( 'admin_bar_menu', array( __CLASS__, 'add_admin_bar_node' ), 100 );
 		add_action( 'admin_footer', array( __CLASS__, 'render_master_chat_popup' ) );
 		add_action( 'admin_init', array( __CLASS__, 'handle_settings_save' ) );
+		add_action( 'admin_init', array( __CLASS__, 'redirect_legacy_console' ) );
 		add_action( 'admin_notices', array( __CLASS__, 'security_notices' ) );
 		add_action( 'admin_init', array( 'TC_Agents_Vault', 'maybe_rekey' ) );
 		add_action( 'wp_ajax_tc_get_lead_memory', array( __CLASS__, 'ajax_get_lead_memory' ) );
@@ -26,6 +27,16 @@ class TC_Agents_Admin {
 		add_action( 'wp_ajax_tc_sync_provider_models', array( __CLASS__, 'ajax_sync_provider_models' ) );
 		add_action( 'wp_ajax_tc_test_twentycrm', array( __CLASS__, 'ajax_test_twentycrm' ) );
 		add_action( 'wp_ajax_tc_toggle_widget', array( __CLASS__, 'ajax_toggle_widget' ) );
+	}
+
+	/**
+	 * Redirect legacy console URL to Executive Dashboard and launch master popup.
+	 */
+	public static function redirect_legacy_console() {
+		if ( isset( $_GET['page'] ) && in_array( $_GET['page'], array( 'tc-agents-console', 'tc_agents_console' ), true ) ) {
+			wp_safe_redirect( admin_url( 'admin.php?page=tripcosmos-agents&open_master_chat=1' ) );
+			exit;
+		}
 	}
 
 	/**
@@ -53,17 +64,7 @@ class TC_Agents_Admin {
 			array( __CLASS__, 'render_dashboard_page' )
 		);
 
-		// 2. Master Agent Console
-		add_submenu_page(
-			'tripcosmos-agents',
-			__( 'Master Agent Console', 'tripcosmos-agents' ),
-			__( 'Master Console', 'tripcosmos-agents' ),
-			'manage_options',
-			'tc-agents-console',
-			array( __CLASS__, 'render_console_page' )
-		);
-
-		// 3. Leads & Pipeline
+		// 2. Leads & Pipeline (Master Console is now omnipresent in bottom-right popup and admin bar)
 		add_submenu_page(
 			'tripcosmos-agents',
 			__( 'Leads & Deals Pipeline', 'tripcosmos-agents' ),
@@ -260,7 +261,8 @@ class TC_Agents_Admin {
 	 * Render Master Agent Console.
 	 */
 	public static function render_console_page() {
-		require_once TC_AGENTS_PATH . 'admin/views/console.php';
+		wp_safe_redirect( admin_url( 'admin.php?page=tripcosmos-agents&open_master_chat=1' ) );
+		exit;
 	}
 
 	/**
@@ -852,6 +854,13 @@ class TC_Agents_Admin {
 				if ( ! empty( $mobile_tok ) ) {
 					update_option( 'tc_agents_mobile_api_token', $mobile_tok );
 				}
+			}
+
+			if ( isset( $_POST['github_repo'] ) ) {
+				update_option( 'tc_agents_github_repo', sanitize_text_field( trim( wp_unslash( $_POST['github_repo'] ) ) ) );
+			}
+			if ( isset( $_POST['github_branch'] ) ) {
+				update_option( 'tc_agents_github_branch', sanitize_text_field( trim( wp_unslash( $_POST['github_branch'] ) ) ) );
 			}
 
 			if ( ! empty( $_POST['github_token'] ) ) {

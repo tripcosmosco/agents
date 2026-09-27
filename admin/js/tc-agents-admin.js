@@ -711,60 +711,97 @@
 	/**
 	 * GitHub Plugin Updates & 1-Click Upgrade Manager
 	 */
+	/**
+	 * Two-Way GitHub Code Synchronizer & Updater Manager
+	 */
 	function initGitHubUpdater() {
-		const $checkBtn = $('#tc-check-github-update-btn');
+		const $syncBtn = $('#tc-check-github-sync-btn, #tc-check-github-update-btn');
+		const $pushBtn = $('#tc-push-github-btn');
 		const $updateBtn = $('#tc-perform-github-update-btn');
 		const $statusBox = $('#tc-github-update-status-box');
-		const $targetVersion = $('#tc-target-update-version');
+		const $remoteVerLabel = $('#tc-remote-version-label');
+		const $syncBadge = $('#tc-sync-direction-badge');
+		const $syncText = $('#tc-sync-direction-text');
+		const $commitCard = $('#tc-github-commit-card');
 
-		if (!$checkBtn.length) return;
+		if (!$syncBtn.length && !$pushBtn.length) return;
 
-		$checkBtn.on('click', function(e) {
+		// 1. Compare Versions / Check Sync
+		$syncBtn.on('click', function(e) {
 			e.preventDefault();
-			const origHtml = $checkBtn.html();
-			$checkBtn.prop('disabled', true).html('<span class="spinner is-active" style="float:none;margin:0 6px 0 0;"></span> Checking GitHub...');
+			const origHtml = $(this).html();
+			$(this).prop('disabled', true).html('<span class="spinner is-active" style="float:none;margin:0 6px 0 0;"></span> Comparing with GitHub...');
 			$statusBox.hide();
+			$commitCard.hide();
 
 			$.ajax({
 				url: tcAgentsAdmin.ajaxUrl,
 				type: 'POST',
 				dataType: 'json',
 				data: {
-					action: 'tc_agents_check_github_update',
+					action: 'tc_agents_check_github_sync',
 					nonce: tcAgentsAdmin.adminNonce
 				},
 				success: function(res) {
-					$checkBtn.prop('disabled', false).html(origHtml);
+					$syncBtn.prop('disabled', false).html(origHtml);
 					if (res.success) {
 						const data = res.data;
-						if (data.has_update) {
-							$targetVersion.text('v' + data.latest_version);
-							$updateBtn.show().data('version', data.latest_version);
-							let notes = '';
-							if (data.changelog) {
-								notes = '<div style="margin-top:10px;padding:10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;max-height:160px;overflow-y:auto;font-family:monospace;font-size:12px;white-space:pre-wrap;">' + data.changelog + '</div>';
-							}
+						$remoteVerLabel.text('v' + (data.remote_version || '--'));
+
+						// Populate latest commit card if available
+						if (data.latest_commit) {
+							$('#tc-commit-link').attr('href', data.latest_commit.url).text(data.latest_commit.sha);
+							$('#tc-commit-message').text(data.latest_commit.message);
+							$('#tc-commit-author').text('Committed by: ' + (data.latest_commit.author || 'GitHub'));
+							$('#tc-commit-date').text(data.latest_commit.date || '');
+							$commitCard.slideDown(200);
+						}
+
+						if (data.sync_status === 'wp_ahead') {
+							// WordPress is ahead of GitHub
+							$pushBtn.show();
+							$updateBtn.hide();
+							$syncBadge.css({ 'background': 'rgba(16, 185, 129, 0.15)', 'border-color': 'rgba(16, 185, 129, 0.4)', 'color': '#34d399' });
+							$syncText.html('WordPress Ahead &rarr; GitHub');
+							$statusBox
+								.css({ 'background': '#ecfdf5', 'border': '1px solid #6ee7b7', 'color': '#065f46' })
+								.html('<strong>🚀 WordPress Code is Ahead!</strong> ' + data.message + ' Click <strong>Push to GitHub</strong> to publish this release to repository <code>' + data.repo + '</code>.')
+								.slideDown(200);
+						} else if (data.sync_status === 'gh_ahead') {
+							// GitHub is ahead of WordPress
+							$updateBtn.show().data('version', data.remote_version);
+							$pushBtn.hide();
+							$syncBadge.css({ 'background': 'rgba(245, 158, 11, 0.15)', 'border-color': 'rgba(245, 158, 11, 0.4)', 'color': '#fbbf24' });
+							$syncText.html('GitHub Ahead &rarr; WordPress');
 							$statusBox
 								.css({ 'background': '#fef3c7', 'border': '1px solid #f59e0b', 'color': '#92400e' })
-								.html('<strong>🚀 Update Available!</strong> A new release <strong>v' + data.latest_version + '</strong> is available on GitHub (Installed: v' + data.current_version + ').' + notes)
+								.html('<strong>📦 Remote Update Available!</strong> ' + data.message + ' Click <strong>Update from GitHub</strong> to download and install.')
 								.slideDown(200);
 						} else {
+							// In sync
+							$pushBtn.show().text('Force Push to GitHub');
 							$updateBtn.hide();
+							$syncBadge.css({ 'background': 'rgba(59, 130, 246, 0.15)', 'border-color': 'rgba(59, 130, 246, 0.4)', 'color': '#60a5fa' });
+							$syncText.html('In Sync (v' + data.local_version + ')');
 							$statusBox
 								.css({ 'background': '#f0fdf4', 'border': '1px solid #86efac', 'color': '#166534' })
-								.html('<strong>✅ Up to Date!</strong> You are running the latest version <strong>v' + data.current_version + '</strong> from GitHub.')
+								.html('<strong>✅ In Perfect Sync!</strong> ' + data.message)
 								.slideDown(200);
 						}
 					} else {
+						$pushBtn.hide();
 						$updateBtn.hide();
+						$syncBadge.css({ 'background': 'rgba(239, 68, 68, 0.15)', 'border-color': 'rgba(239, 68, 68, 0.4)', 'color': '#f87171' });
+						$syncText.html('Sync Check Notice');
 						$statusBox
 							.css({ 'background': '#fef2f2', 'border': '1px solid #fca5a5', 'color': '#991b1b' })
-							.html('<strong>⚠️ Check Notice:</strong> ' + (res.data ? res.data.message : 'Could not contact GitHub API.'))
+							.html('<strong>⚠️ Notice:</strong> ' + (res.data ? res.data.message : 'Could not contact GitHub API.'))
 							.slideDown(200);
 					}
 				},
 				error: function() {
-					$checkBtn.prop('disabled', false).html(origHtml);
+					$syncBtn.prop('disabled', false).html(origHtml);
+					$pushBtn.hide();
 					$updateBtn.hide();
 					$statusBox
 						.css({ 'background': '#fef2f2', 'border': '1px solid #fca5a5', 'color': '#991b1b' })
@@ -774,16 +811,70 @@
 			});
 		});
 
+		// 2. Push WordPress Code to GitHub
+		$pushBtn.on('click', function(e) {
+			e.preventDefault();
+			const defaultMsg = 'Sync TripCosmos Agents v' + ($('#tc-local-version-label').text().replace(/[^0-9\.]/g, '') || '1.9.0') + ' from WordPress site';
+			const commitMsg = prompt('Enter a commit message for GitHub:', defaultMsg);
+			if (commitMsg === null) return;
+
+			const origHtml = $pushBtn.html();
+			$pushBtn.prop('disabled', true).html('<span class="spinner is-active" style="float:none;margin:0 6px 0 0;"></span> Pushing to GitHub...');
+			$syncBtn.prop('disabled', true);
+
+			$statusBox
+				.css({ 'background': '#eff6ff', 'border': '1px solid #93c5fd', 'color': '#1e40af' })
+				.html('<strong>⏳ Committing &amp; Pushing:</strong> Packaging plugin files and syncing with GitHub... Please wait.')
+				.slideDown(200);
+
+			$.ajax({
+				url: tcAgentsAdmin.ajaxUrl,
+				type: 'POST',
+				dataType: 'json',
+				data: {
+					action: 'tc_agents_push_github',
+					commit_message: commitMsg,
+					nonce: tcAgentsAdmin.adminNonce
+				},
+				success: function(res) {
+					$pushBtn.prop('disabled', false).html(origHtml);
+					$syncBtn.prop('disabled', false);
+					if (res.success) {
+						$statusBox
+							.css({ 'background': '#f0fdf4', 'border': '1px solid #86efac', 'color': '#166534' })
+							.html('<strong>🎉 Push Successful!</strong> ' + res.data.message + ' <a href="' + res.data.url + '" target="_blank" rel="noopener noreferrer" style="font-weight:700;color:#047857;text-decoration:underline;">View commit on GitHub ↗</a>');
+						setTimeout(function() {
+							$syncBtn.first().trigger('click');
+						}, 1200);
+					} else {
+						let detail = res.data ? res.data.message : 'Push failed.';
+						$statusBox
+							.css({ 'background': '#fef2f2', 'border': '1px solid #fca5a5', 'color': '#991b1b' })
+							.html('<strong>❌ Push Failed:</strong> ' + detail);
+					}
+				},
+				error: function() {
+					$pushBtn.prop('disabled', false).html(origHtml);
+					$syncBtn.prop('disabled', false);
+					$statusBox
+						.css({ 'background': '#fef2f2', 'border': '1px solid #fca5a5', 'color': '#991b1b' })
+						.html('<strong>❌ Connection Error:</strong> Server request failed during git push.');
+				}
+			});
+		});
+
+		// 3. Update from GitHub
 		$updateBtn.on('click', function(e) {
 			e.preventDefault();
-			const targetVer = $targetVersion.text() || 'Latest';
+			const targetVer = $remoteVerLabel.text() || 'Latest';
 			if (!confirm('Are you sure you want to download and install ' + targetVer + ' directly from GitHub? The plugin will be upgraded in-place.')) {
 				return;
 			}
 
 			const origHtml = $updateBtn.html();
 			$updateBtn.prop('disabled', true).html('<span class="spinner is-active" style="float:none;margin:0 6px 0 0;"></span> Downloading & Updating...');
-			$checkBtn.prop('disabled', true);
+			$syncBtn.prop('disabled', true);
+			$pushBtn.prop('disabled', true);
 
 			$statusBox
 				.css({ 'background': '#eff6ff', 'border': '1px solid #93c5fd', 'color': '#1e40af' })
@@ -808,7 +899,8 @@
 						}, 2000);
 					} else {
 						$updateBtn.prop('disabled', false).html(origHtml);
-						$checkBtn.prop('disabled', false);
+						$syncBtn.prop('disabled', false);
+						$pushBtn.prop('disabled', false);
 						$statusBox
 							.css({ 'background': '#fef2f2', 'border': '1px solid #fca5a5', 'color': '#991b1b' })
 							.html('<strong>❌ Update Failed:</strong> ' + (res.data ? res.data.message : 'Unknown installation error.'));
@@ -816,7 +908,8 @@
 				},
 				error: function() {
 					$updateBtn.prop('disabled', false).html(origHtml);
-					$checkBtn.prop('disabled', false);
+					$syncBtn.prop('disabled', false);
+					$pushBtn.prop('disabled', false);
 					$statusBox
 						.css({ 'background': '#fef2f2', 'border': '1px solid #fca5a5', 'color': '#991b1b' })
 						.html('<strong>❌ Request Timeout or Connection Error:</strong> Check your server logs or update manually.');

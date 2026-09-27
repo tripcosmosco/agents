@@ -111,6 +111,25 @@ class TC_Agent_Vector_Store {
 		global $wpdb;
 		$table = $wpdb->prefix . 'tc_agent_kb_chunks';
 		$wpdb->delete( $table, array( 'document_id' => (int) $document_id ), array( '%d' ) );
+		wp_cache_delete( 'tc_has_embeddings', 'tc_agents' );
+	}
+
+	/**
+	 * Check if any vector embeddings exist in the database.
+	 * Cached for 30 minutes to prevent repeated DB scans on each query.
+	 *
+	 * @return bool
+	 */
+	public static function has_embeddings() {
+		$cached = wp_cache_get( 'tc_has_embeddings', 'tc_agents' );
+		if ( false !== $cached ) {
+			return (bool) $cached;
+		}
+		global $wpdb;
+		$table = $wpdb->prefix . 'tc_agent_kb_chunks';
+		$count = (int) $wpdb->get_var( "SELECT 1 FROM $table WHERE dimensions > 0 LIMIT 1" );
+		wp_cache_set( 'tc_has_embeddings', $count, 'tc_agents', 1800 );
+		return $count > 0;
 	}
 
 	/**
@@ -123,6 +142,13 @@ class TC_Agent_Vector_Store {
 		$text = trim( (string) $text );
 		if ( '' === $text ) {
 			return array();
+		}
+
+		// Fast Transient Cache for Query Embeddings (saves 300-800ms per repeating query)
+		$cache_key = 'tc_emb_' . md5( mb_strtolower( $text ) );
+		$cached    = get_transient( $cache_key );
+		if ( false !== $cached && is_array( $cached ) ) {
+			return $cached;
 		}
 
 		// Check OpenRouter, Gateway, or OpenAI API key from Vault or Options
@@ -189,7 +215,9 @@ class TC_Agent_Vector_Store {
 			return array();
 		}
 
-		return array_map( 'floatval', $data['data'][0]['embedding'] );
+		$embedding = array_map( 'floatval', $data['data'][0]['embedding'] );
+		set_transient( $cache_key, $embedding, 7 * DAY_IN_SECONDS );
+		return $embedding;
 	}
 
 	/**
