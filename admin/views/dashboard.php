@@ -302,10 +302,16 @@ $widget_enabled = '1' === (string) get_option( 'tc_agents_widget_enabled', '1' )
 	padding: 10px 12px;
 	font-size: 11px;
 }
-.tc-error-row.warning {
+.tc-error-row.warning,
+.tc-error-row.tc-sev-warning {
 	background: #fffbeb;
 	border-color: #fde68a;
 	border-left-color: #f59e0b;
+}
+.tc-error-row.tc-sev-error {
+	background: #fef2f2;
+	border-color: #fecaca;
+	border-left-color: #ef4444;
 }
 .tc-error-head {
 	display: flex;
@@ -613,12 +619,12 @@ $widget_enabled = '1' === (string) get_option( 'tc_agents_widget_enabled', '1' )
 						</div>
 					<?php else : ?>
 						<?php foreach ( $recent_errors as $err ) :
-							$sev_class = 'warning' === $err['severity'] ? 'warning' : 'error';
+							$sev_class = 'warning' === $err['severity'] ? 'tc-sev-warning' : 'tc-sev-error';
 							$time = human_time_diff( strtotime( $err['created_at'] ) ) . ' ago';
 							$details = json_decode( (string) $err['details'], true );
 							$detail_str = is_array( $details ) ? ( $details['message'] ?? ( $details['output'] ?? wp_json_encode( $details ) ) ) : $err['details'];
 						?>
-							<div class="tc-error-row <?php echo esc_attr( $sev_class ); ?>">
+							<div class="tc-error-row inline <?php echo esc_attr( $sev_class ); ?>">
 								<div class="tc-error-head">
 									<strong style="color: <?php echo 'warning' === $err['severity'] ? '#b45309' : '#b91c1c'; ?>;">
 										[<?php echo esc_html( strtoupper( $err['severity'] ) ); ?>] <?php echo esc_html( ucwords( str_replace( '_', ' ', $err['event_type'] ) ) ); ?>
