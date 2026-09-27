@@ -254,6 +254,54 @@ $qr_image_url = 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin
 		<?php wp_nonce_field( 'tc_agents_admin_save', 'tc_agents_nonce' ); ?>
 		<input type="hidden" name="tc_agents_action" value="save_settings" />
 
+		<!-- 0. UNIVERSAL INDUSTRY PRESETS (1-CLICK BUSINESS SETUP) -->
+		<?php
+		$presets = class_exists( 'TC_Agents_Presets' ) ? TC_Agents_Presets::get_presets() : array();
+		$active_preset = get_option( 'tc_agents_active_preset', 'travel' );
+		?>
+		<div class="tc-card-lux" style="border-left: 5px solid #8b5cf6;">
+			<div class="tc-card-title">
+				<span>🌐</span>
+				Universal Industry Presets
+				<span class="tc-badge-gold" style="background: linear-gradient(135deg, #8b5cf6, #6d28d9); color: #fff; font-size: 10px;">1-Click Mode</span>
+			</div>
+			<p class="tc-card-desc">
+				Transform TripCosmos Agents into a tailored AI platform for any business. Switching an industry preset automatically installs curated personas, custom prompts, appropriate tool mappings, and branded greetings.
+			</p>
+
+			<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; margin-top: 18px;">
+				<?php foreach ( $presets as $p_id => $p ) : 
+					$is_curr = ( $p_id === $active_preset );
+				?>
+					<div style="background: <?php echo $is_curr ? 'rgba(139, 92, 246, 0.08)' : '#f8fafc'; ?>; border: 1.5px solid <?php echo $is_curr ? '#8b5cf6' : '#e2e8f0'; ?>; border-radius: 12px; padding: 16px; display: flex; flex-direction: column; justify-content: space-between; position: relative;">
+						<?php if ( $is_curr ) : ?>
+							<span style="position: absolute; top: 10px; right: 10px; background: #8b5cf6; color: #fff; font-size: 9px; font-weight: 800; padding: 2px 7px; border-radius: 10px; text-transform: uppercase;">Active</span>
+						<?php endif; ?>
+						<div>
+							<div style="font-size: 22px; margin-bottom: 6px;">
+								<span class="dashicons <?php echo esc_attr( $p['icon'] ); ?>" style="font-size: 22px; width: 22px; height: 22px; color: <?php echo esc_attr( $p['primary_color'] ); ?>;"></span>
+							</div>
+							<div style="font-size: 14px; font-weight: 700; color: #0f172a; margin-bottom: 4px;">
+								<?php echo esc_html( $p['title'] ); ?>
+							</div>
+							<div style="font-size: 11.5px; color: #64748b; line-height: 1.4; margin-bottom: 14px;">
+								<?php echo esc_html( $p['tagline'] ); ?>
+							</div>
+						</div>
+						<div>
+							<button type="button" 
+								class="tc-btn-apply-preset" 
+								data-preset="<?php echo esc_attr( $p_id ); ?>" 
+								data-title="<?php echo esc_attr( $p['title'] ); ?>"
+								style="width: 100%; border-radius: 8px; font-size: 12px; font-weight: 700; padding: 7px 12px; cursor: pointer; border: 1px solid <?php echo $is_curr ? '#8b5cf6' : '#cbd5e1'; ?>; background: <?php echo $is_curr ? '#8b5cf6' : '#ffffff'; ?>; color: <?php echo $is_curr ? '#ffffff' : '#334155'; ?>;">
+								<?php echo $is_curr ? '✓ Current Mode' : 'Apply Preset'; ?>
+							</button>
+						</div>
+					</div>
+				<?php endforeach; ?>
+			</div>
+		</div>
+
 		<!-- 1. ANDROID COMPANION APP PAIRING CARD -->
 		<div class="tc-card-lux" style="border-left: 5px solid #f59e0b;">
 			<div class="tc-card-title">

@@ -42,6 +42,7 @@ spl_autoload_register( function( $class ) {
 			'TC_Agents_Logger'               => 'includes/class-tc-agents-logger.php',
 			'TC_Agents_Guardrails'           => 'includes/class-tc-agents-guardrails.php',
 			'TC_Agents_GitHub_Updater'       => 'includes/class-tc-agents-github-updater.php',
+			'TC_Agents_Presets'              => 'includes/class-tc-agents-presets.php',
 			'TC_Agents_Queue'                => 'includes/class-tc-agents-queue.php',
 			'TC_Agents_Privacy'              => 'includes/class-tc-agents-privacy.php',
 			'TC_Contact_Service'             => 'includes/class-tc-contact-service.php',

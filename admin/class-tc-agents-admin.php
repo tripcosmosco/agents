@@ -30,6 +30,8 @@ class TC_Agents_Admin {
 		add_action( 'wp_ajax_tc_get_live_activities', array( __CLASS__, 'ajax_get_live_activities' ) );
 		add_action( 'wp_ajax_tc_clear_error_logs', array( __CLASS__, 'ajax_clear_error_logs' ) );
 		add_action( 'wp_ajax_tc_run_diagnostics', array( __CLASS__, 'ajax_run_diagnostics' ) );
+		add_action( 'wp_ajax_tc_apply_preset', array( __CLASS__, 'ajax_apply_preset' ) );
+		add_action( 'wp_ajax_tc_toggle_human_takeover', array( __CLASS__, 'ajax_toggle_human_takeover' ) );
 	}
 
 	/**
@@ -981,6 +983,7 @@ class TC_Agents_Admin {
 					</div>
 				</div>
 				<div class="tc-popup-header-actions">
+					<button type="button" class="tc-popup-btn tc-takeover-toggle" id="tc-popup-takeover" title="<?php esc_attr_e( 'Toggle Live Human Takeover / AI Auto-Pilot', 'tripcosmos-agents' ); ?>" style="font-size: 11px; font-weight: 700; padding: 4px 9px; border-radius: 6px; background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3);">🤖 AI Mode</button>
 					<button type="button" class="tc-popup-btn" id="tc-popup-clear" title="<?php esc_attr_e( 'Clear Session', 'tripcosmos-agents' ); ?>">🗑️</button>
 					<button type="button" class="tc-popup-btn" id="tc-popup-expand" title="<?php esc_attr_e( 'Expand / Maximize', 'tripcosmos-agents' ); ?>">⤢</button>
 					<button type="button" class="tc-popup-btn tc-popup-btn-close" id="tc-popup-close" title="<?php esc_attr_e( 'Close (Esc)', 'tripcosmos-agents' ); ?>">✕</button>
@@ -1146,6 +1149,82 @@ class TC_Agents_Admin {
 		wp_send_json_success( array(
 			'diagnostics' => $report,
 			'timestamp'   => current_time( 'H:i:s T' ),
+		) );
+	}
+
+	/**
+	 * AJAX endpoint: 1-Click Universal Industry Preset Switcher.
+	 */
+	public static function ajax_apply_preset() {
+		check_ajax_referer( 'tc_agents_admin_nonce', 'nonce' );
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( array( 'message' => __( 'Permission denied.', 'tripcosmos-agents' ) ) );
+		}
+
+		$preset = sanitize_text_field( wp_unslash( $_POST['preset'] ?? '' ) );
+		if ( empty( $preset ) || ! class_exists( 'TC_Agents_Presets' ) ) {
+			wp_send_json_error( array( 'message' => __( 'Invalid preset.', 'tripcosmos-agents' ) ) );
+		}
+
+		$res = TC_Agents_Presets::apply_preset( $preset );
+		if ( is_wp_error( $res ) ) {
+			wp_send_json_error( array( 'message' => $res->get_error_message() ) );
+		}
+
+		wp_send_json_success( array(
+			'message' => sprintf( __( 'Successfully switched to %s preset! Personas, tools, and branding updated.', 'tripcosmos-agents' ), ucfirst( $preset ) ),
+			'preset'  => $preset,
+		) );
+	}
+
+	/**
+	 * AJAX endpoint: Toggle Human Takeover on active session.
+	 */
+	public static function ajax_toggle_human_takeover() {
+		check_ajax_referer( 'tc_agents_admin_nonce', 'nonce' );
+		if ( ! current_user_can( 'manage_options' ) && ! ( class_exists( 'TC_CRM_Access' ) && TC_CRM_Access::can_access() ) ) {
+			wp_send_json_error( array( 'message' => __( 'Permission denied.', 'tripcosmos-agents' ) ) );
+		}
+
+		$session_id = sanitize_text_field( wp_unslash( $_POST['session_id'] ?? '' ) );
+		$mode       = sanitize_text_field( wp_unslash( $_POST['mode'] ?? 'toggle' ) ); // 'human' or 'ai'
+
+		if ( empty( $session_id ) ) {
+			wp_send_json_error( array( 'message' => __( 'Session ID required.', 'tripcosmos-agents' ) ) );
+		}
+
+		global $wpdb;
+		$table_convo = $wpdb->prefix . 'tc_agent_conversations';
+		$convo = $wpdb->get_row( $wpdb->prepare( "SELECT id, status FROM $table_convo WHERE session_id = %s LIMIT 1", $session_id ), ARRAY_A );
+
+		$new_status = 'human_takeover';
+		if ( $convo && 'human_takeover' === $convo['status'] ) {
+			$new_status = 'active';
+		} elseif ( 'ai' === $mode ) {
+			$new_status = 'active';
+		}
+
+		if ( $convo ) {
+			$wpdb->update( $table_convo, array( 'status' => $new_status, 'updated_at' => current_time( 'mysql' ) ), array( 'id' => $convo['id'] ) );
+		}
+
+		$is_human = ( 'human_takeover' === $new_status );
+
+		if ( class_exists( 'TC_Agents_Logger' ) ) {
+			TC_Agents_Logger::log(
+				$is_human ? 'human_takeover_enabled' : 'ai_autopilot_resumed',
+				'info',
+				array( 'session_id' => $session_id, 'staff' => wp_get_current_user()->user_login ),
+				'',
+				'admin'
+			);
+		}
+
+		wp_send_json_success( array(
+			'is_human' => $is_human,
+			'status'   => $new_status,
+			'label'    => $is_human ? '👤 Human Mode' : '🤖 AI Mode',
+			'message'  => $is_human ? __( 'AI paused. You are now chatting directly with the user.', 'tripcosmos-agents' ) : __( 'AI Auto-Pilot resumed.', 'tripcosmos-agents' ),
 		) );
 	}
 }

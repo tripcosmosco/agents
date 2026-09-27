@@ -16,6 +16,7 @@
 		initProviderModelSync();
 		initWidgetToggle();
 		initGitHubUpdater();
+		initPresetsSwitcher();
 	});
 
 	/**
@@ -913,6 +914,47 @@
 					$statusBox
 						.css({ 'background': '#fef2f2', 'border': '1px solid #fca5a5', 'color': '#991b1b' })
 						.html('<strong>❌ Request Timeout or Connection Error:</strong> Check your server logs or update manually.');
+				}
+			});
+	/**
+	 * 1-Click Universal Industry Presets Switcher
+	 */
+	function initPresetsSwitcher() {
+		$(document).on('click', '.tc-btn-apply-preset', function(e) {
+			e.preventDefault();
+			const $btn = $(this);
+			const presetId = $btn.data('preset');
+			const title = $btn.data('title');
+
+			if (!confirm('Switch plugin to ' + title + ' mode? This will configure industry personas, greetings, and branding.')) {
+				return;
+			}
+
+			const origHtml = $btn.html();
+			$btn.prop('disabled', true).html('⏳ Applying...');
+
+			$.ajax({
+				url: tcAgentsAdmin.ajaxUrl,
+				type: 'POST',
+				dataType: 'json',
+				data: {
+					action: 'tc_apply_preset',
+					preset: presetId,
+					nonce: tcAgentsAdmin.adminNonce
+				},
+				success: function(res) {
+					if (res.success) {
+						$btn.html('✓ Applied!');
+						alert(res.data.message || 'Preset applied successfully!');
+						window.location.reload();
+					} else {
+						$btn.prop('disabled', false).html(origHtml);
+						alert('Error: ' + (res.data ? res.data.message : 'Failed to apply preset.'));
+					}
+				},
+				error: function() {
+					$btn.prop('disabled', false).html(origHtml);
+					alert('Connection error occurred while applying preset.');
 				}
 			});
 		});

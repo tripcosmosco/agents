@@ -397,10 +397,11 @@ class TC_Agents_GitHub_Updater {
 			@file_put_contents( $gi_path, "*~\n*.bak\n*.tmp\n*.log\n.DS_Store\n" );
 		}
 
-		$remote_url = sprintf( 'https://%s:%s@github.com/%s/%s.git', urlencode( $owner ), urlencode( $token ), urlencode( $owner ), urlencode( $repo ) );
+		$remote_url = sprintf( 'https://%s:%s@github.com/%s/%s.git', 'x-access-token', rawurlencode( $token ), rawurlencode( $owner ), rawurlencode( $repo ) );
 
 		$cmds = array(
 			'cd ' . escapeshellarg( $plugin_dir ),
+			'git config --global --add safe.directory ' . escapeshellarg( $plugin_dir ) . ' 2>/dev/null || true',
 			'git init -b ' . escapeshellarg( $branch ) . ' 2>&1',
 			'git config user.name "TripCosmos WordPress"',
 			'git config user.email "admin@tripcosmos.co"',
@@ -408,6 +409,8 @@ class TC_Agents_GitHub_Updater {
 			'git remote add origin ' . escapeshellarg( $remote_url ),
 			'git add -A',
 			'git commit -m ' . escapeshellarg( $msg ) . ' 2>&1 || true',
+			'git fetch origin ' . escapeshellarg( $branch ) . ' 2>&1 || true',
+			'git merge origin/' . escapeshellarg( $branch ) . ' --allow-unrelated-histories -s ours -m "Sync base with GitHub [skip ci]" 2>&1 || true',
 			'git push -u origin ' . escapeshellarg( $branch ) . ' 2>&1',
 		);
 

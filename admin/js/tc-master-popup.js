@@ -18,6 +18,7 @@
 		const $closeBtn = $('#tc-popup-close');
 		const $expandBtn = $('#tc-popup-expand');
 		const $clearBtn = $('#tc-popup-clear');
+		const $takeoverBtn = $('#tc-popup-takeover');
 
 		const STORAGE_KEY = 'tc_master_chat_session_v1';
 		const SESSION_ID_KEY = 'tc_master_session_id';
@@ -27,6 +28,45 @@
 			sessionId = 'staff_master_' + Math.random().toString(36).substring(2, 10);
 			sessionStorage.setItem(SESSION_ID_KEY, sessionId);
 		}
+
+		let isHumanMode = false;
+
+		// Toggle Human Agent Takeover Mode
+		$takeoverBtn.on('click', function(e) {
+			e.preventDefault();
+			const origText = $(this).text();
+			$(this).prop('disabled', true).text('⏳...');
+
+			$.ajax({
+				url: (window.tcAgentsAdmin && window.tcAgentsAdmin.ajaxUrl) ? window.tcAgentsAdmin.ajaxUrl : '/wp-admin/admin-ajax.php',
+				method: 'POST',
+				dataType: 'json',
+				data: {
+					action: 'tc_toggle_human_takeover',
+					session_id: sessionId,
+					nonce: (window.tcAgentsAdmin && window.tcAgentsAdmin.adminNonce) ? window.tcAgentsAdmin.adminNonce : ''
+				},
+				success: function(res) {
+					$takeoverBtn.prop('disabled', false);
+					if (res && res.success) {
+						isHumanMode = res.data.is_human;
+						$takeoverBtn.text(res.data.label);
+						if (isHumanMode) {
+							$takeoverBtn.css({ 'background': 'rgba(245, 158, 11, 0.2)', 'color': '#f59e0b', 'border-color': 'rgba(245, 158, 11, 0.4)' });
+							appendSystemMessage('👤 Human Takeover active. AI auto-pilot paused for this session.');
+						} else {
+							$takeoverBtn.css({ 'background': 'rgba(16, 185, 129, 0.15)', 'color': '#10b981', 'border-color': 'rgba(16, 185, 129, 0.3)' });
+							appendSystemMessage('🤖 AI Auto-Pilot resumed.');
+						}
+					} else {
+						$takeoverBtn.text(origText);
+					}
+				},
+				error: function() {
+					$takeoverBtn.prop('disabled', false).text(origText);
+				}
+			});
+		});
 
 		// Restore history if saved in this session
 		restoreChatHistory();
@@ -125,6 +165,13 @@
 			const message = $.trim($input.val());
 			if (!message) return;
 
+			if (isHumanMode) {
+				$input.val('').css('height', '48px');
+				appendAssistantMessage(message, '👤 Staff (Direct)', 0, false);
+				saveChatMessage('assistant', message, 'staff', 0);
+				return;
+			}
+
 			// Append User message
 			appendUserMessage(message);
 			saveChatMessage('user', message);
@@ -173,7 +220,7 @@
 					$sendBtn.prop('disabled', false);
 
 					if (res && res.success) {
-						appendAssistantMessage(res.reply, res.provider_used, res.latency_ms);
+						appendAssistantMessage(res.reply, res.provider_used, res.latency_ms, true);
 						saveChatMessage('assistant', res.reply, res.provider_used, res.latency_ms);
 					} else {
 						const err = (res && res.error) ? res.error : 'No response from agent.';
@@ -228,10 +275,10 @@
 			scrollToBottom();
 		}
 
-		function appendAssistantMessage(text, provider, latency) {
+		function appendAssistantMessage(text, provider, latency, animate) {
 			const latSec = latency ? (latency / 1000).toFixed(1) + 's' : 'Fast';
 			const providerLabel = provider ? escapeHtml(provider) : 'AI Gateway';
-			const htmlContent = formatSafeMarkdown(text);
+			if (typeof animate === 'undefined') animate = false;
 
 			const $row = $(
 				'<div class="tc-msg-row-assistant">' +
@@ -240,13 +287,19 @@
 							'<span class="tc-assistant-tag">' + providerLabel + '</span>' +
 							'<span class="tc-latency-pill">⏱️ ' + latSec + '</span>' +
 						'</div>' +
-						'<div class="tc-assistant-content">' + htmlContent + '</div>' +
-						'<div class="tc-assistant-actions">' +
+						'<div class="tc-assistant-content"></div>' +
+						'<div class="tc-assistant-actions" style="display:none;">' +
 							'<button type="button" class="tc-copy-snippet-btn">📋 Copy</button>' +
 						'</div>' +
 					'</div>' +
 				'</div>'
 			);
+
+			$feed.append($row);
+			scrollToBottom();
+
+			const $content = $row.find('.tc-assistant-content');
+			const $actions = $row.find('.tc-assistant-actions');
 
 			$row.find('.tc-copy-snippet-btn').on('click', function() {
 				navigator.clipboard.writeText(text);
@@ -255,8 +308,29 @@
 				setTimeout(function() { $(b).text('📋 Copy'); }, 1800);
 			});
 
-			$feed.append($row);
-			scrollToBottom();
+			if (!animate || text.length < 15) {
+				$content.html(formatSafeMarkdown(text));
+				$actions.show();
+				return;
+			}
+
+			// Smooth streaming typewriter effect
+			const words = text.split(/(\s+)/);
+			let curr = '';
+			let idx = 0;
+			const timer = setInterval(function() {
+				if (idx < words.length) {
+					curr += words[idx];
+					$content.html(formatSafeMarkdown(curr));
+					scrollToBottom();
+					idx++;
+				} else {
+					clearInterval(timer);
+					$content.html(formatSafeMarkdown(text));
+					$actions.fadeIn(200);
+					scrollToBottom();
+				}
+			}, 14);
 		}
 
 		function appendSystemMessage(msg) {
