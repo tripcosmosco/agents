@@ -74,6 +74,17 @@ class TC_Agents_Mobile_API {
 			)
 		);
 
+		// 4b. Create New Lead from Mobile App (Syncs to TripCosmos CRM & FluentCRM)
+		register_rest_route(
+			self::NAMESPACE,
+			'/mobile/create-lead',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( __CLASS__, 'handle_create_lead' ),
+				'permission_callback' => array( __CLASS__, 'verify_token' ),
+			)
+		);
+
 		// 5. WhatsApp Inbound Leads Stream (Center WhatsApp Hub)
 		register_rest_route(
 			self::NAMESPACE,
@@ -613,6 +624,12 @@ class TC_Agents_Mobile_API {
 			$params[] = $stage;
 		}
 
+		$agent = (string) $request->get_param( '_tc_agent' );
+		if ( '' !== $agent && 'master' !== $agent && 'admin' !== $agent ) {
+			$where .= ' AND ( owner = %s OR owner = "" OR owner IS NULL )';
+			$params[] = $agent;
+		}
+
 		// Paged, so the list keeps working as the CRM grows. The defaults keep the old behaviour (first 100).
 		$limit    = min( 200, max( 1, (int) ( $request->get_param( 'limit' ) ?: 100 ) ) );
 		$offset   = max( 0, (int) $request->get_param( 'offset' ) );
@@ -683,6 +700,114 @@ class TC_Agents_Mobile_API {
 		}
 
 		return new WP_REST_Response( array( 'ok' => true, 'leads' => $leads, 'limit' => $limit, 'offset' => $offset ), 200 );
+	}
+
+	/**
+	 * Create a new lead from Mobile App and sync to TripCosmos CRM & FluentCRM.
+	 */
+	public static function handle_create_lead( WP_REST_Request $request ) {
+		$params      = $request->get_json_params() ?: $request->get_params();
+		$name        = sanitize_text_field( $params['name'] ?? 'Traveler' );
+		$phone       = sanitize_text_field( $params['phone'] ?? '' );
+		$email       = sanitize_email( $params['email'] ?? '' );
+		$destination = sanitize_text_field( $params['destination'] ?? 'Varanasi Pilgrimage' );
+		$budget      = sanitize_text_field( $params['budget'] ?? '' );
+		$note        = sanitize_textarea_field( $params['note'] ?? '' );
+		$pax         = max( 1, (int) ( $params['pax'] ?? 2 ) );
+		$stage       = sanitize_key( $params['stage'] ?? 'new' );
+		$agent       = (string) $request->get_param( '_tc_agent' );
+
+		if ( empty( $phone ) && empty( $email ) ) {
+			return new WP_REST_Response( array( 'ok' => false, 'error' => 'Phone or Email is required to create a lead.' ), 400 );
+		}
+
+		$deal_value = 0.0;
+		if ( ! empty( $budget ) ) {
+			$clean = preg_replace( '/[^0-9.]/', '', $budget );
+			$deal_value = (float) $clean;
+		}
+		if ( $deal_value <= 0 ) {
+			$deal_value = $pax * 12000.0;
+		}
+
+		$stage_map = array(
+			'new'                 => 'inquiry',
+			'contacted'           => 'contacted',
+			'requirement_pending' => 'requirement_pending',
+			'qualified'           => 'qualified',
+			'quote_sent'          => 'proposal',
+			'won'                 => 'won',
+		);
+		$crm_stage = $stage_map[ $stage ] ?? 'inquiry';
+
+		$owner_name = ( '' !== $agent && 'master' !== $agent && 'admin' !== $agent ) ? $agent : 'Santosh Yadav';
+
+		$upsert = TC_Contact_Service::upsert(
+			array(
+				'name'           => $name,
+				'email'          => $email,
+				'phone'          => $phone,
+				'source_channel' => 'mobile_companion',
+				'stage'          => $crm_stage,
+				'score'          => 75,
+				'deal_value'     => $deal_value,
+				'owner'          => $owner_name,
+				'meta'           => array(
+					'destination'  => $destination,
+					'pax'          => $pax,
+					'budget'       => '₹' . number_format( $deal_value ),
+					'requirements' => $note,
+					'captured_by'  => $agent ?: 'Mobile App',
+					'synced_at'    => current_time( 'mysql' ),
+				),
+			),
+			array(
+				'activity'      => trim( 'Lead captured via Mobile Companion' . ( $destination ? " — {$destination}" : '' ) . ( $note ? " ({$note})" : '' ) ),
+				'activity_type' => 'manual',
+			)
+		);
+
+		if ( empty( $upsert['id'] ) ) {
+			return new WP_REST_Response( array( 'ok' => false, 'error' => 'Failed to save lead in database.' ), 500 );
+		}
+
+		$contact_id = (int) $upsert['id'];
+
+		// Auto-sync to FluentCRM if email is present
+		$fluent_synced = false;
+		if ( ! empty( $email ) && class_exists( 'TC_Contact_Service' ) ) {
+			$fluent_synced = (bool) TC_Contact_Service::sync_to_fluentcrm( $contact_id );
+		}
+
+		// Real-time Event Logger for other Android Companion Apps
+		if ( class_exists( 'TC_Agents_Logger' ) ) {
+			TC_Agents_Logger::log(
+				'lead_captured',
+				'info',
+				array(
+					'contact_id'   => $contact_id,
+					'name'         => $name,
+					'phone'        => $phone,
+					'email'        => $email,
+					'destination'  => $destination,
+					'deal_value'   => $deal_value,
+					'fluent_sync'  => $fluent_synced,
+					'owner'        => $owner_name,
+				),
+				'mobile-companion',
+				'mobile'
+			);
+		}
+
+		return new WP_REST_Response(
+			array(
+				'ok'            => true,
+				'id'            => $contact_id,
+				'message'       => 'Lead created and synced successfully.',
+				'fluent_synced' => $fluent_synced,
+			),
+			201
+		);
 	}
 
 	/**
