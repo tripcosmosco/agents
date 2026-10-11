@@ -650,6 +650,11 @@ class TC_Agents_REST {
 	 * Handle Visitor Landing & Page Tracking for Live Android App Alerts.
 	 */
 	public static function handle_track_visitor( WP_REST_Request $request ) {
+		$ua = strtolower( (string) ( $_SERVER['HTTP_USER_AGENT'] ?? '' ) );
+		if ( empty( $ua ) || preg_match( '/bot|crawl|spider|slurp|facebookexternalhit|whatsapp|preview|lighthouse/i', $ua ) ) {
+			return new WP_REST_Response( array( 'ok' => true, 'ignored' => 'bot' ), 200 );
+		}
+
 		$params     = array_merge( (array) $request->get_params(), (array) $request->get_json_params() );
 		$page_url   = esc_url_raw( $params['page_url'] ?? '' );
 		$page_title = sanitize_text_field( $params['page_title'] ?? 'Home' );

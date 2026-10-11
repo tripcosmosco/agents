@@ -41,6 +41,17 @@ class TC_Agents_Mobile_API {
 			)
 		);
 
+		// 2b. Call Logs Feed (Syncs call history from database to mobile app)
+		register_rest_route(
+			self::NAMESPACE,
+			'/mobile/call-logs',
+			array(
+				'methods'             => 'GET',
+				'callback'            => array( __CLASS__, 'handle_get_call_logs' ),
+				'permission_callback' => array( __CLASS__, 'verify_token' ),
+			)
+		);
+
 		// 3. Post-Call Quick Actions (1-Tap WhatsApp Brochure / Quote Dispatch)
 		register_rest_route(
 			self::NAMESPACE,
@@ -456,6 +467,79 @@ class TC_Agents_Mobile_API {
 				'message'    => 'Call log recorded successfully.',
 				'contact_id' => $contact_id,
 				'auto_reply_sent' => $auto_reply_sent,
+			),
+			200
+		);
+	}
+
+	/**
+	 * Retrieve logged calls history for Mobile App.
+	 */
+	public static function handle_get_call_logs( WP_REST_Request $request ) {
+		global $wpdb;
+		$table_audit = $wpdb->prefix . 'tc_agent_audit_log';
+		$limit       = min( 100, max( 1, (int) ( $request->get_param( 'limit' ) ?: 50 ) ) );
+		$offset      = max( 0, (int) $request->get_param( 'offset' ) );
+
+		$rows = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT id, event_type, details, channel, created_at FROM {$table_audit} 
+				 WHERE event_type IN ('mobile_call_logged', 'jio_sim_call_status') 
+				 ORDER BY id DESC LIMIT %d OFFSET %d",
+				$limit,
+				$offset
+			),
+			ARRAY_A
+		) ?: array();
+
+		$calls = array();
+		foreach ( $rows as $row ) {
+			$details = json_decode( (string) ( $row['details'] ?? '' ), true ) ?: array();
+			$phone   = $details['phone'] ?? '';
+			if ( empty( $phone ) ) {
+				continue;
+			}
+			$direction = $details['type'] ?? $details['direction'] ?? 'outbound';
+			if ( 'incoming' === $direction ) {
+				$direction = 'inbound';
+			}
+			$status   = $details['status'] ?? 'completed';
+			$duration = (int) ( $details['duration'] ?? $details['duration_seconds'] ?? 0 );
+			$notes    = $details['notes'] ?? '';
+
+			// Name lookup
+			$customer_name = 'Traveler';
+			if ( ! empty( $details['contact_id'] ) ) {
+				$c = $wpdb->get_row( $wpdb->prepare( "SELECT name FROM {$wpdb->prefix}tc_agent_contacts WHERE id = %d", (int) $details['contact_id'] ), ARRAY_A );
+				if ( ! empty( $c['name'] ) ) {
+					$customer_name = $c['name'];
+				}
+			}
+			if ( 'Traveler' === $customer_name && ! empty( $phone ) ) {
+				$contact = TC_Contact_Service::find( '', $phone );
+				if ( $contact && ! empty( $contact['name'] ) ) {
+					$customer_name = $contact['name'];
+				}
+			}
+
+			$calls[] = array(
+				'id'               => (string) ( $details['call_id'] ?? ( 'cl_' . $row['id'] ) ),
+				'phone'            => $phone,
+				'customer_name'    => $customer_name,
+				'direction'        => $direction,
+				'status'           => $status,
+				'timestamp'        => $row['created_at'],
+				'duration_seconds' => $duration,
+				'notes'            => $notes,
+				'ai_qualified'     => ! empty( $details['ai_qualified'] ) || $duration >= 60,
+			);
+		}
+
+		return new WP_REST_Response(
+			array(
+				'ok'    => true,
+				'count' => count( $calls ),
+				'calls' => $calls,
 			),
 			200
 		);
