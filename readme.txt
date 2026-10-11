@@ -4,7 +4,7 @@ Tags: ai, chatbot, agent, travel, crm, whatsapp, openrouter, gemini, b2b
 Requires at least: 6.0
 Tested up to: 6.8
 Requires PHP: 8.0
-Stable tag: 1.9.0
+Stable tag: 2.0.0
 License: Proprietary
 License URI: https://tripcosmos.co
 

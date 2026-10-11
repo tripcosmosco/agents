@@ -410,10 +410,12 @@ class TC_Agent_Orchestrator {
 		global $wpdb;
 		$table = $wpdb->prefix . 'tc_agent_messages';
 
-		// Get recent 16 messages
+		// Recent 16 turns the model may see. Internal team notes never reach it, and a reply typed by a person on
+		// the team is the business speaking, so it is shown to the model as an assistant turn (providers reject
+		// any role other than user / assistant / system).
 		$rows = $wpdb->get_results(
 			$wpdb->prepare(
-				"SELECT role, content FROM $table WHERE conversation_id = %d ORDER BY id DESC LIMIT 16",
+				"SELECT CASE WHEN role = 'agent' THEN 'assistant' ELSE role END AS role, content FROM $table WHERE conversation_id = %d AND role IN ('user','assistant','agent') AND content <> '' ORDER BY id DESC LIMIT 16",
 				$conversation_id
 			),
 			ARRAY_A
@@ -460,12 +462,21 @@ class TC_Agent_Orchestrator {
 				'latency_ms'        => (int) ( $data['latency_ms'] ?? 0 ),
 				'external_id'       => substr( sanitize_text_field( (string) ( $data['external_id'] ?? '' ) ), 0, 100 ),
 				'delivery'          => sanitize_key( (string) ( $data['delivery'] ?? '' ) ),
+				'media_type'        => sanitize_key( (string) ( $data['media_type'] ?? '' ) ),
+				'media_url'         => esc_url_raw( (string) ( $data['media_url'] ?? '' ) ),
+				'media_name'        => mb_substr( sanitize_file_name( (string) ( $data['media_name'] ?? '' ) ), 0, 200 ),
+				'user_id'           => (int) ( $data['user_id'] ?? 0 ),
 				'created_at'        => current_time( 'mysql' ),
 			),
-			array( '%d', '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%d', '%s', '%s', '%s' )
+			array( '%d', '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%d', '%s', '%s', '%s', '%s', '%s', '%d', '%s' )
 		);
+		$id = (int) $wpdb->insert_id;
 
-		return $wpdb->insert_id;
+		// The 24-hour WhatsApp service window runs from the customer's last message.
+		if ( $id && 'user' === ( $data['role'] ?? '' ) ) {
+			$wpdb->update( $wpdb->prefix . 'tc_agent_conversations', array( 'last_customer_at' => current_time( 'mysql' ) ), array( 'id' => (int) ( $data['conversation_id'] ?? 0 ) ) );
+		}
+		return $id;
 	}
 
 	/**

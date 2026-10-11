@@ -152,6 +152,28 @@ class TC_Agents_Mobile_API {
 		);
 
 
+		// 14. Multi-Mode Telephony Initiate Call (Option 1 LiveKit, Option 2 GSM Bridge, Option 3 SIP Trunk)
+		register_rest_route(
+			self::NAMESPACE,
+			'/mobile/telephony-initiate',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( __CLASS__, 'handle_telephony_initiate' ),
+				'permission_callback' => array( __CLASS__, 'verify_token' ),
+			)
+		);
+
+		// 15. Active Telephony Configuration Info for App
+		register_rest_route(
+			self::NAMESPACE,
+			'/mobile/telephony-config',
+			array(
+				'methods'             => 'GET',
+				'callback'            => array( __CLASS__, 'handle_get_telephony_config' ),
+				'permission_callback' => array( __CLASS__, 'verify_token' ),
+			)
+		);
+
 		// 12. Live Real-Time Events Feed for Android Companion Notifications
 		register_rest_route(
 			self::NAMESPACE,
@@ -191,13 +213,28 @@ class TC_Agents_Mobile_API {
 		$token = (string) $request->get_header( 'X-Mobile-Token' );
 
 		if ( '' !== $token ) {
-			$label = hash_equals( (string) self::get_api_token(), $token ) ? 'master' : TC_Agents_Security::match_agent_token( $token );
-			if ( false !== $label ) {
+			$master = '' !== (string) self::get_api_token() && hash_equals( (string) self::get_api_token(), $token );
+			$row    = $master ? array( 'label' => 'master', 'id' => 'master', 'user_id' => 0 ) : TC_Agents_Security::match_agent_token_row( $token );
+			if ( false !== $row ) {
 				// Per-device ceiling: generous for normal use, stops a stuck retry loop or a leaked token scraping the CRM.
 				if ( ! TC_Agents_Security::rate_limit( 'mobile_req', hash( 'sha256', $token ), 1200, 600 ) ) {
 					return new WP_Error( 'tc_rate_limited', 'Too many requests from this device. Wait a few minutes.', array( 'status' => 429 ) );
 				}
+				// Clear failed attempt counter on success
+				delete_transient( 'tcag_rl_' . md5( 'mobile_auth_fail|' . $ip ) );
+
+				$label = (string) $row['label'];
+				$user  = $row['user_id'] ? get_userdata( (int) $row['user_id'] ) : null;
+				if ( $user ) {
+					// The phone acts as this person: CRM visibility rules (own / unassigned / all) apply as in wp-admin.
+					wp_set_current_user( $user->ID );
+					$label = $user->display_name;
+				} elseif ( $row['user_id'] ) {
+					// Linked to a user who was deleted: refuse rather than silently widen access.
+					return false;
+				}
 				$request->set_param( '_tc_agent', $label );
+				$request->set_param( '_tc_token_id', (string) $row['id'] );
 				return true;
 			}
 		}
@@ -1223,5 +1260,87 @@ class TC_Agents_Mobile_API {
 		}
 
 		return new WP_REST_Response( array( 'ok' => true, 'lead_id' => $lead_id, 'stage' => $stage ), 200 );
+	}
+
+	/**
+	 * Initiate Multi-Mode Outbound Call (Option 1 LiveKit WebRTC, Option 2 GSM Bridge, Option 3 SIP Trunk).
+	 */
+	public static function handle_telephony_initiate( WP_REST_Request $request ) {
+		$params        = $request->get_json_params() ?: $request->get_params();
+		$phone         = sanitize_text_field( $params['phone'] ?? '' );
+		$customer_name = sanitize_text_field( $params['customer_name'] ?? 'Traveler' );
+		$reason        = sanitize_text_field( $params['reason'] ?? 'Tour Itinerary Follow-up' );
+		$force_mode    = sanitize_text_field( $params['mode'] ?? '' );
+
+		if ( empty( $phone ) ) {
+			return new WP_REST_Response( array( 'ok' => false, 'error' => 'phone parameter required' ), 400 );
+		}
+
+		if ( ! class_exists( 'TC_Integration_Voice' ) ) {
+			$voice_path = dirname( __DIR__ ) . '/integrations/class-tc-integration-voice.php';
+			if ( file_exists( $voice_path ) ) {
+				require_once $voice_path;
+			}
+		}
+
+		// If caller requests a specific mode override (e.g. agent selects "WebRTC" or "SIM Bridge" on HUD)
+		if ( ! empty( $force_mode ) ) {
+			if ( 'livekit_webrtc' === $force_mode ) {
+				$res = TC_Integration_Voice::dispatch_livekit_webrtc_call( $phone, $customer_name, $reason );
+			} elseif ( 'jio_sim' === $force_mode || 'gsm_bridge' === $force_mode ) {
+				$res = TC_Integration_Voice::dispatch_via_jio_companion( $phone, $customer_name, $reason );
+			} elseif ( 'sip_trunk' === $force_mode ) {
+				$res = TC_Integration_Voice::dispatch_via_sip_trunk( $phone, $customer_name, $reason );
+			} else {
+				$res = TC_Integration_Voice::place_call( $phone, $customer_name, $reason );
+			}
+		} else {
+			$res = TC_Integration_Voice::place_call( $phone, $customer_name, $reason );
+		}
+
+		if ( is_wp_error( $res ) ) {
+			return new WP_REST_Response( array( 'ok' => false, 'error' => $res->get_error_message() ), 400 );
+		}
+
+		return new WP_REST_Response( array_merge( array( 'ok' => true ), $res ), 200 );
+	}
+
+	/**
+	 * Retrieve active telephony configuration (active mode, WebRTC WS URL, GSM SIM number, and SIP credentials).
+	 */
+	public static function handle_get_telephony_config( WP_REST_Request $request ) {
+		if ( ! class_exists( 'TC_Integration_Voice' ) ) {
+			$voice_path = dirname( __DIR__ ) . '/integrations/class-tc-integration-voice.php';
+			if ( file_exists( $voice_path ) ) {
+				require_once $voice_path;
+			}
+		}
+
+		return new WP_REST_Response(
+			array(
+				'ok'              => true,
+				'active_mode'     => TC_Integration_Voice::get_provider(), // 'livekit_webrtc', 'jio_sim', 'sip_trunk'
+				'is_enabled'      => TC_Integration_Voice::is_enabled(),
+				'business_number' => '+91 93361 16210',
+				'livekit'         => array(
+					'ws_url'            => TC_Integration_Voice::get_livekit_ws_url(),
+					'evolution_api_url' => 'https://wa.vmstudio.digital',
+					'evolution_instance'=> get_option( 'tc_agents_evolution_instance', 'tripcosmos' ),
+					'is_free'           => true,
+				),
+				'gsm_bridge'      => array(
+					'sim_number' => TC_Integration_Voice::get_gsm_sim_number(),
+					'carrier'    => 'Reliance Jio (Domestic Unlimited)',
+					'is_free'    => true,
+				),
+				'sip_trunk'       => array(
+					'host'      => TC_Integration_Voice::get_sip_host(),
+					'port'      => TC_Integration_Voice::get_sip_port(),
+					'username'  => TC_Integration_Voice::get_sip_username(),
+					'caller_id' => TC_Integration_Voice::get_sip_caller_id(),
+				),
+			),
+			200
+		);
 	}
 }

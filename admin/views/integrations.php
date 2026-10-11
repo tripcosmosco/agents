@@ -520,46 +520,124 @@ $wa_mode            = get_option( 'tc_agents_whatsapp_mode', 'legacy' );
 			</table>
 		</div>
 
-		<!-- 7. VOICE TELEPHONY -->
-		<div class="tc-card-lux" style="border-left: 5px solid <?php echo $voice_enabled ? '#10b981' : '#64748b'; ?>;">
+		<!-- 7. VOICE TELEPHONY & MULTI-MODE TELEPHONY ENGINE -->
+		<?php 
+			$voice_provider = get_option( 'tc_agents_voice_provider', 'livekit_webrtc' );
+		?>
+		<div class="tc-card-lux" style="border-left: 5px solid <?php echo $voice_enabled ? '#f59e0b' : '#64748b'; ?>;">
 			<div class="tc-card-header-flex">
 				<div class="tc-card-title">
 					<span>📞</span>
-					7. Voice Telephony &amp; AI Phone Calling
+					7. Telephony &amp; Calling Engine (3-Way Switchable)
 				</div>
 				<span class="tc-status-pill <?php echo $voice_enabled ? 'online' : 'down'; ?>">
 					<span class="tc-status-dot"></span>
-					<?php echo $voice_enabled ? 'VOICE ENABLED' : 'VOICE DISABLED (SAFE)'; ?>
+					<?php echo $voice_enabled ? 'TELEPHONY LIVE' : 'DISABLED'; ?>
 				</span>
 			</div>
 			<p class="tc-card-desc">
-				Configures automated voice calling capabilities (e.g. Vapi, Retell, Twilio). Kept disabled by default for cost and volume safety.
+				Toggle seamlessly between <strong>Option 1 (100% Free LiveKit WebRTC + Evolution WhatsApp)</strong>, <strong>Option 2 (Office Android GSM SIM Bridge via +91 93361 16210)</strong>, and <strong>Option 3 (Enterprise Cloud SIP Trunk / Asterisk)</strong>.
 			</p>
 			<table class="form-table">
 				<tr>
-					<th scope="row"><label for="voice_enabled">Outbound Voice Calls</label></th>
+					<th scope="row"><label for="voice_enabled">Calling Functionality</label></th>
 					<td>
 						<label style="font-weight: 600;">
 							<input type="checkbox" name="voice_enabled" id="voice_enabled" value="1" <?php checked( $voice_enabled ); ?> />
-							Allow outbound voice calls for follow-up confirmations
+							Enable multi-channel customer calling from X-Agents and Website
 						</label>
 					</td>
 				</tr>
 				<tr>
-					<th scope="row"><label for="voice_provider">Voice Platform</label></th>
+					<th scope="row"><label for="voice_provider">Active Calling Engine</label></th>
 					<td>
-						<select name="voice_provider" id="voice_provider" class="tc-input-lux" style="width: 320px;">
-							<option value="vapi" <?php selected( get_option( 'tc_agents_voice_provider', 'vapi' ), 'vapi' ); ?>>Vapi (Recommended AI Voice)</option>
-							<option value="retell" <?php selected( get_option( 'tc_agents_voice_provider', 'vapi' ), 'retell' ); ?>>Retell AI</option>
-							<option value="twilio" <?php selected( get_option( 'tc_agents_voice_provider', 'vapi' ), 'twilio' ); ?>>Twilio</option>
+						<select name="voice_provider" id="voice_provider" class="tc-input-lux" style="width: 440px;" onchange="
+							document.getElementById('tc-voice-rtc-box').style.display = (this.value === 'livekit_webrtc' ? 'table-row-group' : 'none');
+							document.getElementById('tc-voice-gsm-box').style.display = (this.value === 'jio_sim' || this.value === 'gsm_bridge' ? 'table-row-group' : 'none');
+							document.getElementById('tc-voice-sip-box').style.display = (this.value === 'sip_trunk' ? 'table-row-group' : 'none');
+							document.getElementById('tc-voice-cloud-box').style.display = (this.value === 'vapi' || this.value === 'retell' ? 'table-row-group' : 'none');
+						">
+							<option value="livekit_webrtc" <?php selected( $voice_provider, 'livekit_webrtc' ); ?>>Option 1: LiveKit WebRTC + Evolution WhatsApp (100% Free - Recommended)</option>
+							<option value="jio_sim" <?php selected( $voice_provider, 'jio_sim' ); ?>>Option 2: Android GSM Bridge Phone (Office SIM +91 93361 16210)</option>
+							<option value="sip_trunk" <?php selected( $voice_provider, 'sip_trunk' ); ?>>Option 3: Enterprise Cloud SIP Trunk (Asterisk / Jio / Tata / Airtel)</option>
+							<option value="vapi" <?php selected( $voice_provider, 'vapi' ); ?>>Cloud AI Agent (Vapi.ai Fallback)</option>
 						</select>
 					</td>
 				</tr>
+			</table>
+
+			<!-- Option 1: LiveKit WebRTC Settings -->
+			<table class="form-table" id="tc-voice-rtc-box" style="display: <?php echo $voice_provider === 'livekit_webrtc' ? 'table-row-group' : 'none'; ?>; border-top: 1px dashed #e2e8f0;">
+				<tr>
+					<th scope="row"><label for="livekit_ws_url">LiveKit Server WebSocket URL</label></th>
+					<td>
+						<input type="text" name="livekit_ws_url" id="livekit_ws_url" class="tc-input-lux" value="<?php echo esc_attr( get_option( 'tc_agents_livekit_ws_url', 'wss://rtc.onlinepuja.live' ) ); ?>" placeholder="wss://rtc.onlinepuja.live" />
+						<p class="description">Self-hosted WebRTC gateway. Delivers 100% free encrypted audio calling with zero SIM dependencies.</p>
+					</td>
+				</tr>
+				<tr>
+					<th scope="row">WhatsApp 1-Tap Call Dispatch</th>
+					<td>
+						<span style="background: #ecfdf5; color: #065f46; font-weight: 700; font-size: 12px; padding: 4px 10px; border-radius: 6px;">
+							✓ Connected to Evolution API (wa.vmstudio.digital) via +91 93361 16210
+						</span>
+						<p class="description">When agents call, a 1-tap call invite link is sent to the customer's WhatsApp instantly.</p>
+					</td>
+				</tr>
+			</table>
+
+			<!-- Option 2: Android GSM Bridge Settings -->
+			<table class="form-table" id="tc-voice-gsm-box" style="display: <?php echo ( $voice_provider === 'jio_sim' || $voice_provider === 'gsm_bridge' ) ? 'table-row-group' : 'none'; ?>; border-top: 1px dashed #e2e8f0;">
+				<tr>
+					<th scope="row"><label for="gsm_sim_number">Office Bridge SIM Number</label></th>
+					<td>
+						<input type="text" name="gsm_sim_number" id="gsm_sim_number" class="tc-input-lux" value="<?php echo esc_attr( get_option( 'tc_agents_gsm_sim_number', '+919336116210' ) ); ?>" placeholder="+919336116210" />
+						<p class="description">The physical phone number in your office Android phone that places cellular GSM calls.</p>
+					</td>
+				</tr>
+			</table>
+
+			<!-- Option 3: Enterprise Cloud SIP Trunk Settings -->
+			<table class="form-table" id="tc-voice-sip-box" style="display: <?php echo $voice_provider === 'sip_trunk' ? 'table-row-group' : 'none'; ?>; border-top: 1px dashed #e2e8f0;">
+				<tr>
+					<th scope="row"><label for="sip_host">SIP Server / Proxy Host</label></th>
+					<td>
+						<input type="text" name="sip_host" id="sip_host" class="tc-input-lux" value="<?php echo esc_attr( get_option( 'tc_agents_sip_host', '' ) ); ?>" placeholder="e.g. sip.yourserver.com or 192.168.1.100" />
+					</td>
+				</tr>
+				<tr>
+					<th scope="row"><label for="sip_port">SIP Port</label></th>
+					<td>
+						<input type="text" name="sip_port" id="sip_port" class="tc-input-lux" style="width: 140px;" value="<?php echo esc_attr( get_option( 'tc_agents_sip_port', '5060' ) ); ?>" />
+					</td>
+				</tr>
+				<tr>
+					<th scope="row"><label for="sip_username">SIP Auth Username / Extension</label></th>
+					<td>
+						<input type="text" name="sip_username" id="sip_username" class="tc-input-lux" value="<?php echo esc_attr( get_option( 'tc_agents_sip_username', '' ) ); ?>" />
+					</td>
+				</tr>
+				<tr>
+					<th scope="row"><label for="sip_password">SIP Auth Password</label></th>
+					<td>
+						<input type="password" name="sip_password" id="sip_password" class="tc-input-lux" value="" placeholder="<?php echo esc_attr( TC_Agents_Vault::hint( 'sip_password' ) ?: '••••••••••••' ); ?>" autocomplete="new-password" />
+					</td>
+				</tr>
+				<tr>
+					<th scope="row"><label for="sip_caller_id">Outbound Caller ID (CLI)</label></th>
+					<td>
+						<input type="text" name="sip_caller_id" id="sip_caller_id" class="tc-input-lux" value="<?php echo esc_attr( get_option( 'tc_agents_sip_caller_id', '+919336116210' ) ); ?>" />
+						<p class="description">Displays as Caller ID on customer phones (e.g. <code>+919336116210</code>).</p>
+					</td>
+				</tr>
+			</table>
+
+			<!-- Cloud AI Vapi Fallback Box -->
+			<table class="form-table" id="tc-voice-cloud-box" style="display: <?php echo ( $voice_provider === 'vapi' || $voice_provider === 'retell' ) ? 'table-row-group' : 'none'; ?>; border-top: 1px dashed #e2e8f0;">
 				<tr>
 					<th scope="row"><label for="voice_api_key">Voice API Key</label></th>
 					<td>
 						<input type="password" name="voice_api_key" id="voice_api_key" class="tc-input-lux" value="" placeholder="<?php echo esc_attr( TC_Agents_Vault::hint( 'voice_api_key' ) ?: '••••••••••••' ); ?>" autocomplete="new-password" />
-						<?php if ( TC_Agents_Vault::has( 'voice_api_key' ) ) : ?><span class="dashicons dashicons-yes-alt" style="color:#10b981; vertical-align: middle;"></span> <small style="color:#10b981; font-weight: 600;">Vault Encrypted</small><?php endif; ?>
 					</td>
 				</tr>
 				<tr>
@@ -572,12 +650,6 @@ $wa_mode            = get_option( 'tc_agents_whatsapp_mode', 'legacy' );
 					<th scope="row"><label for="voice_phone_number_id">Registered Phone Number ID</label></th>
 					<td>
 						<input type="text" name="voice_phone_number_id" id="voice_phone_number_id" class="tc-input-lux" value="<?php echo esc_attr( get_option( 'tc_agents_voice_phone_number_id', '' ) ); ?>" />
-					</td>
-				</tr>
-				<tr>
-					<th scope="row"><label>Transcript Webhook URL</label></th>
-					<td>
-						<code style="padding: 6px 10px; background: #f1f5f9; border-radius: 6px; font-size: 13px; color: #0284c7;"><?php echo esc_html( rest_url( 'tc-agents/v1/voice-webhook' ) ); ?></code>
 					</td>
 				</tr>
 			</table>

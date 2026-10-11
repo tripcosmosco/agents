@@ -777,9 +777,38 @@ class TC_Agents_Admin {
 			update_option( 'tc_agents_sheets_enabled', ! empty( $_POST['sheets_enabled'] ) ? '1' : '0' );
 			update_option( 'tc_agents_sheets_webhook_url', esc_url_raw( $_POST['sheets_webhook_url'] ?? '' ) );
 
-			// Voice settings
+			// Voice & Multi-Mode Telephony settings
 			update_option( 'tc_agents_voice_enabled', ! empty( $_POST['voice_enabled'] ) ? '1' : '0' );
-			update_option( 'tc_agents_voice_provider', sanitize_text_field( $_POST['voice_provider'] ?? 'vapi' ) );
+			update_option( 'tc_agents_voice_provider', sanitize_text_field( $_POST['voice_provider'] ?? 'livekit_webrtc' ) );
+			
+			// Option 1: LiveKit WebRTC
+			if ( isset( $_POST['livekit_ws_url'] ) ) {
+				update_option( 'tc_agents_livekit_ws_url', sanitize_text_field( $_POST['livekit_ws_url'] ) );
+			}
+
+			// Option 2: GSM Bridge SIM
+			if ( isset( $_POST['gsm_sim_number'] ) ) {
+				update_option( 'tc_agents_gsm_sim_number', sanitize_text_field( $_POST['gsm_sim_number'] ) );
+			}
+
+			// Option 3: SIP Trunk
+			if ( isset( $_POST['sip_host'] ) ) {
+				update_option( 'tc_agents_sip_host', sanitize_text_field( $_POST['sip_host'] ) );
+			}
+			if ( isset( $_POST['sip_port'] ) ) {
+				update_option( 'tc_agents_sip_port', sanitize_text_field( $_POST['sip_port'] ) );
+			}
+			if ( isset( $_POST['sip_username'] ) ) {
+				update_option( 'tc_agents_sip_username', sanitize_text_field( $_POST['sip_username'] ) );
+			}
+			if ( ! empty( $_POST['sip_password'] ) ) {
+				TC_Agents_Vault::put( 'sip_password', sanitize_text_field( $_POST['sip_password'] ) );
+			}
+			if ( isset( $_POST['sip_caller_id'] ) ) {
+				update_option( 'tc_agents_sip_caller_id', sanitize_text_field( $_POST['sip_caller_id'] ) );
+			}
+
+			// Cloud AI Vapi Fallback
 			if ( ! empty( $_POST['voice_api_key'] ) ) {
 				TC_Agents_Vault::put( 'voice_api_key', sanitize_text_field( $_POST['voice_api_key'] ) );
 			}
