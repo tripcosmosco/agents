@@ -202,6 +202,7 @@
 
 			if (isOpen) {
 				trackEvent('tc_agent_chat_opened');
+				startLivePolling();
 				scrollToBottom();
 				if (window.visualViewport && window.innerWidth <= 640) {
 					handleViewportChange();
@@ -212,6 +213,7 @@
 					}
 				}, 100);
 			} else {
+				stopLivePolling();
 				if (chatWindow) {
 					chatWindow.style.height = '';
 					chatWindow.style.top = '';
@@ -1115,6 +1117,100 @@
 			textDiv.innerHTML = (role === 'bot') ? formatMarkdown(text) : escapeHtml(text).replace(/\n/g, '<br />');
 
 			bubble.appendChild(textDiv);
+			messagesContainer.appendChild(bubble);
+			scrollToBottom();
+		}
+
+		// 11. Live Polling for Human Specialist Takeover
+		let livePollTimer = null;
+		let lastMessageId = 0;
+		const knownMsgIds = new Set();
+
+		function startLivePolling() {
+			if (livePollTimer) return;
+			pollLiveMessages();
+			livePollTimer = setInterval(pollLiveMessages, 3000);
+		}
+
+		function stopLivePolling() {
+			if (livePollTimer) {
+				clearInterval(livePollTimer);
+				livePollTimer = null;
+			}
+		}
+
+		function pollLiveMessages() {
+			if (!isOpen || !sessionId) return;
+			const pollUrl = (tcChatWidget.siteUrl ? tcChatWidget.siteUrl.replace(/\/$/, '') : '') + 
+				'/wp-json/tc-agents/v1/conversations/' + encodeURIComponent(sessionId) + '/poll?after=' + lastMessageId;
+
+			fetch(pollUrl)
+				.then(function(res) { return res.json(); })
+				.then(function(data) {
+					if (!data || !data.messages || !data.messages.length) {
+						if (data && data.human_active) {
+							updateLiveAgentBanner(true);
+						}
+						return;
+					}
+
+					if (data.human_active) {
+						updateLiveAgentBanner(true);
+					}
+
+					data.messages.forEach(function(msg) {
+						if (knownMsgIds.has(msg.id)) return;
+						knownMsgIds.add(msg.id);
+						if (msg.id > lastMessageId) {
+							lastMessageId = msg.id;
+						}
+
+						if (msg.role === 'agent') {
+							// Remove any typing dot bubbles
+							const typingDots = messagesContainer.querySelectorAll('.tc-typing-dot');
+							typingDots.forEach(function(dot) {
+								const b = dot.closest('.tc-chat-bubble');
+								if (b) b.remove();
+							});
+							setSendingState(false);
+							appendAgentMessage(msg.content, msg.agent_name || 'Travel Specialist');
+							playSoftChime();
+						}
+					});
+				})
+				.catch(function() {});
+		}
+
+		function updateLiveAgentBanner(isActive) {
+			let banner = document.getElementById('tc-live-agent-banner');
+			if (isActive) {
+				if (!banner && messagesContainer) {
+					banner = document.createElement('div');
+					banner.id = 'tc-live-agent-banner';
+					banner.style.cssText = 'background: linear-gradient(135deg, #065f46, #047857); color: #fff; font-size: 11.5px; font-weight: 600; padding: 6px 12px; display: flex; align-items: center; justify-content: space-between; border-radius: 8px; margin: 8px 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.15);';
+					banner.innerHTML = '<span>🟢 <strong>Travel Specialist Connected</strong> — Replying live</span>';
+					messagesContainer.parentNode.insertBefore(banner, messagesContainer);
+				}
+			} else if (banner) {
+				banner.remove();
+			}
+		}
+
+		function appendAgentMessage(text, agentName) {
+			const bubble = document.createElement('div');
+			bubble.className = 'tc-chat-bubble tc-bubble-bot tc-bubble-agent';
+			bubble.style.cssText = 'border-left: 3.5px solid #10b981; background: #f0fdf4; color: #064e3b;';
+
+			const header = document.createElement('div');
+			header.style.cssText = 'font-size: 10px; font-weight: 700; color: #059669; margin-bottom: 4px; display: flex; align-items: center; gap: 4px;';
+			header.innerHTML = '<span>👤</span> <span>' + escapeHtml(agentName) + ' (TripCosmos Specialist)</span>';
+			bubble.appendChild(header);
+
+			const textDiv = document.createElement('div');
+			textDiv.className = 'tc-bubble-text';
+			textDiv.innerHTML = formatMarkdown(text);
+			bubble.appendChild(textDiv);
+
 			messagesContainer.appendChild(bubble);
 			scrollToBottom();
 		}

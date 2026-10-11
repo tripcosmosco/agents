@@ -184,6 +184,50 @@ class TC_Agents_Mobile_API {
 				'permission_callback' => array( __CLASS__, 'verify_token' ),
 			)
 		);
+
+		// 16. Web Chats Feed for Mobile App (Live Website Visitors chatting with Frontend Chatbot)
+		register_rest_route(
+			self::NAMESPACE,
+			'/mobile/web-chats',
+			array(
+				'methods'             => 'GET',
+				'callback'            => array( __CLASS__, 'handle_get_web_chats' ),
+				'permission_callback' => array( __CLASS__, 'verify_token' ),
+			)
+		);
+
+		// 17. Web Chat Details & History for Mobile App
+		register_rest_route(
+			self::NAMESPACE,
+			'/mobile/web-chats/(?P<session_id>[a-zA-Z0-9_\-]+)',
+			array(
+				'methods'             => 'GET',
+				'callback'            => array( __CLASS__, 'handle_get_web_chat_detail' ),
+				'permission_callback' => array( __CLASS__, 'verify_token' ),
+			)
+		);
+
+		// 18. Human Agent Reply to Website Chatbot Visitor
+		register_rest_route(
+			self::NAMESPACE,
+			'/mobile/web-chats/(?P<session_id>[a-zA-Z0-9_\-]+)/reply',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( __CLASS__, 'handle_web_chat_reply' ),
+				'permission_callback' => array( __CLASS__, 'verify_token' ),
+			)
+		);
+
+		// 19. Toggle AI / Human Takeover for Website Chatbot Session
+		register_rest_route(
+			self::NAMESPACE,
+			'/mobile/web-chats/(?P<session_id>[a-zA-Z0-9_\-]+)/ai',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( __CLASS__, 'handle_web_chat_ai_toggle' ),
+				'permission_callback' => array( __CLASS__, 'verify_token' ),
+			)
+		);
 	}
 
 	/**
@@ -1339,6 +1383,248 @@ class TC_Agents_Mobile_API {
 					'username'  => TC_Integration_Voice::get_sip_username(),
 					'caller_id' => TC_Integration_Voice::get_sip_caller_id(),
 				),
+			),
+			200
+		);
+	}
+
+	/**
+	 * 16. Retrieve all active website chatbot conversations for Mobile Agent App.
+	 */
+	public static function handle_get_web_chats( WP_REST_Request $request ) {
+		global $wpdb;
+		$table_cv  = $wpdb->prefix . 'tc_agent_conversations';
+		$table_msg = $wpdb->prefix . 'tc_agent_messages';
+		$table_c   = $wpdb->prefix . 'tc_agent_contacts';
+
+		$limit = min( 50, max( 1, (int) ( $request->get_param( 'limit' ) ?: 30 ) ) );
+
+		$sql = "SELECT cv.id, cv.session_id, cv.channel, cv.status, cv.metadata, cv.started_at, cv.last_message_at,
+		               c.name as contact_name, c.phone as contact_phone
+		        FROM $table_cv cv
+		        LEFT JOIN $table_c c ON c.id = cv.contact_id
+		        ORDER BY cv.last_message_at DESC
+		        LIMIT %d";
+
+		$rows = $wpdb->get_results( $wpdb->prepare( $sql, $limit ), ARRAY_A ) ?: array();
+
+		$web_chats = array();
+		foreach ( $rows as $r ) {
+			$meta = json_decode( (string) ( $r['metadata'] ?? '' ), true ) ?: array();
+
+			// Latest message
+			$last_row = $wpdb->get_row(
+				$wpdb->prepare(
+					"SELECT id, role, content, provider_used, created_at FROM $table_msg WHERE conversation_id = %d ORDER BY id DESC LIMIT 1",
+					(int) $r['id']
+				),
+				ARRAY_A
+			);
+
+			$last_msg = $last_row ? (string) $last_row['content'] : 'Session started';
+			$last_role = $last_row ? (string) $last_row['role'] : 'system';
+			$last_at = $last_row ? (string) $last_row['created_at'] : (string) $r['last_message_at'];
+
+			// Unread count (user messages after last agent read)
+			$unread_count = (int) $wpdb->get_var(
+				$wpdb->prepare(
+					"SELECT COUNT(*) FROM $table_msg WHERE conversation_id = %d AND role = 'user' AND id > %d",
+					(int) $r['id'],
+					(int) ( $r['read_msg_id'] ?? 0 )
+				)
+			);
+
+			// Friendly visitor label
+			$session_short = substr( $r['session_id'], -4 );
+			$visitor_name = ! empty( $r['contact_name'] ) ? $r['contact_name'] : ( ! empty( $meta['traveler_name'] ) ? $meta['traveler_name'] : 'Web Visitor #' . $session_short );
+			$phone = ! empty( $r['contact_phone'] ) ? $r['contact_phone'] : ( $meta['phone'] ?? '' );
+			$page_url = $meta['page_url'] ?? ( $meta['landing_page'] ?? '/' );
+
+			$web_chats[] = array(
+				'id'                => (int) $r['id'],
+				'session_id'        => (string) $r['session_id'],
+				'channel'           => (string) $r['channel'],
+				'status'            => (string) $r['status'], // 'active' (AI) or 'handed_off' (Human Agent)
+				'is_ai_active'      => 'handed_off' !== $r['status'],
+				'customer_name'     => $visitor_name,
+				'phone'             => $phone,
+				'page_url'          => $page_url,
+				'page_title'        => $meta['page_title'] ?? '',
+				'last_message'      => $last_msg,
+				'last_message_role' => $last_role,
+				'last_message_at'   => $last_at,
+				'unread_count'      => $unread_count,
+				'started_at'        => (string) $r['started_at'],
+			);
+		}
+
+		return new WP_REST_Response( array( 'ok' => true, 'chats' => $web_chats ), 200 );
+	}
+
+	/**
+	 * 17. Retrieve detail and message history for one website chatbot conversation.
+	 */
+	public static function handle_get_web_chat_detail( WP_REST_Request $request ) {
+		global $wpdb;
+		$session_id = sanitize_text_field( $request['session_id'] );
+		$table_cv   = $wpdb->prefix . 'tc_agent_conversations';
+		$table_msg  = $wpdb->prefix . 'tc_agent_messages';
+		$table_c    = $wpdb->prefix . 'tc_agent_contacts';
+
+		$cv = $wpdb->get_row(
+			$wpdb->prepare(
+				"SELECT cv.*, c.name as contact_name, c.phone as contact_phone FROM $table_cv cv LEFT JOIN $table_c c ON c.id = cv.contact_id WHERE cv.session_id = %s LIMIT 1",
+				$session_id
+			),
+			ARRAY_A
+		);
+
+		if ( ! $cv ) {
+			return new WP_REST_Response( array( 'ok' => false, 'error' => 'Conversation not found' ), 404 );
+		}
+
+		$meta = json_decode( (string) ( $cv['metadata'] ?? '' ), true ) ?: array();
+
+		$rows = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT id, role, content, provider_used, created_at FROM $table_msg WHERE conversation_id = %d AND role IN ('user', 'assistant', 'agent') ORDER BY id ASC LIMIT 100",
+				(int) $cv['id']
+			),
+			ARRAY_A
+		) ?: array();
+
+		$messages = array();
+		$max_id = 0;
+		foreach ( $rows as $r ) {
+			$id = (int) $r['id'];
+			if ( $id > $max_id ) {
+				$max_id = $id;
+			}
+			$by = (string) $r['provider_used'];
+			$agent_name = 0 === strpos( $by, 'human:' ) ? substr( $by, 6 ) : '';
+
+			$messages[] = array(
+				'id'         => $id,
+				'role'       => $r['role'], // 'user', 'assistant', 'agent'
+				'from'       => 'user' === $r['role'] ? 'customer' : ( 'agent' === $r['role'] ? 'agent' : 'ai' ),
+				'content'    => (string) $r['content'],
+				'agent_name' => $agent_name,
+				'created_at' => (string) $r['created_at'],
+			);
+		}
+
+		// Update read_msg_id
+		if ( $max_id > 0 ) {
+			$wpdb->update(
+				$table_cv,
+				array( 'read_msg_id' => $max_id ),
+				array( 'id' => (int) $cv['id'] )
+			);
+		}
+
+		$session_short = substr( $session_id, -4 );
+		$visitor_name  = ! empty( $cv['contact_name'] ) ? $cv['contact_name'] : ( ! empty( $meta['traveler_name'] ) ? $meta['traveler_name'] : 'Web Visitor #' . $session_short );
+
+		return new WP_REST_Response(
+			array(
+				'ok'            => true,
+				'session_id'    => $session_id,
+				'customer_name' => $visitor_name,
+				'phone'         => ! empty( $cv['contact_phone'] ) ? $cv['contact_phone'] : ( $meta['phone'] ?? '' ),
+				'page_url'      => $meta['page_url'] ?? ( $meta['landing_page'] ?? '/' ),
+				'page_title'    => $meta['page_title'] ?? '',
+				'status'        => $cv['status'],
+				'is_ai_active'  => 'handed_off' !== $cv['status'],
+				'messages'      => $messages,
+			),
+			200
+		);
+	}
+
+	/**
+	 * 18. Human agent sends a live reply to a website chatbot visitor.
+	 */
+	public static function handle_web_chat_reply( WP_REST_Request $request ) {
+		global $wpdb;
+		$session_id = sanitize_text_field( $request['session_id'] );
+		$params     = array_merge( (array) $request->get_params(), (array) $request->get_json_params() );
+		$message    = sanitize_textarea_field( $params['message'] ?? '' );
+		$agent_name = sanitize_text_field( $params['agent_name'] ?? 'Santosh Yadav' );
+
+		if ( empty( $message ) ) {
+			return new WP_REST_Response( array( 'ok' => false, 'error' => 'Message cannot be empty' ), 400 );
+		}
+
+		$table_cv  = $wpdb->prefix . 'tc_agent_conversations';
+		$table_msg = $wpdb->prefix . 'tc_agent_messages';
+
+		$cv = $wpdb->get_row( $wpdb->prepare( "SELECT id, status FROM $table_cv WHERE session_id = %s LIMIT 1", $session_id ), ARRAY_A );
+		if ( ! $cv ) {
+			return new WP_REST_Response( array( 'ok' => false, 'error' => 'Conversation not found' ), 404 );
+		}
+
+		$now = current_time( 'mysql' );
+
+		// Insert agent message
+		$wpdb->insert(
+			$table_msg,
+			array(
+				'conversation_id' => (int) $cv['id'],
+				'role'            => 'agent',
+				'content'         => $message,
+				'provider_used'   => 'human:' . $agent_name,
+				'created_at'      => $now,
+			)
+		);
+		$msg_id = (int) $wpdb->insert_id;
+
+		// Hand off conversation to human (pauses AI automated replies) and update timestamp
+		$wpdb->update(
+			$table_cv,
+			array(
+				'status'          => 'handed_off',
+				'last_message_at' => $now,
+				'read_msg_id'     => $msg_id,
+			),
+			array( 'id' => (int) $cv['id'] )
+		);
+
+		return new WP_REST_Response(
+			array(
+				'ok'         => true,
+				'message_id' => $msg_id,
+				'session_id' => $session_id,
+				'status'     => 'handed_off',
+				'sent_at'    => $now,
+			),
+			200
+		);
+	}
+
+	/**
+	 * 19. Toggle AI vs Human takeover for website chatbot conversation.
+	 */
+	public static function handle_web_chat_ai_toggle( WP_REST_Request $request ) {
+		global $wpdb;
+		$session_id = sanitize_text_field( $request['session_id'] );
+		$params     = array_merge( (array) $request->get_params(), (array) $request->get_json_params() );
+		$enable_ai  = ! empty( $params['enabled'] );
+
+		$table_cv = $wpdb->prefix . 'tc_agent_conversations';
+		$new_status = $enable_ai ? 'active' : 'handed_off';
+
+		$wpdb->update(
+			$table_cv,
+			array( 'status' => $new_status ),
+			array( 'session_id' => $session_id )
+		);
+
+		return new WP_REST_Response(
+			array(
+				'ok'           => true,
+				'session_id'   => $session_id,
+				'status'       => $new_status,
+				'is_ai_active' => $enable_ai,
 			),
 			200
 		);

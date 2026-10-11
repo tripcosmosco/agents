@@ -44,6 +44,17 @@ class TC_Agents_REST {
 			)
 		);
 
+		// 2b. Real-Time Polling for Frontend Website Chatbot Widget (Human agent replies)
+		register_rest_route(
+			self::NAMESPACE,
+			'/conversations/(?P<session_id>[a-zA-Z0-9_\-]+)/poll',
+			array(
+				'methods'             => 'GET',
+				'callback'            => array( __CLASS__, 'handle_poll_conversation' ),
+				'permission_callback' => '__return_true',
+			)
+		);
+
 		// 2b. Lead Capture Endpoint (Instant Quote Form & Fast Lead Sync)
 		register_rest_route(
 			self::NAMESPACE,
@@ -347,7 +358,7 @@ class TC_Agents_REST {
 
 		$messages = $wpdb->get_results(
 			$wpdb->prepare(
-				"SELECT role, content, provider_used, created_at FROM $table_msg WHERE conversation_id = %d AND role IN ('user', 'assistant') AND content != '' ORDER BY id ASC LIMIT 50",
+				"SELECT id, role, content, provider_used, created_at FROM $table_msg WHERE conversation_id = %d AND role IN ('user', 'assistant', 'agent') AND content != '' ORDER BY id ASC LIMIT 100",
 				$convo['id']
 			),
 			ARRAY_A
@@ -355,10 +366,61 @@ class TC_Agents_REST {
 
 		return new WP_REST_Response(
 			array(
-				'session_id' => $session_id,
-				'channel'    => $convo['channel'],
-				'status'     => $convo['status'],
-				'messages'   => $messages,
+				'session_id'   => $session_id,
+				'channel'      => $convo['channel'],
+				'status'       => $convo['status'],
+				'human_active' => 'handed_off' === $convo['status'],
+				'messages'     => $messages,
+			),
+			200
+		);
+	}
+
+	/**
+	 * Real-time poll endpoint for the frontend chatbot widget.
+	 * Returns new messages (including human agent responses) since `after` ID.
+	 */
+	public static function handle_poll_conversation( WP_REST_Request $request ) {
+		global $wpdb;
+		$session_id  = sanitize_text_field( $request->get_param( 'session_id' ) );
+		$after_id    = absint( $request->get_param( 'after' ) );
+		$table_convo = $wpdb->prefix . 'tc_agent_conversations';
+		$table_msg   = $wpdb->prefix . 'tc_agent_messages';
+
+		$convo = $wpdb->get_row( $wpdb->prepare( "SELECT id, status, channel FROM $table_convo WHERE session_id = %s LIMIT 1", $session_id ), ARRAY_A );
+		if ( ! $convo ) {
+			return new WP_REST_Response( array( 'session_id' => $session_id, 'messages' => array(), 'status' => 'active', 'human_active' => false ), 200 );
+		}
+
+		$sql = "SELECT id, role, content, provider_used, created_at FROM $table_msg WHERE conversation_id = %d AND role IN ('user', 'assistant', 'agent') AND content != ''";
+		if ( $after_id > 0 ) {
+			$sql .= $wpdb->prepare( " AND id > %d", $after_id );
+		}
+		$sql .= " ORDER BY id ASC LIMIT 20";
+
+		$rows = $wpdb->get_results( $wpdb->prepare( $sql, (int) $convo['id'] ), ARRAY_A ) ?: array();
+
+		$messages = array();
+		foreach ( $rows as $r ) {
+			$by = (string) $r['provider_used'];
+			$agent_name = 0 === strpos( $by, 'human:' ) ? substr( $by, 6 ) : '';
+
+			$messages[] = array(
+				'id'         => (int) $r['id'],
+				'role'       => (string) $r['role'],
+				'content'    => (string) $r['content'],
+				'provider'   => $by,
+				'agent_name' => $agent_name,
+				'created_at' => (string) $r['created_at'],
+			);
+		}
+
+		return new WP_REST_Response(
+			array(
+				'session_id'   => $session_id,
+				'status'       => $convo['status'],
+				'human_active' => 'handed_off' === $convo['status'],
+				'messages'     => $messages,
 			),
 			200
 		);
