@@ -42,16 +42,17 @@ class TC_Agents_Redirects {
 
 		// 1. Exact High-Value Keyword Mappings (Known 404 leaks from deleted duplicates)
 		$exact_map = array(
-			'varanasi-boat-tour'                 => home_url( '/tours/' ),
+			'tours'                              => home_url( '/tour-packages/' ),
+			'varanasi-boat-tour'                 => home_url( '/tour-packages/' ),
 			'lahartara-sarovar-lake'             => home_url( '/' ),
 			'budget-travel-tips-for-rajasthan'   => home_url( '/' ),
-			'varanasi-tour-package'              => home_url( '/tours/' ),
+			'varanasi-tour-package'              => home_url( '/tour-packages/' ),
 			'complete-varanasi-travel-plan'      => home_url( '/complete-varanasi-travel-plan-2/' ),
 			'best-time-to-visit-naimisharanya'   => home_url( '/best-time-to-visit-naimisharanya-2/' ),
 			'premium-varanasi-experience'        => home_url( '/premium-varanasi-experience-2/' ),
 			'varanasi-to-ayodhya-cab-fare'       => home_url( '/' ),
-			'kashi-vishwanath-vip-darshan'       => home_url( '/tours/' ),
-			'dev-deepawali-boat-booking'         => home_url( '/tours/' ),
+			'kashi-vishwanath-vip-darshan'       => home_url( '/tour-packages/' ),
+			'dev-deepawali-boat-booking'         => home_url( '/tour-packages/' ),
 		);
 
 		if ( isset( $exact_map[ $lower ] ) ) {

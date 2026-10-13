@@ -44,13 +44,13 @@ class TC_Agents_Link_Silo {
 			// Target A: Dev Deepawali & Ganga Boat Charters
 			array(
 				'keywords' => array( 'Dev Deepawali boat booking', 'Dev Deepawali', 'Ganga Aarti boat ride', 'Dashashwamedh Ghat boat', 'Subah-e-Banaras boat' ),
-				'url'      => home_url( '/tours/' ),
+				'url'      => home_url( '/tour-packages/' ),
 				'title'    => 'Dev Deepawali Boat Booking & Private Bajra Charters',
 			),
 			// Target B: Kashi Vishwanath VIP Sugam Darshan
 			array(
 				'keywords' => array( 'Sugam Darshan passes', 'Sugam Darshan', 'VIP Darshan Kashi Vishwanath', 'Kashi Vishwanath VIP pass', 'Rudrabhishek pooja' ),
-				'url'      => home_url( '/tours/' ),
+				'url'      => home_url( '/tour-packages/' ),
 				'title'    => 'Kashi Vishwanath Sugam Darshan VIP Passes & Priest Assistance',
 			),
 			// Target C: Ayodhya Ram Mandir & Innova Outstation Cabs
@@ -135,7 +135,7 @@ class TC_Agents_Link_Silo {
 				<a href="<?php echo esc_url( $wa_url ); ?>" target="_blank" rel="noopener" style="display: inline-flex; align-items: center; gap: 6px; padding: 9px 18px; border-radius: 10px; background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%); color: #ffffff; text-decoration: none; font-weight: 700; font-size: 12.5px; box-shadow: 0 4px 12px rgba(34, 197, 94, 0.35);">
 					<span>💬 Get Instant WhatsApp Quote &amp; Itinerary</span>
 				</a>
-				<a href="<?php echo esc_url( home_url( '/tours/' ) ); ?>" style="display: inline-flex; align-items: center; gap: 6px; padding: 9px 16px; border-radius: 10px; background: rgba(255, 255, 255, 0.12); color: #f8fafc; text-decoration: none; font-weight: 600; font-size: 12.5px; border: 1px solid rgba(255, 255, 255, 0.2);">
+				<a href="<?php echo esc_url( home_url( '/tour-packages/' ) ); ?>" style="display: inline-flex; align-items: center; gap: 6px; padding: 9px 16px; border-radius: 10px; background: rgba(255, 255, 255, 0.12); color: #f8fafc; text-decoration: none; font-weight: 600; font-size: 12.5px; border: 1px solid rgba(255, 255, 255, 0.2);">
 					<span>Explore Verified Tour Packages &rarr;</span>
 				</a>
 			</div>

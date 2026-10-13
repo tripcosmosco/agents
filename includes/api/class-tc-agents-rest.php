@@ -193,8 +193,8 @@ class TC_Agents_REST {
 			array(
 				'methods'             => 'POST',
 				'callback'            => array( __CLASS__, 'handle_b2b_import' ),
-				'permission_callback' => function() {
-					return current_user_can( 'manage_options' );
+				'permission_callback' => function( $request ) {
+					return current_user_can( 'manage_options' ) || ( class_exists( 'TC_Agents_Mobile_API' ) && TC_Agents_Mobile_API::verify_token( $request ) === true );
 				},
 			)
 		);
@@ -204,8 +204,8 @@ class TC_Agents_REST {
 			array(
 				'methods'             => 'POST',
 				'callback'            => array( __CLASS__, 'handle_b2b_outreach' ),
-				'permission_callback' => function() {
-					return current_user_can( 'manage_options' );
+				'permission_callback' => function( $request ) {
+					return current_user_can( 'manage_options' ) || ( class_exists( 'TC_Agents_Mobile_API' ) && TC_Agents_Mobile_API::verify_token( $request ) === true );
 				},
 			)
 		);
@@ -215,8 +215,8 @@ class TC_Agents_REST {
 			array(
 				'methods'             => 'POST',
 				'callback'            => array( __CLASS__, 'handle_b2b_sync_crm' ),
-				'permission_callback' => function() {
-					return current_user_can( 'manage_options' );
+				'permission_callback' => function( $request ) {
+					return current_user_can( 'manage_options' ) || ( class_exists( 'TC_Agents_Mobile_API' ) && TC_Agents_Mobile_API::verify_token( $request ) === true );
 				},
 			)
 		);
