@@ -262,6 +262,11 @@ class TC_Contact_Service {
 			} elseif ( ! empty( $opts['auto_assign'] ) || ! isset( $opts['auto_assign'] ) ) {
 				self::auto_assign( $id );
 			}
+
+			// Speed-to-Lead Automation: Dispatch WhatsApp welcome and tariff brochure in 15 seconds
+			if ( ! empty( $row['phone'] ) && class_exists( 'TC_Agents_Queue' ) ) {
+				TC_Agents_Queue::push( 'speed_to_lead_wa', array( 'contact_id' => $id ), 15 );
+			}
 		}
 
 		if ( ! empty( $opts['activity'] ) && $id ) {

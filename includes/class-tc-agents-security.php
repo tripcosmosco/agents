@@ -17,6 +17,26 @@ class TC_Agents_Security {
 		add_action( 'admin_post_tc_agents_create_token', array( __CLASS__, 'handle_create_token' ) );
 		add_action( 'admin_post_tc_agents_revoke_token', array( __CLASS__, 'handle_revoke_token' ) );
 		add_action( 'admin_post_tc_agents_save_links', array( __CLASS__, 'handle_save_links' ) );
+
+		// Security Hardening: Disable XML-RPC and remove X-Pingback headers
+		add_filter( 'xmlrpc_enabled', '__return_false' );
+		add_filter( 'wp_headers', array( __CLASS__, 'filter_security_headers' ) );
+		remove_action( 'wp_head', 'rsd_link' );
+		remove_action( 'wp_head', 'wlwmanifest_link' );
+	}
+
+	/**
+	 * Filter HTTP response headers to strip X-Pingback and enforce secure transport policies.
+	 *
+	 * @param array $headers Existing response headers.
+	 * @return array
+	 */
+	public static function filter_security_headers( array $headers ) {
+		unset( $headers['X-Pingback'], $headers['x-pingback'] );
+		$headers['X-Content-Type-Options'] = 'nosniff';
+		$headers['X-Frame-Options']        = 'SAMEORIGIN';
+		$headers['Referrer-Policy']        = 'strict-origin-when-cross-origin';
+		return $headers;
 	}
 
 	/* ------------------------------------------------------------------ rate limiting */

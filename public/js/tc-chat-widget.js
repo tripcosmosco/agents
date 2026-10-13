@@ -346,6 +346,20 @@
 				}
 			}, { passive: true });
 
+			// Desktop Exit-Intent Trigger: captures abandoning visitors before tab close
+			document.addEventListener('mouseleave', function onMouseLeave(e) {
+				if (e.clientY <= 15 && !isOpen && !sessionStorage.getItem('tc_exit_intent_fired')) {
+					sessionStorage.setItem('tc_exit_intent_fired', '1');
+					sessionStorage.removeItem('tc_teaser_dismissed'); // Ensure exit intent can show even if earlier teaser was closed
+					teaserShown = false;
+					const teaserBody = document.getElementById('tc-teaser-body');
+					if (teaserBody) {
+						teaserBody.innerHTML = '⚡ <strong>Leaving without live tariffs?</strong> Get our verified 2026-2027 Kashi, Dev Deepawali &amp; Ayodhya cab &amp; darshan rates instantly on WhatsApp!';
+					}
+					showProactiveTeaser();
+				}
+			});
+
 			// Handle quick action chips inside the proactive card!
 			const teaserChips = teaserEl.querySelectorAll('.tc-teaser-chip');
 			teaserChips.forEach(function(chip) {

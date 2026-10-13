@@ -275,6 +275,39 @@ class TC_Agents_Queue {
 				}
 				break;
 
+			case 'speed_to_lead_wa':
+				if ( ! empty( $payload['contact_id'] ) && class_exists( 'TC_Contact_Service' ) ) {
+					$cid     = (int) $payload['contact_id'];
+					$contact = TC_Contact_Service::get( $cid );
+					if ( $contact && ! empty( $contact['phone'] ) ) {
+						$c_name   = ! empty( $contact['name'] ) && 'Traveler' !== $contact['name'] ? $contact['name'] : '';
+						$meta     = json_decode( (string) ( $contact['meta_data'] ?? '' ), true ) ?: array();
+						$dest     = ! empty( $meta['destination'] ) ? $meta['destination'] : 'Varanasi & Ayodhya Pilgrimage';
+						$greeting = $c_name ? "Namaste {$c_name} Ji! 🙏" : "Namaste! 🙏";
+						$wa_text  = "{$greeting} Warm greetings from TripCosmos (Varanasi HQ).\n\n" .
+							"We have received your pilgrimage inquiry for *{$dest}*. Our destination specialist is holding your tentative dates.\n\n" .
+							"✨ *Our Verified Guarantees:*\n" .
+							"• Kashi Vishwanath VIP Sugam Darshan Passes (Zero Line Waiting)\n" .
+							"• Private Morning & Evening Ganga Aarti Bajra Boats\n" .
+							"• Dedicated Sanitized AC Cabs (Innova Crysta / Swift Dzire / Tempo Travellers)\n\n" .
+							"How many travelers will be visiting, and what are your preferred travel dates?";
+
+						$sent = false;
+						if ( class_exists( 'TC_Integration_Evolution' ) && TC_Integration_Evolution::is_configured() ) {
+							$res = TC_Integration_Evolution::send_message( $contact['phone'], $wa_text );
+							if ( ! is_wp_error( $res ) ) {
+								$sent = true;
+							}
+						}
+						TC_Contact_Service::add_activity(
+							$cid,
+							'whatsapp',
+							$sent ? 'Automated Speed-to-Lead WhatsApp welcome dispatched to customer.' : 'Speed-to-Lead WhatsApp queued (Evolution gateway idle).'
+						);
+					}
+				}
+				break;
+
 			default:
 				do_action( "tc_agents_job_{$job_type}", $payload );
 				break;
