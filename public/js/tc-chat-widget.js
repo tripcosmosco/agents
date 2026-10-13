@@ -150,29 +150,39 @@
 			window.dataLayer = window.dataLayer || [];
 			window.dataLayer.push(payload);
 
-			// Ping backend for Android app companion live alerts on critical visitor actions
-			if (eventName === 'tc_agent_chat_opened' || eventName === 'tc_agent_visitor_landed') {
+			// Ping backend for Android app companion live alerts on visitor actions
+			if (eventName === 'tc_agent_chat_opened' || eventName === 'tc_agent_visitor_landed' || eventName === 'tc_agent_heartbeat') {
 				try {
+					const attr = getAttribution() || {};
 					const trackUrl = (tcChatWidget.siteUrl ? tcChatWidget.siteUrl.replace(/\/$/, '') : '') + '/wp-json/tc-agents/v1/track-visitor';
 					fetch(trackUrl, {
 						method: 'POST',
 						headers: { 'Content-Type': 'application/json' },
 						body: JSON.stringify({
-							action: eventName === 'tc_agent_chat_opened' ? 'chat_opened' : 'landed',
+							action: eventName === 'tc_agent_chat_opened' ? 'chat_opened' : (eventName === 'tc_agent_heartbeat' ? 'heartbeat' : 'landed'),
 							page_url: window.location.href,
 							page_title: document.title,
-							session_id: sessionId
+							session_id: sessionId,
+							referrer: document.referrer || attr.referrer || '',
+							utm_source: attr.utm_source || '',
+							language: currentLang || 'en'
 						})
 					}).catch(function() {});
 				} catch (e) {}
 			}
 		}
 
-		// Send initial visitor landing telemetry (once per session)
-		if (!sessionStorage.getItem('tc_landing_tracked')) {
-			sessionStorage.setItem('tc_landing_tracked', '1');
+		// Send visitor page-view telemetry on every new page navigation + 45s live heartbeat
+		const lastTrackedUrl = sessionStorage.getItem('tc_last_tracked_url');
+		if (lastTrackedUrl !== window.location.href) {
+			sessionStorage.setItem('tc_last_tracked_url', window.location.href);
 			trackEvent('tc_agent_visitor_landed');
 		}
+		setInterval(function() {
+			if (document.visibilityState === 'visible') {
+				trackEvent('tc_agent_heartbeat');
+			}
+		}, 45000);
 
 		// Restore previous chat history if available
 		restoreHistory();
@@ -202,6 +212,7 @@
 
 			if (isOpen) {
 				trackEvent('tc_agent_chat_opened');
+				startLivePolling();
 				scrollToBottom();
 				if (window.visualViewport && window.innerWidth <= 640) {
 					handleViewportChange();
@@ -212,6 +223,7 @@
 					}
 				}, 100);
 			} else {
+				stopLivePolling();
 				if (chatWindow) {
 					chatWindow.style.height = '';
 					chatWindow.style.top = '';
@@ -1119,6 +1131,100 @@
 			scrollToBottom();
 		}
 
+		// 11. Live Polling for Human Specialist Takeover
+		let livePollTimer = null;
+		let lastMessageId = 0;
+		const knownMsgIds = new Set();
+
+		function startLivePolling() {
+			if (livePollTimer) return;
+			pollLiveMessages();
+			livePollTimer = setInterval(pollLiveMessages, 3000);
+		}
+
+		function stopLivePolling() {
+			if (livePollTimer) {
+				clearInterval(livePollTimer);
+				livePollTimer = null;
+			}
+		}
+
+		function pollLiveMessages() {
+			if (!isOpen || !sessionId) return;
+			const pollUrl = (tcChatWidget.siteUrl ? tcChatWidget.siteUrl.replace(/\/$/, '') : '') + 
+				'/wp-json/tc-agents/v1/conversations/' + encodeURIComponent(sessionId) + '/poll?after=' + lastMessageId;
+
+			fetch(pollUrl)
+				.then(function(res) { return res.json(); })
+				.then(function(data) {
+					if (!data || !data.messages || !data.messages.length) {
+						if (data && data.human_active) {
+							updateLiveAgentBanner(true);
+						}
+						return;
+					}
+
+					if (data.human_active) {
+						updateLiveAgentBanner(true);
+					}
+
+					data.messages.forEach(function(msg) {
+						if (knownMsgIds.has(msg.id)) return;
+						knownMsgIds.add(msg.id);
+						if (msg.id > lastMessageId) {
+							lastMessageId = msg.id;
+						}
+
+						if (msg.role === 'agent') {
+							// Remove any typing dot bubbles
+							const typingDots = messagesContainer.querySelectorAll('.tc-typing-dot');
+							typingDots.forEach(function(dot) {
+								const b = dot.closest('.tc-chat-bubble');
+								if (b) b.remove();
+							});
+							setSendingState(false);
+							appendAgentMessage(msg.content, msg.agent_name || 'Travel Specialist');
+							playSoftChime();
+						}
+					});
+				})
+				.catch(function() {});
+		}
+
+		function updateLiveAgentBanner(isActive) {
+			let banner = document.getElementById('tc-live-agent-banner');
+			if (isActive) {
+				if (!banner && messagesContainer) {
+					banner = document.createElement('div');
+					banner.id = 'tc-live-agent-banner';
+					banner.style.cssText = 'background: linear-gradient(135deg, #065f46, #047857); color: #fff; font-size: 11.5px; font-weight: 600; padding: 6px 12px; display: flex; align-items: center; justify-content: space-between; border-radius: 8px; margin: 8px 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.15);';
+					banner.innerHTML = '<span>🟢 <strong>Travel Specialist Connected</strong> — Replying live</span>';
+					messagesContainer.parentNode.insertBefore(banner, messagesContainer);
+				}
+			} else if (banner) {
+				banner.remove();
+			}
+		}
+
+		function appendAgentMessage(text, agentName) {
+			const bubble = document.createElement('div');
+			bubble.className = 'tc-chat-bubble tc-bubble-bot tc-bubble-agent';
+			bubble.style.cssText = 'border-left: 3.5px solid #10b981; background: #f0fdf4; color: #064e3b;';
+
+			const header = document.createElement('div');
+			header.style.cssText = 'font-size: 10px; font-weight: 700; color: #059669; margin-bottom: 4px; display: flex; align-items: center; gap: 4px;';
+			header.innerHTML = '<span>👤</span> <span>' + escapeHtml(agentName) + ' (TripCosmos Specialist)</span>';
+			bubble.appendChild(header);
+
+			const textDiv = document.createElement('div');
+			textDiv.className = 'tc-bubble-text';
+			textDiv.innerHTML = formatMarkdown(text);
+			bubble.appendChild(textDiv);
+
+			messagesContainer.appendChild(bubble);
+			scrollToBottom();
+		}
+
 		function renderTripCards(trips) {
 			if (!trips || !trips.length) return;
 
@@ -1129,7 +1235,7 @@
 				const card = document.createElement('div');
 				card.className = 'tc-trip-card';
 
-				const thumb = trip.thumbnail || 'https://images.unsplash.com/photo-1544735716-392fe2489ffa?w=600&q=80';
+				const thumb = trip.thumbnail || 'https://images.unsplash.com/photo-1561361513-2d000a50f0dc?w=600&q=80';
 				const waNumber = tcChatWidget.whatsappNumber || '919876543210';
 				const waUrl = 'https://wa.me/' + waNumber + '?text=' + encodeURIComponent('Hi TripCosmos! I am inquiring about the ' + trip.title + ' (' + (trip.price || 'package') + '). Could you share upcoming dates?');
 

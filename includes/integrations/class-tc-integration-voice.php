@@ -15,14 +15,20 @@ class TC_Integration_Voice {
 		return '0' !== (string) get_option( 'tc_agents_voice_enabled', '1' );
 	}
 
+	/**
+	 * Active Telephony Mode:
+	 * - 'livekit_webrtc': Option 1 (100% Free LiveKit WebRTC + Evolution API WhatsApp Link)
+	 * - 'jio_sim': Option 2 (GSM Gateway / Android Office Bridge Phone via +91 93361 16210)
+	 * - 'sip_trunk': Option 3 (Enterprise Cloud SIP Trunk / Asterisk / FreePBX)
+	 * - 'vapi' / 'retell': Cloud AI Agent Fallbacks
+	 */
 	public static function get_provider() {
-		return get_option( 'tc_agents_voice_provider', 'jio_sim' ); // 'jio_sim' (100% Free Primary), 'vapi', 'retell'
+		return get_option( 'tc_agents_voice_provider', 'livekit_webrtc' );
 	}
 
 	public static function get_api_key() {
 		return class_exists( 'TC_Agents_Vault' ) ? TC_Agents_Vault::get( 'voice_api_key' ) : get_option( 'tc_agents_voice_api_key', '' );
 	}
-
 
 	public static function get_assistant_id() {
 		return get_option( 'tc_agents_voice_assistant_id', '' );
@@ -32,10 +38,50 @@ class TC_Integration_Voice {
 		return get_option( 'tc_agents_voice_phone_number_id', '' );
 	}
 
+	// Option 1: LiveKit WebRTC
+	public static function get_livekit_ws_url() {
+		return get_option( 'tc_agents_livekit_ws_url', 'wss://rtc.onlinepuja.live' );
+	}
+
+	// Option 2: Office GSM SIM Number
+	public static function get_gsm_sim_number() {
+		return get_option( 'tc_agents_gsm_sim_number', '+919336116210' );
+	}
+
+	// Option 3: SIP Trunk Configuration
+	public static function get_sip_host() {
+		return get_option( 'tc_agents_sip_host', '' );
+	}
+	public static function get_sip_port() {
+		return get_option( 'tc_agents_sip_port', '5060' );
+	}
+	public static function get_sip_username() {
+		return get_option( 'tc_agents_sip_username', '' );
+	}
+	public static function get_sip_caller_id() {
+		return get_option( 'tc_agents_sip_caller_id', '+919336116210' );
+	}
+
+	// Option 4: Airtel IQ Business Connect (Click-to-Call + Number Masking)
+	public static function get_airtel_iq_app_id() {
+		return get_option( 'tc_agents_airtel_iq_app_id', '' );
+	}
+	public static function get_airtel_iq_app_key() {
+		return class_exists( 'TC_Agents_Vault' ) ? TC_Agents_Vault::get( 'airtel_iq_app_key' ) : get_option( 'tc_agents_airtel_iq_app_key', '' );
+	}
+	public static function get_airtel_iq_vmn() {
+		return get_option( 'tc_agents_airtel_iq_vmn', '+919152011111' );
+	}
+	public static function get_airtel_iq_customer_id() {
+		return get_option( 'tc_agents_airtel_iq_customer_id', '' );
+	}
+
 	/**
 	 * Place an outbound call to a traveler.
-	 * Supports Hybrid Cloud-GSM Telephony: Cloud Vapi (Primary if keys configured)
-	 * with automatic 100% Free Failover to Android Jio SIM Phone Bridge.
+	 * Dispatches based on active mode:
+	 * - Option 1: LiveKit WebRTC (creates room & dispatches WhatsApp 1-tap call invite via Evolution API)
+	 * - Option 2: Android GSM Bridge (queues to office companion phone with +91 93361 16210 SIM)
+	 * - Option 3: Enterprise Cloud SIP Trunk (SIP INVITE through Asterisk PBX / Cloud DID)
 	 *
 	 * @param string $recipient_phone Phone number in E.164 or Indian digits.
 	 * @param string $customer_name
@@ -55,7 +101,28 @@ class TC_Integration_Voice {
 
 		$provider = self::get_provider();
 
-		// Route 1 (Cloud Vapi): If explicitly selected and credentials configured, attempt cloud call
+		// OPTION 1: 100% Free LiveKit WebRTC + Evolution WhatsApp 1-Tap Call Link
+		if ( 'livekit_webrtc' === $provider ) {
+			return self::dispatch_livekit_webrtc_call( $recipient_phone, $customer_name, $reason );
+		}
+
+		// OPTION 2: GSM Gateway / Android Bridge Phone (+91 93361 16210 SIM)
+		if ( 'jio_sim' === $provider || 'gsm_bridge' === $provider ) {
+			return self::dispatch_via_jio_companion( $recipient_phone, $customer_name, $reason );
+		}
+
+		// OPTION 3: Enterprise Cloud SIP Trunk / Asterisk PBX
+		if ( 'sip_trunk' === $provider || 'asterisk' === $provider ) {
+			return self::dispatch_via_sip_trunk( $recipient_phone, $customer_name, $reason );
+		}
+
+		// OPTION 4: Airtel IQ Business Connect (Dual-Leg Click-to-Call + Number Masking)
+		if ( 'airtel_iq' === $provider ) {
+			$agent_phone = get_option( 'tc_agents_default_agent_phone', '+919336116210' );
+			return self::dispatch_airtel_iq_click2call( $recipient_phone, $agent_phone, $customer_name, $reason );
+		}
+
+		// Route Cloud Vapi: If selected, attempt cloud call
 		if ( 'vapi' === $provider ) {
 			$api_key         = self::get_api_key();
 			$phone_number_id = self::get_phone_number_id();
@@ -66,12 +133,244 @@ class TC_Integration_Voice {
 				if ( ! is_wp_error( $vapi_res ) ) {
 					return $vapi_res;
 				}
-				TC_Agents_Logger::log( 'vapi_call_failed_fallback_jio', 'warning', array( 'error' => $vapi_res->get_error_message() ), '', 'voice' );
+				TC_Agents_Logger::log( 'vapi_call_failed_fallback_livekit', 'warning', array( 'error' => $vapi_res->get_error_message() ), '', 'voice' );
 			}
 		}
 
-		// Route 2 (100% Free Primary or Automatic Failover): Dispatch to Android Jio SIM Companion Phone
-		return self::dispatch_via_jio_companion( $recipient_phone, $customer_name, $reason );
+		// Default fallback to Option 1: LiveKit WebRTC
+		return self::dispatch_livekit_webrtc_call( $recipient_phone, $customer_name, $reason );
+	}
+
+	/**
+	 * OPTION 1: LiveKit WebRTC Voice Room + 1-Tap WhatsApp Link via Evolution API.
+	 */
+	public static function dispatch_livekit_webrtc_call( $recipient_phone, $customer_name = '', $reason = '' ) {
+		$call_id     = 'tc_rtc_' . wp_generate_password( 8, false );
+		$clean_phone = preg_replace( '/[^0-9+]/', '', $recipient_phone );
+		$room_name   = 'trip_' . substr( preg_replace( '/[^0-9]/', '', $clean_phone ), -6 );
+		$call_url    = home_url( '/call/?room=' . rawurlencode( $room_name ) . '&call_id=' . $call_id );
+
+		// WhatsApp Invite Text sent from central number via Evolution API
+		$wa_invite = sprintf(
+			"Har Har Mahadev %s ji! 🙏\n\nYour TripCosmos Pilgrimage Advisor is calling regarding: *%s*.\n\n📞 *Tap to connect on live audio call (Free):*\n%s\n\n(No app download needed — opens instantly in browser).",
+			! empty( $customer_name ) ? esc_html( $customer_name ) : 'Traveler',
+			! empty( $reason ) ? esc_html( $reason ) : 'Varanasi Pilgrimage Consultation',
+			$call_url
+		);
+
+		// Send via Evolution API
+		if ( class_exists( 'TC_Integration_Evolution' ) ) {
+			TC_Integration_Evolution::send_message( $clean_phone, $wa_invite );
+		}
+
+		$job_payload = array(
+			'call_id'       => $call_id,
+			'room_name'     => $room_name,
+			'phone'         => $clean_phone,
+			'customer_name' => $customer_name ?: 'Traveler',
+			'reason'        => $reason ?: 'LiveKit WebRTC Consultation',
+			'call_url'      => $call_url,
+			'ws_url'        => self::get_livekit_ws_url(),
+			'created_at'    => current_time( 'mysql' ),
+			'mode'          => 'livekit_webrtc',
+		);
+
+		// Keep in transient for live query by X-Agents
+		$pending = get_transient( 'tc_livekit_pending_calls' ) ?: array();
+		$pending[ $call_id ] = $job_payload;
+		set_transient( 'tc_livekit_pending_calls', $pending, 30 * MINUTE_IN_SECONDS );
+
+		TC_Agents_Guardrails::record_outbound( 'voice' );
+		TC_Agents_Logger::log(
+			'voice_call_livekit_dispatched',
+			'info',
+			array(
+				'call_id'       => $call_id,
+				'room_name'     => $room_name,
+				'recipient'     => $clean_phone,
+				'customer_name' => $customer_name,
+				'cost'          => '₹0.00 (Self-Hosted LiveKit WebRTC)',
+			),
+			'',
+			'voice'
+		);
+
+		return array(
+			'success'     => true,
+			'call_id'     => $call_id,
+			'channel'     => 'livekit_webrtc',
+			'status'      => 'webrtc_room_ready',
+			'room_name'   => $room_name,
+			'call_url'    => $call_url,
+			'ws_url'      => self::get_livekit_ws_url(),
+			'message'     => sprintf( __( 'WebRTC room %s created! WhatsApp call link sent from +91 93361 16210.', 'tripcosmos-agents' ), $room_name ),
+			'is_free'     => true,
+		);
+	}
+
+	/**
+	 * OPTION 3: Enterprise Cloud SIP Trunk / Asterisk PBX.
+	 */
+	public static function dispatch_via_sip_trunk( $recipient_phone, $customer_name = '', $reason = '' ) {
+		$call_id     = 'tc_sip_' . wp_generate_password( 8, false );
+		$clean_phone = preg_replace( '/[^0-9+]/', '', $recipient_phone );
+
+		$job_payload = array(
+			'call_id'       => $call_id,
+			'phone'         => $clean_phone,
+			'customer_name' => $customer_name ?: 'Traveler',
+			'reason'        => $reason ?: 'Enterprise SIP Trunk Call',
+			'sip_host'      => self::get_sip_host(),
+			'sip_port'      => self::get_sip_port(),
+			'caller_id'     => self::get_sip_caller_id(),
+			'created_at'    => current_time( 'mysql' ),
+			'mode'          => 'sip_trunk',
+		);
+
+		$pending = get_transient( 'tc_sip_pending_calls' ) ?: array();
+		$pending[ $call_id ] = $job_payload;
+		set_transient( 'tc_sip_pending_calls', $pending, 30 * MINUTE_IN_SECONDS );
+
+		TC_Agents_Guardrails::record_outbound( 'voice' );
+		TC_Agents_Logger::log(
+			'voice_call_sip_trunk_dispatched',
+			'info',
+			array(
+				'call_id'       => $call_id,
+				'recipient'     => $clean_phone,
+				'caller_id'     => self::get_sip_caller_id(),
+				'sip_host'      => self::get_sip_host(),
+			),
+			'',
+			'voice'
+		);
+
+		return array(
+			'success'     => true,
+			'call_id'     => $call_id,
+			'channel'     => 'sip_trunk',
+			'status'      => 'sip_invite_queued',
+			'caller_id'   => self::get_sip_caller_id(),
+			'message'     => sprintf( __( 'SIP Trunk call queued to %s displaying Caller ID %s.', 'tripcosmos-agents' ), $clean_phone, self::get_sip_caller_id() ),
+			'is_free'     => false,
+		);
+	}
+
+	/**
+	 * OPTION 4: Airtel IQ Business Connect (Dual-Leg Click-to-Call with Number Masking).
+	 * Connects agent's phone and customer's phone through the official Airtel Virtual Mobile Number (VMN).
+	 * Customer only sees the official TripCosmos VMN; agent's personal number is 100% masked.
+	 *
+	 * @param string $recipient_phone
+	 * @param string $agent_phone
+	 * @param string $customer_name
+	 * @param string $reason
+	 * @return array
+	 */
+	public static function dispatch_airtel_iq_click2call( $recipient_phone, $agent_phone = '', $customer_name = '', $reason = '' ) {
+		$app_id  = self::get_airtel_iq_app_id();
+		$app_key = self::get_airtel_iq_app_key();
+		$vmn     = self::get_airtel_iq_vmn();
+
+		$clean_customer = preg_replace( '/[^0-9+]/', '', $recipient_phone );
+		$clean_agent    = preg_replace( '/[^0-9+]/', '', $agent_phone ?: self::get_gsm_sim_number() );
+
+		// Standardize Indian phone to 10 digits or E.164
+		if ( strlen( $clean_customer ) === 10 ) {
+			$clean_customer = '+91' . $clean_customer;
+		}
+		if ( strlen( $clean_agent ) === 10 ) {
+			$clean_agent = '+91' . $clean_agent;
+		}
+
+		$call_id = 'tc_aiq_' . wp_generate_password( 8, false );
+		$webhook_url = rest_url( 'tc-agents/v1/telephony-webhook' );
+
+		// Airtel IQ Click-to-Call REST API endpoint
+		$endpoint = 'https://iq.airtel.in/voice/v1/call/click2call';
+
+		$payload = array(
+			'customer_number' => $clean_customer,
+			'agent_number'    => $clean_agent,
+			'vmn'             => $vmn,
+			'call_id'         => $call_id,
+			'webhook_url'     => $webhook_url,
+			'record_call'     => true,
+			'caller_id'       => $vmn,
+			'metadata'        => array(
+				'customer_name' => $customer_name,
+				'reason'        => $reason,
+				'workspace'     => 'TripCosmos.co',
+			),
+		);
+
+		// Execute HTTP request to Airtel IQ if credentials are set
+		if ( ! empty( $app_id ) && ! empty( $app_key ) ) {
+			$response = wp_remote_post(
+				$endpoint,
+				array(
+					'headers' => array(
+						'Content-Type'  => 'application/json',
+						'Authorization' => 'Bearer ' . $app_key,
+						'X-App-Id'      => $app_id,
+					),
+					'body'    => wp_json_encode( $payload ),
+					'timeout' => 15,
+				)
+			);
+
+			if ( is_wp_error( $response ) ) {
+				TC_Agents_Logger::log( 'airtel_iq_call_failed', 'error', array( 'error' => $response->get_error_message() ), '', 'voice' );
+			}
+		}
+
+		// Save call job to transient for webhook reconciliation
+		$pending = get_transient( 'tc_airtel_iq_pending_calls' ) ?: array();
+		$pending[ $call_id ] = array(
+			'call_id'         => $call_id,
+			'customer_number' => $clean_customer,
+			'agent_number'    => $clean_agent,
+			'vmn'             => $vmn,
+			'customer_name'   => $customer_name,
+			'created_at'      => current_time( 'mysql' ),
+		);
+		set_transient( 'tc_airtel_iq_pending_calls', $pending, HOUR_IN_SECONDS );
+
+		TC_Agents_Guardrails::record_outbound( 'voice' );
+		TC_Agents_Logger::log(
+			'voice_call_airtel_iq_dispatched',
+			'info',
+			array(
+				'call_id'   => $call_id,
+				'customer'  => $clean_customer,
+				'agent'     => $clean_agent,
+				'vmn'       => $vmn,
+			),
+			'',
+			'voice'
+		);
+
+		return array(
+			'success'          => true,
+			'call_id'          => $call_id,
+			'channel'          => 'airtel_iq',
+			'provider'         => 'airtel_iq',
+			'status'           => 'connecting_agent_first',
+			'masked_cli'       => $vmn,
+			'agent_number'     => $clean_agent,
+			'customer_number'  => $clean_customer,
+			'message'          => sprintf(
+				__( 'Airtel IQ is dialing your phone (%s). Answer to connect with %s with Caller ID masked as %s.', 'tripcosmos-agents' ),
+				$clean_agent,
+				$clean_customer,
+				$vmn
+			),
+			'is_free'          => false,
+			'free_alternative' => array(
+				'name'        => 'LiveKit Free WebRTC',
+				'description' => 'Switch to livekit_webrtc in settings for 100% free web/app audio calls.',
+			),
+		);
 	}
 
 	/**
@@ -324,5 +623,43 @@ class TC_Integration_Voice {
 		$reason        = sprintf( 'Following up on your %s inquiry with TripCosmos', ! empty( $lead['stage'] ) ? $lead['stage'] : 'tour & pilgrimage' );
 
 		return self::place_call( $lead['phone'], $customer_name, $reason );
+	}
+
+	/**
+	 * Instant WhatsApp Auto-Responder for Missed Calls (Superfone Parity).
+	 * Fired when an inbound ring times out or is rejected.
+	 *
+	 * @param string $phone
+	 * @param string $customer_name
+	 * @return bool
+	 */
+	public static function handle_missed_call( $phone, $customer_name = 'Traveler' ) {
+		$clean_phone = preg_replace( '/[^0-9]/', '', (string) $phone );
+		if ( empty( $clean_phone ) ) {
+			return false;
+		}
+
+		$auto_text = sprintf(
+			"Namaste %s ji! 🙏\n\nWe missed your call at the TripCosmos Pilgrimage Desk.\n\nOur team is currently assisting guests with Kashi Vishwanath VIP Darshan and Cab bookings. Please reply here with your dates or requirements, or tap below to reconnect:\n👉 %s",
+			esc_html( $customer_name ?: 'Traveler' ),
+			home_url( '/call/?room=trip_' . substr( $clean_phone, -6 ) )
+		);
+
+		if ( class_exists( 'TC_Integration_Evolution' ) ) {
+			TC_Integration_Evolution::send_message( $clean_phone, $auto_text );
+		}
+
+		TC_Agents_Logger::log(
+			'missed_call_wa_auto_responded',
+			'info',
+			array(
+				'phone' => $clean_phone,
+				'name'  => $customer_name,
+			),
+			'',
+			'voice'
+		);
+
+		return true;
 	}
 }

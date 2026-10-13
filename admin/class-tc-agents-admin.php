@@ -24,6 +24,10 @@ class TC_Agents_Admin {
 		add_action( 'wp_ajax_tc_sync_provider_models', array( __CLASS__, 'ajax_sync_provider_models' ) );
 		add_action( 'wp_ajax_tc_test_twentycrm', array( __CLASS__, 'ajax_test_twentycrm' ) );
 		add_action( 'wp_ajax_tc_toggle_widget', array( __CLASS__, 'ajax_toggle_widget' ) );
+		add_action( 'wp_ajax_tc_evolution_status', array( __CLASS__, 'ajax_evolution_status' ) );
+		add_action( 'wp_ajax_tc_evolution_qr', array( __CLASS__, 'ajax_evolution_qr' ) );
+		add_action( 'wp_ajax_tc_evolution_reconnect', array( __CLASS__, 'ajax_evolution_reconnect' ) );
+		add_action( 'wp_ajax_tc_evolution_logout', array( __CLASS__, 'ajax_evolution_logout' ) );
 	}
 
 	/**
@@ -480,6 +484,103 @@ class TC_Agents_Admin {
 	}
 
 	/**
+	 * AJAX endpoint to check live Evolution WhatsApp connection state.
+	 */
+	public static function ajax_evolution_status() {
+		check_ajax_referer( 'tc_agents_admin_nonce', 'nonce' );
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( array( 'message' => 'Unauthorized' ), 403 );
+		}
+		if ( ! class_exists( 'TC_Integration_Evolution' ) ) {
+			wp_send_json_error( array( 'message' => 'Evolution integration not found' ) );
+		}
+
+		$state = TC_Integration_Evolution::connection_state();
+		$state_str = is_wp_error( $state ) ? $state->get_error_message() : (string) $state;
+		$is_online = ( 'open' === $state_str );
+
+		wp_send_json_success( array(
+			'online'   => $is_online,
+			'state'    => $state_str,
+			'instance' => TC_Integration_Evolution::get_instance(),
+			'server'   => TC_Integration_Evolution::get_base_url(),
+			'phone'    => '+91 93361 16210',
+		) );
+	}
+
+	/**
+	 * AJAX endpoint to generate a live QR code for WhatsApp pairing.
+	 */
+	public static function ajax_evolution_qr() {
+		check_ajax_referer( 'tc_agents_admin_nonce', 'nonce' );
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( array( 'message' => 'Unauthorized' ), 403 );
+		}
+		if ( ! class_exists( 'TC_Integration_Evolution' ) ) {
+			wp_send_json_error( array( 'message' => 'Evolution integration not found' ) );
+		}
+
+		$qr_res = TC_Integration_Evolution::connect_qr();
+		if ( is_wp_error( $qr_res ) ) {
+			wp_send_json_error( array(
+				'message' => $qr_res->get_error_message(),
+				'code'    => $qr_res->get_error_code(),
+			) );
+		}
+
+		wp_send_json_success( $qr_res );
+	}
+
+	/**
+	 * AJAX endpoint to restart Evolution instance and regenerate fresh QR code.
+	 */
+	public static function ajax_evolution_reconnect() {
+		check_ajax_referer( 'tc_agents_admin_nonce', 'nonce' );
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( array( 'message' => 'Unauthorized' ), 403 );
+		}
+		if ( ! class_exists( 'TC_Integration_Evolution' ) ) {
+			wp_send_json_error( array( 'message' => 'Evolution integration not found' ) );
+		}
+
+		TC_Integration_Evolution::restart_instance();
+		// Wait 1.5 seconds for container socket to reset
+		sleep( 2 );
+
+		$qr_res = TC_Integration_Evolution::connect_qr();
+		if ( is_wp_error( $qr_res ) ) {
+			wp_send_json_error( array(
+				'message' => $qr_res->get_error_message(),
+				'code'    => $qr_res->get_error_code(),
+			) );
+		}
+
+		wp_send_json_success( $qr_res );
+	}
+
+	/**
+	 * AJAX endpoint to disconnect / logout stale WhatsApp session.
+	 */
+	public static function ajax_evolution_logout() {
+		check_ajax_referer( 'tc_agents_admin_nonce', 'nonce' );
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( array( 'message' => 'Unauthorized' ), 403 );
+		}
+		if ( ! class_exists( 'TC_Integration_Evolution' ) ) {
+			wp_send_json_error( array( 'message' => 'Evolution integration not found' ) );
+		}
+
+		$res = TC_Integration_Evolution::logout_instance();
+		if ( is_wp_error( $res ) ) {
+			wp_send_json_error( array( 'message' => $res->get_error_message() ) );
+		}
+
+		wp_send_json_success( array(
+			'message' => __( 'Disconnected successfully. You can now generate a fresh QR code.', 'tripcosmos-agents' ),
+		) );
+	}
+
+	/**
 	 * Warn admins about insecure secret storage.
 	 */
 	public static function security_notices() {
@@ -777,9 +878,52 @@ class TC_Agents_Admin {
 			update_option( 'tc_agents_sheets_enabled', ! empty( $_POST['sheets_enabled'] ) ? '1' : '0' );
 			update_option( 'tc_agents_sheets_webhook_url', esc_url_raw( $_POST['sheets_webhook_url'] ?? '' ) );
 
-			// Voice settings
+			// Voice & Multi-Mode Telephony settings
 			update_option( 'tc_agents_voice_enabled', ! empty( $_POST['voice_enabled'] ) ? '1' : '0' );
-			update_option( 'tc_agents_voice_provider', sanitize_text_field( $_POST['voice_provider'] ?? 'vapi' ) );
+			update_option( 'tc_agents_voice_provider', sanitize_text_field( $_POST['voice_provider'] ?? 'livekit_webrtc' ) );
+			
+			// Option 1: LiveKit WebRTC
+			if ( isset( $_POST['livekit_ws_url'] ) ) {
+				update_option( 'tc_agents_livekit_ws_url', sanitize_text_field( $_POST['livekit_ws_url'] ) );
+			}
+
+			// Option 2: GSM Bridge SIM
+			if ( isset( $_POST['gsm_sim_number'] ) ) {
+				update_option( 'tc_agents_gsm_sim_number', sanitize_text_field( $_POST['gsm_sim_number'] ) );
+			}
+
+			// Option 3: SIP Trunk
+			if ( isset( $_POST['sip_host'] ) ) {
+				update_option( 'tc_agents_sip_host', sanitize_text_field( $_POST['sip_host'] ) );
+			}
+			if ( isset( $_POST['sip_port'] ) ) {
+				update_option( 'tc_agents_sip_port', sanitize_text_field( $_POST['sip_port'] ) );
+			}
+			if ( isset( $_POST['sip_username'] ) ) {
+				update_option( 'tc_agents_sip_username', sanitize_text_field( $_POST['sip_username'] ) );
+			}
+			if ( ! empty( $_POST['sip_password'] ) ) {
+				TC_Agents_Vault::put( 'sip_password', sanitize_text_field( $_POST['sip_password'] ) );
+			}
+			if ( isset( $_POST['sip_caller_id'] ) ) {
+				update_option( 'tc_agents_sip_caller_id', sanitize_text_field( $_POST['sip_caller_id'] ) );
+			}
+
+			// Option 4: Airtel IQ Business Connect
+			if ( isset( $_POST['airtel_iq_vmn'] ) ) {
+				update_option( 'tc_agents_airtel_iq_vmn', sanitize_text_field( $_POST['airtel_iq_vmn'] ) );
+			}
+			if ( isset( $_POST['airtel_iq_app_id'] ) ) {
+				update_option( 'tc_agents_airtel_iq_app_id', sanitize_text_field( $_POST['airtel_iq_app_id'] ) );
+			}
+			if ( ! empty( $_POST['airtel_iq_app_key'] ) ) {
+				TC_Agents_Vault::put( 'airtel_iq_app_key', sanitize_text_field( $_POST['airtel_iq_app_key'] ) );
+			}
+			if ( isset( $_POST['airtel_iq_customer_id'] ) ) {
+				update_option( 'tc_agents_airtel_iq_customer_id', sanitize_text_field( $_POST['airtel_iq_customer_id'] ) );
+			}
+
+			// Cloud AI Vapi Fallback
 			if ( ! empty( $_POST['voice_api_key'] ) ) {
 				TC_Agents_Vault::put( 'voice_api_key', sanitize_text_field( $_POST['voice_api_key'] ) );
 			}

@@ -80,6 +80,8 @@ class TC_Agents_Activator {
 			metadata longtext DEFAULT NULL,
 			started_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			last_message_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			last_customer_at datetime DEFAULT NULL,
+			read_msg_id bigint(20) unsigned NOT NULL DEFAULT 0,
 			PRIMARY KEY  (id),
 			UNIQUE KEY session_id (session_id),
 			KEY contact_id (contact_id),
@@ -103,6 +105,10 @@ class TC_Agents_Activator {
 			latency_ms int(11) DEFAULT 0,
 			external_id varchar(100) NOT NULL DEFAULT '',
 			delivery varchar(20) NOT NULL DEFAULT '',
+			media_type varchar(20) NOT NULL DEFAULT '',
+			media_url varchar(500) NOT NULL DEFAULT '',
+			media_name varchar(200) NOT NULL DEFAULT '',
+			user_id bigint(20) unsigned NOT NULL DEFAULT 0,
 			created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			PRIMARY KEY  (id),
 			KEY conversation_id (conversation_id),
@@ -460,6 +466,65 @@ class TC_Agents_Activator {
 			KEY matched_contact_id (matched_contact_id)
 		) $charset_collate;";
 		dbDelta( $sql_wa );
+
+		// Phones registered for push notifications (Firebase Cloud Messaging).
+		$table_devices = $wpdb->prefix . 'tc_agent_devices';
+		dbDelta(
+			"CREATE TABLE $table_devices (
+			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+			token_id varchar(20) NOT NULL DEFAULT '',
+			user_id bigint(20) unsigned NOT NULL DEFAULT 0,
+			push_token varchar(255) NOT NULL,
+			platform varchar(20) NOT NULL DEFAULT 'android',
+			app_version varchar(20) NOT NULL DEFAULT '',
+			updated_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY  (id),
+			UNIQUE KEY push_token (push_token),
+			KEY user_id (user_id),
+			KEY token_id (token_id)
+		) $charset_collate;"
+		);
+
+		// WhatsApp broadcasts and their recipients.
+		$table_bc = $wpdb->prefix . 'tc_agent_broadcasts';
+		dbDelta(
+			"CREATE TABLE $table_bc (
+			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+			name varchar(150) NOT NULL DEFAULT '',
+			message text DEFAULT NULL,
+			template varchar(100) NOT NULL DEFAULT '',
+			template_lang varchar(20) NOT NULL DEFAULT '',
+			params longtext DEFAULT NULL,
+			audience longtext DEFAULT NULL,
+			status varchar(20) NOT NULL DEFAULT 'queued',
+			total int(11) NOT NULL DEFAULT 0,
+			sent int(11) NOT NULL DEFAULT 0,
+			failed int(11) NOT NULL DEFAULT 0,
+			skipped int(11) NOT NULL DEFAULT 0,
+			created_by bigint(20) unsigned NOT NULL DEFAULT 0,
+			created_label varchar(100) NOT NULL DEFAULT '',
+			created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			started_at datetime DEFAULT NULL,
+			finished_at datetime DEFAULT NULL,
+			PRIMARY KEY  (id),
+			KEY status (status)
+		) $charset_collate;"
+		);
+		$table_bcr = $wpdb->prefix . 'tc_agent_broadcast_recipients';
+		dbDelta(
+			"CREATE TABLE $table_bcr (
+			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+			broadcast_id bigint(20) unsigned NOT NULL,
+			contact_id bigint(20) unsigned NOT NULL,
+			status varchar(20) NOT NULL DEFAULT 'pending',
+			error varchar(255) NOT NULL DEFAULT '',
+			external_id varchar(100) NOT NULL DEFAULT '',
+			sent_at datetime DEFAULT NULL,
+			PRIMARY KEY  (id),
+			UNIQUE KEY broadcast_contact (broadcast_id,contact_id),
+			KEY broadcast_status (broadcast_id,status)
+		) $charset_collate;"
+		);
 	}
 
 	/**

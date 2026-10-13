@@ -33,6 +33,10 @@ if ( '0' === $preserve_data ) {
 		"{$wpdb->prefix}tc_agent_bookings",
 		"{$wpdb->prefix}tc_agent_quotes",
 		"{$wpdb->prefix}tc_agent_payments",
+		"{$wpdb->prefix}tc_agent_wa_clicks",
+		"{$wpdb->prefix}tc_agent_devices",
+		"{$wpdb->prefix}tc_agent_broadcasts",
+		"{$wpdb->prefix}tc_agent_broadcast_recipients",
 	);
 
 	foreach ( $tables as $table ) {

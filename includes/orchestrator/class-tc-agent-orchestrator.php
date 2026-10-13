@@ -103,14 +103,14 @@ class TC_Agent_Orchestrator {
 
 		// Prepend Elite Conversational Sales Specialist Directive with proactive Lead Capture Funnel
 		$sales_protocol = "\n\n=== TRIPCOSMOS ELITE CONVERSATIONAL SALES & LEAD CAPTURE PROTOCOL ===\n" .
-			"1. PRIMARY BUSINESS OBJECTIVE — CONVERT EVERY VISITOR INTO A CRM LEAD:\n" .
-			"   Your primary mission is lead capture. You must secure the traveler's Name, WhatsApp Mobile Number, Travel Dates, and Group Requirements. Do NOT provide endless general tourism advice without actively collecting traveler contact details.\n" .
-			"2. PROACTIVE LEAD CAPTURE FUNNEL (TURN-BY-TURN):\n" .
-			"   - STEP 1 (REQUIREMENTS): Whenever a traveler asks about tours, cabs, darshan, hotels, or boat rides, answer their immediate question warmly in 1-2 sentences, and ask for their travel requirements (number of travelers / group size, dates, and any special needs like wheelchair or senior citizen care).\n" .
-			"   - STEP 2 (CONTACT CAPTURE - MANDATORY): If their phone number is NOT yet known in their profile, you MUST actively ask for their Name and WhatsApp number so you can send them the official itinerary, guaranteed cab rate voucher, or VIP darshan slot. E.g.: 'To hold your vehicle and WhatsApp you the full day-wise itinerary & fare quotation, may I have your Name and WhatsApp phone number?'\n" .
+			"1. PRIMARY BUSINESS OBJECTIVE — CONVERT EVERY VISITOR INTO A VERIFIED CRM LEAD:\n" .
+			"   Your primary mission is capturing contact details. You must secure the traveler's WhatsApp Mobile Number, Name, Travel Dates, and Group Requirements. Do NOT provide endless general tourism advice without actively collecting traveler contact details.\n" .
+			"2. MANDATORY TURN-1 CONTACT CAPTURE FUNNEL:\n" .
+			"   - TURN 1 RULE (FIRST RESPONSE): In your very first reply to any question about tours, cabs, darshan, hotels, or prices, answer their immediate query warmly in 1-2 brief sentences, and IMMEDIATELY ask for their WhatsApp number so we can hold their booking rates and send the full itinerary. E.g.: 'To lock in your vehicle rate and send the complete day-wise itinerary & fare breakdown on WhatsApp, may I have your Name and WhatsApp phone number?'\n" .
+			"   - TURN 2 RULE (QUALIFICATION): Once their phone number is known or provided, ask about their group size (adults/seniors) and preferred travel dates/month.\n" .
 			"   - STEP 3 (INSTANT CRM SYNC): The moment the traveler provides or mentions a phone number, email, or name, IMMEDIATELY call the 'sync_lead_crm' tool in the background with their name, phone, email, destination, group_size, travel_month, and requirements. Never delay calling 'sync_lead_crm'.\n" .
 			"3. IDENTITY & HOSPITALITY: You are TripCosmos's AI travel assistant (Varanasi HQ), working alongside our human travel specialists. Speak with warm Indian hospitality ('Namaste 🙏', 'Har Har Mahadev', 'Jai Shree Ram'). Do not dwell on technology, but NEVER claim to be a human. If the traveler asks whether you are a person, a bot or an AI, say honestly that you are TripCosmos's AI assistant and offer to connect them with a human specialist using 'request_human_handoff'.\n" .
-			"4. STRICT BREVITY & CONVERSATIONAL PACING (CRITICAL): Keep every response CONCISE — maximum 2 to 4 sentences. NEVER dump walls of text, multi-question surveys, or big vehicle capacity tables unless the customer explicitly asks for a full vehicle comparison.\n" .
+			"4. STRICT BREVITY & CONVERSATIONAL PACING (CRITICAL): Keep every response CONCISE — maximum 2 to 3 sentences. NEVER dump walls of text, multi-question surveys, or big vehicle capacity tables unless the customer explicitly asks for a full vehicle comparison.\n" .
 			"5. TARGETED RECOMMENDATIONS & PRICING INTEGRITY: Present ONLY the single best fit for their group (e.g. Swift Dzire for 1-3, Innova Crysta for 4-6, Tempo Traveller for 7+). Quote ONLY prices that appear in a tool result from this conversation; never estimate or calculate a price yourself. State inclusions and exclusions exactly as the tool returns them.\n" .
 			"6. USER AWARENESS & RECOGNITION: If the traveler's name or phone is already known (see ACTIVE TRAVELER PROFILE below), address them warmly by name (e.g., 'Namaste Ramesh Ji 🙏'). NEVER re-ask for their name or phone if it is already provided in their profile.\n" .
 			"======================================================\n\n";
@@ -410,10 +410,12 @@ class TC_Agent_Orchestrator {
 		global $wpdb;
 		$table = $wpdb->prefix . 'tc_agent_messages';
 
-		// Get recent 16 messages
+		// Recent 16 turns the model may see. Internal team notes never reach it, and a reply typed by a person on
+		// the team is the business speaking, so it is shown to the model as an assistant turn (providers reject
+		// any role other than user / assistant / system).
 		$rows = $wpdb->get_results(
 			$wpdb->prepare(
-				"SELECT role, content FROM $table WHERE conversation_id = %d ORDER BY id DESC LIMIT 16",
+				"SELECT CASE WHEN role = 'agent' THEN 'assistant' ELSE role END AS role, content FROM $table WHERE conversation_id = %d AND role IN ('user','assistant','agent') AND content <> '' ORDER BY id DESC LIMIT 16",
 				$conversation_id
 			),
 			ARRAY_A
@@ -460,12 +462,21 @@ class TC_Agent_Orchestrator {
 				'latency_ms'        => (int) ( $data['latency_ms'] ?? 0 ),
 				'external_id'       => substr( sanitize_text_field( (string) ( $data['external_id'] ?? '' ) ), 0, 100 ),
 				'delivery'          => sanitize_key( (string) ( $data['delivery'] ?? '' ) ),
+				'media_type'        => sanitize_key( (string) ( $data['media_type'] ?? '' ) ),
+				'media_url'         => esc_url_raw( (string) ( $data['media_url'] ?? '' ) ),
+				'media_name'        => mb_substr( sanitize_file_name( (string) ( $data['media_name'] ?? '' ) ), 0, 200 ),
+				'user_id'           => (int) ( $data['user_id'] ?? 0 ),
 				'created_at'        => current_time( 'mysql' ),
 			),
-			array( '%d', '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%d', '%s', '%s', '%s' )
+			array( '%d', '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%d', '%s', '%s', '%s', '%s', '%s', '%d', '%s' )
 		);
+		$id = (int) $wpdb->insert_id;
 
-		return $wpdb->insert_id;
+		// The 24-hour WhatsApp service window runs from the customer's last message.
+		if ( $id && 'user' === ( $data['role'] ?? '' ) ) {
+			$wpdb->update( $wpdb->prefix . 'tc_agent_conversations', array( 'last_customer_at' => current_time( 'mysql' ) ), array( 'id' => (int) ( $data['conversation_id'] ?? 0 ) ) );
+		}
+		return $id;
 	}
 
 	/**

@@ -44,6 +44,17 @@ class TC_Agents_REST {
 			)
 		);
 
+		// 2b. Real-Time Polling for Frontend Website Chatbot Widget (Human agent replies)
+		register_rest_route(
+			self::NAMESPACE,
+			'/conversations/(?P<session_id>[a-zA-Z0-9_\-]+)/poll',
+			array(
+				'methods'             => 'GET',
+				'callback'            => array( __CLASS__, 'handle_poll_conversation' ),
+				'permission_callback' => '__return_true',
+			)
+		);
+
 		// 2b. Lead Capture Endpoint (Instant Quote Form & Fast Lead Sync)
 		register_rest_route(
 			self::NAMESPACE,
@@ -347,7 +358,7 @@ class TC_Agents_REST {
 
 		$messages = $wpdb->get_results(
 			$wpdb->prepare(
-				"SELECT role, content, provider_used, created_at FROM $table_msg WHERE conversation_id = %d AND role IN ('user', 'assistant') AND content != '' ORDER BY id ASC LIMIT 50",
+				"SELECT id, role, content, provider_used, created_at FROM $table_msg WHERE conversation_id = %d AND role IN ('user', 'assistant', 'agent') AND content != '' ORDER BY id ASC LIMIT 100",
 				$convo['id']
 			),
 			ARRAY_A
@@ -355,10 +366,61 @@ class TC_Agents_REST {
 
 		return new WP_REST_Response(
 			array(
-				'session_id' => $session_id,
-				'channel'    => $convo['channel'],
-				'status'     => $convo['status'],
-				'messages'   => $messages,
+				'session_id'   => $session_id,
+				'channel'      => $convo['channel'],
+				'status'       => $convo['status'],
+				'human_active' => 'handed_off' === $convo['status'],
+				'messages'     => $messages,
+			),
+			200
+		);
+	}
+
+	/**
+	 * Real-time poll endpoint for the frontend chatbot widget.
+	 * Returns new messages (including human agent responses) since `after` ID.
+	 */
+	public static function handle_poll_conversation( WP_REST_Request $request ) {
+		global $wpdb;
+		$session_id  = sanitize_text_field( $request->get_param( 'session_id' ) );
+		$after_id    = absint( $request->get_param( 'after' ) );
+		$table_convo = $wpdb->prefix . 'tc_agent_conversations';
+		$table_msg   = $wpdb->prefix . 'tc_agent_messages';
+
+		$convo = $wpdb->get_row( $wpdb->prepare( "SELECT id, status, channel FROM $table_convo WHERE session_id = %s LIMIT 1", $session_id ), ARRAY_A );
+		if ( ! $convo ) {
+			return new WP_REST_Response( array( 'session_id' => $session_id, 'messages' => array(), 'status' => 'active', 'human_active' => false ), 200 );
+		}
+
+		$sql = "SELECT id, role, content, provider_used, created_at FROM $table_msg WHERE conversation_id = %d AND role IN ('user', 'assistant', 'agent') AND content != ''";
+		if ( $after_id > 0 ) {
+			$sql .= $wpdb->prepare( " AND id > %d", $after_id );
+		}
+		$sql .= " ORDER BY id ASC LIMIT 20";
+
+		$rows = $wpdb->get_results( $wpdb->prepare( $sql, (int) $convo['id'] ), ARRAY_A ) ?: array();
+
+		$messages = array();
+		foreach ( $rows as $r ) {
+			$by = (string) $r['provider_used'];
+			$agent_name = 0 === strpos( $by, 'human:' ) ? substr( $by, 6 ) : '';
+
+			$messages[] = array(
+				'id'         => (int) $r['id'],
+				'role'       => (string) $r['role'],
+				'content'    => (string) $r['content'],
+				'provider'   => $by,
+				'agent_name' => $agent_name,
+				'created_at' => (string) $r['created_at'],
+			);
+		}
+
+		return new WP_REST_Response(
+			array(
+				'session_id'   => $session_id,
+				'status'       => $convo['status'],
+				'human_active' => 'handed_off' === $convo['status'],
+				'messages'     => $messages,
 			),
 			200
 		);
@@ -588,30 +650,120 @@ class TC_Agents_REST {
 	 * Handle Visitor Landing & Page Tracking for Live Android App Alerts.
 	 */
 	public static function handle_track_visitor( WP_REST_Request $request ) {
+		$raw_ua = (string) ( $_SERVER['HTTP_USER_AGENT'] ?? '' );
+		$ua     = strtolower( $raw_ua );
+		if ( empty( $ua ) || preg_match( '/bot|crawl|spider|slurp|facebookexternalhit|preview|lighthouse|headless|uptime|pingdom/i', $ua ) ) {
+			return new WP_REST_Response( array( 'ok' => true, 'ignored' => 'bot' ), 200 );
+		}
+
 		$params     = array_merge( (array) $request->get_params(), (array) $request->get_json_params() );
 		$page_url   = esc_url_raw( $params['page_url'] ?? '' );
-		$page_title = sanitize_text_field( $params['page_title'] ?? 'Home' );
+		$page_title = sanitize_text_field( $params['page_title'] ?? 'TripCosmos Home' );
 		$session_id = sanitize_text_field( $params['session_id'] ?? '' );
 		$action     = sanitize_text_field( $params['action'] ?? 'landed' );
+		$referrer   = esc_url_raw( $params['referrer'] ?? ( $_SERVER['HTTP_REFERER'] ?? '' ) );
+		$utm_source = sanitize_text_field( $params['utm_source'] ?? '' );
+		$lang       = sanitize_text_field( $params['language'] ?? 'en' );
 
-		if ( class_exists( 'TC_Agents_Logger' ) ) {
+		$ip      = class_exists( 'TC_Agents_Security' ) ? TC_Agents_Security::client_ip() : sanitize_text_field( $_SERVER['REMOTE_ADDR'] ?? '' );
+		$country = sanitize_text_field( $_SERVER['HTTP_CF_IPCOUNTRY'] ?? 'IN' );
+		$city    = sanitize_text_field( $_SERVER['HTTP_CF_IPCITY'] ?? '' );
+
+		// Parse clean device + browser label
+		$os = 'Desktop';
+		if ( strpos( $ua, 'iphone' ) !== false || strpos( $ua, 'ipad' ) !== false ) {
+			$os = 'iPhone / iOS';
+		} elseif ( strpos( $ua, 'android' ) !== false ) {
+			$os = 'Android Phone';
+		} elseif ( strpos( $ua, 'macintosh' ) !== false || strpos( $ua, 'mac os' ) !== false ) {
+			$os = 'Mac';
+		} elseif ( strpos( $ua, 'windows' ) !== false ) {
+			$os = 'Windows PC';
+		}
+
+		$browser = 'Browser';
+		if ( strpos( $ua, 'instagram' ) !== false ) {
+			$browser = 'Instagram App';
+		} elseif ( strpos( $ua, 'fbav' ) !== false || strpos( $ua, 'fban' ) !== false ) {
+			$browser = 'Facebook App';
+		} elseif ( strpos( $ua, 'edg/' ) !== false ) {
+			$browser = 'Edge';
+		} elseif ( strpos( $ua, 'chrome' ) !== false && strpos( $ua, 'edg' ) === false ) {
+			$browser = 'Chrome';
+		} elseif ( strpos( $ua, 'safari' ) !== false && strpos( $ua, 'chrome' ) === false ) {
+			$browser = 'Safari';
+		} elseif ( strpos( $ua, 'firefox' ) !== false ) {
+			$browser = 'Firefox';
+		}
+		$device_label = $os . ' • ' . $browser;
+
+		// Check if session has a known traveler name/phone from chat or CRM
+		$visitor_name  = '';
+		$visitor_phone = '';
+		if ( ! empty( $session_id ) ) {
+			global $wpdb;
+			$conv_table = $wpdb->prefix . 'tc_agent_conversations';
+			$cont_table = $wpdb->prefix . 'tc_agent_contacts';
+			$conv       = $wpdb->get_row( $wpdb->prepare( "SELECT contact_id, metadata FROM {$conv_table} WHERE session_id = %s ORDER BY id DESC LIMIT 1", $session_id ), ARRAY_A );
+			if ( ! empty( $conv['contact_id'] ) ) {
+				$c = $wpdb->get_row( $wpdb->prepare( "SELECT name, phone FROM {$cont_table} WHERE id = %d", (int) $conv['contact_id'] ), ARRAY_A );
+				if ( $c ) {
+					$visitor_name  = (string) ( $c['name'] ?? '' );
+					$visitor_phone = (string) ( $c['phone'] ?? '' );
+				}
+			}
+		}
+
+		$event_details = array(
+			'action'        => $action,
+			'page_url'      => $page_url,
+			'page_title'    => $page_title,
+			'session_id'    => $session_id,
+			'ip'            => $ip,
+			'country'       => $country,
+			'city'          => $city,
+			'device'        => $device_label,
+			'referrer'      => $referrer,
+			'utm_source'    => $utm_source,
+			'language'      => $lang,
+			'visitor_name'  => $visitor_name,
+			'visitor_phone' => $visitor_phone,
+			'user_agent'    => sanitize_text_field( substr( $raw_ua, 0, 150 ) ),
+			'last_seen_ts'  => time(),
+			'last_seen_at'  => current_time( 'mysql' ),
+		);
+
+		// Update live active visitor presence map (15-minute sliding window)
+		$visitor_key = ! empty( $session_id ) ? $session_id : md5( $ip . '|' . $raw_ua );
+		$active_map  = get_transient( 'tc_live_active_visitors' );
+		if ( ! is_array( $active_map ) ) {
+			$active_map = array();
+		}
+		$now_ts = time();
+		foreach ( $active_map as $k => $v ) {
+			if ( ( $now_ts - (int) ( $v['last_seen_ts'] ?? 0 ) ) > 900 ) {
+				unset( $active_map[ $k ] );
+			}
+		}
+		$prev_views = isset( $active_map[ $visitor_key ]['page_views'] ) ? (int) $active_map[ $visitor_key ]['page_views'] : 0;
+		$first_seen = isset( $active_map[ $visitor_key ]['first_seen_ts'] ) ? (int) $active_map[ $visitor_key ]['first_seen_ts'] : $now_ts;
+		$event_details['page_views']    = ( 'heartbeat' === $action ) ? max( 1, $prev_views ) : ( $prev_views + 1 );
+		$event_details['first_seen_ts'] = $first_seen;
+		$active_map[ $visitor_key ]     = $event_details;
+		set_transient( 'tc_live_active_visitors', $active_map, 30 * MINUTE_IN_SECONDS );
+
+		// Only write to audit log on page view or chat open (skip silent heartbeats so DB stays clean)
+		if ( 'heartbeat' !== $action && class_exists( 'TC_Agents_Logger' ) ) {
 			TC_Agents_Logger::log(
 				'visitor_landing',
 				'info',
-				array(
-					'action'     => $action,
-					'page_url'   => $page_url,
-					'page_title' => $page_title,
-					'session_id' => $session_id,
-					'ip'         => sanitize_text_field( $_SERVER['REMOTE_ADDR'] ?? '' ),
-					'user_agent' => sanitize_text_field( substr( $_SERVER['HTTP_USER_AGENT'] ?? '', 0, 150 ) ),
-				),
+				$event_details,
 				'tripcosmos-guide',
 				'web'
 			);
 		}
 
-		return new WP_REST_Response( array( 'ok' => true ), 200 );
+		return new WP_REST_Response( array( 'ok' => true, 'active_visitors' => count( $active_map ) ), 200 );
 	}
 
 	/**

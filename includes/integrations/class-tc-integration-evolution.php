@@ -13,14 +13,18 @@ class TC_Integration_Evolution {
 		return untrailingslashit( '' !== $url ? $url : self::DEFAULT_BASE_URL );
 	}
 	public static function get_api_key() {
-		return class_exists( 'TC_Agents_Vault' ) ? TC_Agents_Vault::get( 'evolution_api_key', '' ) : get_option( 'tc_agents_evolution_api_key', '' );
+		$vault_key = class_exists( 'TC_Agents_Vault' ) ? (string) TC_Agents_Vault::get( 'evolution_api_key', '' ) : '';
+		if ( '' !== $vault_key ) {
+			return $vault_key;
+		}
+		return (string) get_option( 'tc_agents_evolution_api_key', '' );
 	}
-	public static function get_instance() { return sanitize_text_field( get_option( 'tc_agents_evolution_instance', 'tripcosmos' ) ); }
+	public static function get_instance() { return sanitize_text_field( get_option( 'tc_agents_evolution_instance', 'TripCosmos.co' ) ); }
 	public static function is_configured() { return ! empty( self::get_base_url() ) && ! empty( self::get_api_key() ); }
 	public static function is_active_mode() { return 'evolution' === get_option( 'tc_agents_whatsapp_mode', 'legacy' ) && self::is_configured(); }
 
 	/**
-	 * One authenticated call to the Evolution server.
+	 * One authenticated call to the Evolution server (prefers fast 127.0.0.1:18080 loopback when on same VPS).
 	 *
 	 * @return array|WP_Error { code:int, body:array }
 	 */
@@ -29,14 +33,19 @@ class TC_Integration_Evolution {
 			return new WP_Error( 'evolution_not_configured', __( 'Evolution API is not configured.', 'tripcosmos-agents' ) );
 		}
 		$args = array(
-			'method'  => $method,
-			'timeout' => $timeout,
-			'headers' => array( 'apikey' => self::get_api_key(), 'Content-Type' => 'application/json' ),
+			'method'    => $method,
+			'timeout'   => $timeout,
+			'sslverify' => false,
+			'headers'   => array( 'apikey' => self::get_api_key(), 'Content-Type' => 'application/json' ),
 		);
 		if ( null !== $body ) {
 			$args['body'] = wp_json_encode( $body );
 		}
-		$res = wp_remote_request( self::get_base_url() . $path, $args );
+		// Try fast local Docker loopback first (5ms vs external DNS/TLS)
+		$res = wp_remote_request( 'http://127.0.0.1:18080' . $path, $args );
+		if ( is_wp_error( $res ) ) {
+			$res = wp_remote_request( self::get_base_url() . $path, $args );
+		}
 		if ( is_wp_error( $res ) ) {
 			return $res;
 		}
@@ -93,15 +102,80 @@ class TC_Integration_Evolution {
 		return (string) ( $res['body']['instance']['state'] ?? $res['body']['state'] ?? 'unknown' );
 	}
 
-	/** QR code (data: URI) to link the business phone, or an error. */
+	/** QR code (data: URI) to link the business phone, pairing code, or status. */
 	public static function connect_qr() {
-		$res = self::request( 'GET', self::instance_path( '/instance/connect' ), null, 15 );
-		if ( is_wp_error( $res ) ) { return $res; }
-		$qr = (string) ( $res['body']['base64'] ?? $res['body']['qrcode']['base64'] ?? '' );
-		if ( 0 !== strpos( $qr, 'data:image/' ) ) {
-			return new WP_Error( 'evolution_no_qr', __( 'No QR code was returned. The phone may already be connected.', 'tripcosmos-agents' ) );
+		// First verify if instance exists, if 404 create it
+		$state = self::connection_state();
+		if ( is_wp_error( $state ) && 'evolution_no_instance' === $state->get_error_code() ) {
+			self::create_instance();
 		}
-		return $qr;
+
+		$res = self::request( 'GET', self::instance_path( '/instance/connect' ), null, 20 );
+		if ( is_wp_error( $res ) ) { return $res; }
+
+		// In Evolution v2, QR can be in body.base64, body.qrcode.base64, or body.code
+		$qr = (string) ( $res['body']['base64'] ?? $res['body']['qrcode']['base64'] ?? '' );
+		$pairing = (string) ( $res['body']['pairingCode'] ?? $res['body']['code'] ?? '' );
+		$state_name = (string) ( $res['body']['instance']['state'] ?? $res['body']['state'] ?? '' );
+
+		if ( ! empty( $qr ) ) {
+			if ( 0 !== strpos( $qr, 'data:image/' ) ) {
+				$qr = 'data:image/png;base64,' . $qr;
+			}
+			return array(
+				'success'      => true,
+				'qr'           => $qr,
+				'pairing_code' => $pairing,
+				'state'        => $state_name ?: 'connecting',
+				'message'      => __( 'Scan this QR code with WhatsApp on your phone (+91 93361 16210) to link session.', 'tripcosmos-agents' ),
+			);
+		}
+
+		if ( 'open' === $state_name ) {
+			return array(
+				'success' => true,
+				'qr'      => '',
+				'state'   => 'open',
+				'message' => __( 'WhatsApp Gateway is already connected and online!', 'tripcosmos-agents' ),
+			);
+		}
+
+		if ( ! empty( $pairing ) ) {
+			return array(
+				'success'      => true,
+				'qr'           => '',
+				'pairing_code' => $pairing,
+				'state'        => $state_name ?: 'connecting',
+				'message'      => sprintf( __( 'Pairing Code: %s. Enter this code in WhatsApp -> Linked Devices -> Link with phone number.', 'tripcosmos-agents' ), $pairing ),
+			);
+		}
+
+		return new WP_Error( 'evolution_no_qr', __( 'No QR code was returned by Evolution. Instance may be initializing or already connected.', 'tripcosmos-agents' ) );
+	}
+
+	/** Create instance if missing on server */
+	public static function create_instance() {
+		return self::request(
+			'POST',
+			'/instance/create',
+			array(
+				'instanceName' => self::get_instance(),
+				'token'        => self::get_api_key(),
+				'qrcode'       => true,
+				'integration'  => 'WHATSAPP-BAILEYS',
+			),
+			15
+		);
+	}
+
+	/** Logout current disconnected session to force a fresh QR code */
+	public static function logout_instance() {
+		return self::request( 'DELETE', self::instance_path( '/instance/logout' ), null, 15 );
+	}
+
+	/** Restart the instance container / socket */
+	public static function restart_instance() {
+		return self::request( 'POST', self::instance_path( '/instance/restart' ), null, 15 );
 	}
 
 	/** Points the instance's webhook at this site, authenticated with our shared secret. */
@@ -272,5 +346,180 @@ class TC_Integration_Evolution {
 			return null;
 		}
 		return array( 'id' => $id, 'status' => $map[ $st ] );
+	}
+
+	/**
+	 * Extract clean digits phone number from an Evolution chat or message key (supports @lid + remoteJidAlt).
+	 */
+	public static function extract_phone_from_key( array $key, $fallback_jid = '' ) {
+		$jid = (string) ( $key['remoteJidAlt'] ?? $key['senderPn'] ?? $key['participantPn'] ?? $key['remoteJid'] ?? $fallback_jid );
+		if ( false !== strpos( $jid, '@lid' ) && ! empty( $key['remoteJidAlt'] ) ) {
+			$jid = (string) $key['remoteJidAlt'];
+		}
+		// If still @lid without an alt JID, return empty phone so caller knows it's an unmapped LID
+		if ( false !== strpos( $jid, '@lid' ) ) {
+			return '';
+		}
+		$clean = preg_replace( '/[^0-9]/', '', (string) preg_replace( '/@.*$/', '', $jid ) );
+		return $clean;
+	}
+
+	/**
+	 * Fetch live WhatsApp chat threads directly from Evolution API (/chat/findChats/{instance}).
+	 */
+	public static function fetch_live_chats( $limit = 60 ) {
+		$res = self::request( 'POST', self::instance_path( '/chat/findChats' ), new stdClass(), 10 );
+		if ( is_wp_error( $res ) || 200 !== $res['code'] || ! is_array( $res['body'] ) ) {
+			return array();
+		}
+
+		$threads = array();
+		foreach ( $res['body'] as $chat ) {
+			if ( ! is_array( $chat ) ) {
+				continue;
+			}
+			$remote_jid = (string) ( $chat['remoteJid'] ?? '' );
+			if ( '' === $remote_jid || false !== strpos( $remote_jid, '@g.us' ) || false !== strpos( $remote_jid, 'status@broadcast' ) || false !== strpos( $remote_jid, '@newsletter' ) ) {
+				continue;
+			}
+
+			$last_msg_obj = isset( $chat['lastMessage'] ) && is_array( $chat['lastMessage'] ) ? $chat['lastMessage'] : array();
+			$key          = isset( $last_msg_obj['key'] ) && is_array( $last_msg_obj['key'] ) ? $last_msg_obj['key'] : array();
+			$phone        = self::extract_phone_from_key( $key, $remote_jid );
+
+			// If no phone extracted from @lid, skip unless pushName is present
+			if ( '' === $phone && empty( $chat['pushName'] ) ) {
+				continue;
+			}
+
+			$msg_payload = isset( $last_msg_obj['message'] ) && is_array( $last_msg_obj['message'] ) ? $last_msg_obj['message'] : array();
+			$parsed_msg  = ! empty( $msg_payload ) ? self::message_text( $msg_payload ) : array( 'text' => '', 'media' => '' );
+			$last_text   = (string) ( $parsed_msg['text'] ?? '' );
+
+			$from_me     = ! empty( $key['fromMe'] );
+			$push_name   = (string) ( $chat['pushName'] ?? '' );
+			if ( '' === $push_name && ! $from_me && ! empty( $last_msg_obj['pushName'] ) && 'Você' !== $last_msg_obj['pushName'] ) {
+				$push_name = (string) $last_msg_obj['pushName'];
+			}
+
+			$ts = ! empty( $last_msg_obj['messageTimestamp'] )
+				? (int) $last_msg_obj['messageTimestamp']
+				: ( ! empty( $chat['updatedAt'] ) ? strtotime( (string) $chat['updatedAt'] ) : time() );
+
+			$raw_status = strtoupper( (string) ( $last_msg_obj['status'] ?? 'SERVER_ACK' ) );
+			$status_map = array(
+				'READ'         => 'read',
+				'PLAYED'       => 'read',
+				'DELIVERY_ACK' => 'delivered',
+				'SERVER_ACK'   => 'sent',
+			);
+
+			$threads[] = array(
+				'remote_jid'          => $remote_jid,
+				'remote_jid_alt'      => (string) ( $key['remoteJidAlt'] ?? '' ),
+				'phone'               => $phone,
+				'push_name'           => $push_name,
+				'profile_pic_url'     => (string) ( $chat['profilePicUrl'] ?? '' ),
+				'last_message'        => $last_text,
+				'last_message_from_me'=> $from_me,
+				'last_message_status' => $status_map[ $raw_status ] ?? 'sent',
+				'timestamp'           => $ts,
+				'updated_at'          => gmdate( 'Y-m-d H:i:s', $ts ),
+				'unread_count'        => (int) ( $chat['unreadCount'] ?? 0 ),
+			);
+
+			if ( count( $threads ) >= $limit ) {
+				break;
+			}
+		}
+
+		return $threads;
+	}
+
+	/**
+	 * Fetch real chronological WhatsApp message history for a customer from Evolution API (/chat/findMessages/{instance}).
+	 */
+	public static function fetch_chat_messages( $phone, $remote_jid = '', $limit = 40 ) {
+		$clean_phone = preg_replace( '/[^0-9]/', '', (string) $phone );
+		if ( strlen( $clean_phone ) === 10 ) {
+			$clean_phone = '91' . $clean_phone;
+		}
+
+		$queries = array();
+		if ( '' !== $remote_jid ) {
+			$queries[] = array( 'where' => array( 'key' => array( 'remoteJid' => $remote_jid ) ), 'limit' => $limit );
+		}
+		if ( '' !== $clean_phone ) {
+			$std_jid = $clean_phone . '@s.whatsapp.net';
+			if ( $std_jid !== $remote_jid ) {
+				$queries[] = array( 'where' => array( 'key' => array( 'remoteJid' => $std_jid ) ), 'limit' => $limit );
+			}
+			$queries[] = array( 'where' => array( 'key' => array( 'remoteJidAlt' => $std_jid ) ), 'limit' => $limit );
+		}
+
+		$raw_records = array();
+		foreach ( $queries as $q ) {
+			$res = self::request( 'POST', self::instance_path( '/chat/findMessages' ), $q, 10 );
+			if ( ! is_wp_error( $res ) && 200 === $res['code'] && ! empty( $res['body']['messages']['records'] ) && is_array( $res['body']['messages']['records'] ) ) {
+				foreach ( $res['body']['messages']['records'] as $rec ) {
+					$msg_id = (string) ( $rec['key']['id'] ?? $rec['id'] ?? '' );
+					if ( '' !== $msg_id && ! isset( $raw_records[ $msg_id ] ) ) {
+						$raw_records[ $msg_id ] = $rec;
+					}
+				}
+			}
+		}
+
+		$messages = array();
+		foreach ( $raw_records as $msg_id => $rec ) {
+			$msg_type = (string) ( $rec['messageType'] ?? '' );
+			if ( 'secretEncryptedMessage' === $msg_type || 'reactionMessage' === $msg_type || 'protocolMessage' === $msg_type ) {
+				continue;
+			}
+			$msg_payload = isset( $rec['message'] ) && is_array( $rec['message'] ) ? $rec['message'] : array();
+			$parsed      = self::message_text( $msg_payload );
+			$text        = trim( (string) ( $parsed['text'] ?? '' ) );
+			if ( '' === $text ) {
+				continue;
+			}
+
+			$from_me = ! empty( $rec['key']['fromMe'] );
+			$ts      = (int) ( $rec['messageTimestamp'] ?? time() );
+
+			// Determine delivery/read receipt status
+			$status = 'sent';
+			if ( ! empty( $rec['MessageUpdate'] ) && is_array( $rec['MessageUpdate'] ) ) {
+				foreach ( $rec['MessageUpdate'] as $upd ) {
+					$st = strtoupper( (string) ( $upd['status'] ?? '' ) );
+					if ( 'READ' === $st || 'PLAYED' === $st ) {
+						$status = 'read';
+						break;
+					} elseif ( 'DELIVERY_ACK' === $st ) {
+						$status = 'delivered';
+					}
+				}
+			}
+
+			$messages[] = array(
+				'id'               => $msg_id,
+				'text'             => $text,
+				'is_from_customer' => ! $from_me,
+				'timestamp'        => gmdate( 'c', $ts ),
+				'epoch'            => $ts,
+				'status'           => $status,
+				'media'            => (string) ( $parsed['media'] ?? '' ),
+				'author_name'      => $from_me ? 'TripCosmos Desk' : (string) ( $rec['pushName'] ?? 'Customer' ),
+			);
+		}
+
+		// Sort oldest -> newest for chat display
+		usort(
+			$messages,
+			function ( $a, $b ) {
+				return ( $a['epoch'] ?? 0 ) <=> ( $b['epoch'] ?? 0 );
+			}
+		);
+
+		return array_slice( $messages, -$limit );
 	}
 }

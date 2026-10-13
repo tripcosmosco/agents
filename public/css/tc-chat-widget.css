@@ -877,15 +877,28 @@
 
 #tc-agent-widget-root .tc-trip-card:hover {
 	transform: translateY(-4px) !important;
-	box-shadow: 0 14px 30px rgba(234, 88, 12, 0.22) !important;
-	border-color: rgba(245, 158, 11, 0.5) !important;
+#tc-agent-widget-root img.emoji,
+#tc-agent-widget-root .tc-trip-card img.emoji,
+#tc-agent-widget-root .tc-trip-badge img.emoji {
+	width: 1.15em !important;
+	height: 1.15em !important;
+	max-width: 1.15em !important;
+	max-height: 1.15em !important;
+	display: inline-block !important;
+	object-fit: contain !important;
+	vertical-align: -0.18em !important;
+	margin: 0 3px !important;
+	border: none !important;
+	box-shadow: none !important;
 }
 
-#tc-agent-widget-root .tc-trip-card img {
+#tc-agent-widget-root .tc-trip-card img.tc-trip-thumb {
 	width: 100% !important;
-	height: 110px !important;
+	height: 130px !important;
 	object-fit: cover !important;
 	display: block !important;
+	border-top-left-radius: 15px !important;
+	border-top-right-radius: 15px !important;
 }
 
 #tc-agent-widget-root .tc-trip-content {
@@ -893,68 +906,106 @@
 	display: flex !important;
 	flex-direction: column !important;
 	flex: 1 !important;
+	gap: 6px !important;
 }
 
-#tc-agent-widget-root .tc-trip-badge {
-	align-self: flex-start !important;
-	font-size: 9.5px !important;
-	font-weight: 700 !important;
-	text-transform: uppercase !important;
-	letter-spacing: 0.04em !important;
-	color: #ea580c !important;
-	background: rgba(254, 243, 199, 0.9) !important;
-	padding: 3px 8px !important;
-	border-radius: 6px !important;
-	margin-bottom: 6px !important;
-}
-
-#tc-agent-widget-root .tc-trip-card h4 {
-	margin: 0 0 4px 0 !important;
+#tc-agent-widget-root .tc-trip-title {
 	font-family: 'Outfit', sans-serif !important;
 	font-size: 13.5px !important;
 	font-weight: 700 !important;
 	color: #0f172a !important;
-	line-height: 1.3 !important;
+	line-height: 1.35 !important;
 }
 
-#tc-agent-widget-root .tc-trip-excerpt {
-	font-size: 11.5px !important;
-	color: #64748b !important;
-	line-height: 1.4 !important;
-	margin-bottom: 8px !important;
-	flex: 1 !important;
-}
-
-#tc-agent-widget-root .tc-trip-footer {
+#tc-agent-widget-root .tc-trip-meta-row {
 	display: flex !important;
 	align-items: center !important;
-	justify-content: space-between !important;
-	margin-top: auto !important;
+	flex-wrap: wrap !important;
+	gap: 6px !important;
+	margin: 2px 0 !important;
+}
+
+#tc-agent-widget-root .tc-trip-badge {
+	display: inline-flex !important;
+	align-items: center !important;
+	font-size: 10px !important;
+	font-weight: 700 !important;
+	text-transform: uppercase !important;
+	letter-spacing: 0.03em !important;
+	color: #c2410c !important;
+	background: rgba(254, 243, 199, 0.95) !important;
+	border: 1px solid rgba(245, 158, 11, 0.3) !important;
+	padding: 3px 8px !important;
+	border-radius: 6px !important;
+	line-height: 1.2 !important;
+}
+
+#tc-agent-widget-root .tc-trip-price {
+	font-size: 14px !important;
+	font-weight: 800 !important;
+	color: #ea580c !important;
+	margin-top: 2px !important;
+}
+
+#tc-agent-widget-root .tc-trip-actions {
+	display: flex !important;
+	align-items: center !important;
+	gap: 8px !important;
+	margin-top: 8px !important;
 	padding-top: 8px !important;
 	border-top: 1px solid #f1f5f9 !important;
 }
 
-#tc-agent-widget-root .tc-trip-price {
-	font-size: 13.5px !important;
-	font-weight: 800 !important;
-	color: #ea580c !important;
-}
-
-#tc-agent-widget-root .tc-trip-btn {
-	background: var(--tc-g-brand) !important;
+#tc-agent-widget-root .tc-trip-btn-wa {
+	flex: 1 !important;
+	background: #10b981 !important;
 	color: #ffffff !important;
-	font-size: 11px !important;
+	font-size: 11.5px !important;
 	font-weight: 700 !important;
-	padding: 6px 12px !important;
+	padding: 7px 10px !important;
 	border-radius: 8px !important;
 	text-decoration: none !important;
-	transition: transform 0.2s var(--tc-spring) !important;
-	box-shadow: 0 4px 10px rgba(234, 88, 12, 0.28) !important;
+	text-align: center !important;
+	box-shadow: 0 2px 8px rgba(16, 185, 129, 0.25) !important;
+	transition: transform 0.2s ease !important;
 }
 
-#tc-agent-widget-root .tc-trip-btn:hover {
-	transform: scale(1.05) !important;
+#tc-agent-widget-root .tc-trip-btn-wa:hover {
+	transform: translateY(-1px) !important;
 	color: #ffffff !important;
+}
+
+#tc-agent-widget-root .tc-trip-btn-view {
+	background: #f1f5f9 !important;
+	color: #334155 !important;
+	font-size: 11.5px !important;
+	font-weight: 600 !important;
+	padding: 7px 12px !important;
+	border-radius: 8px !important;
+	text-decoration: none !important;
+	text-align: center !important;
+	transition: background 0.2s ease !important;
+}
+
+#tc-agent-widget-root .tc-trip-btn-view:hover {
+	background: #e2e8f0 !important;
+	color: #0f172a !important;
+}
+
+#tc-agent-widget-root .tc-trip-cards-scroll {
+	display: flex !important;
+	gap: 12px !important;
+	overflow-x: auto !important;
+	padding: 8px 2px 12px !important;
+	scroll-snap-type: x mandatory !important;
+}
+
+#tc-agent-widget-root .tc-trip-cards-scroll::-webkit-scrollbar {
+	height: 4px !important;
+}
+#tc-agent-widget-root .tc-trip-cards-scroll::-webkit-scrollbar-thumb {
+	background: rgba(234, 88, 12, 0.4) !important;
+	border-radius: 4px !important;
 }
 
 /* ==========================================================================

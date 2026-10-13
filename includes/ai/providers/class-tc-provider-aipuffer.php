@@ -46,6 +46,12 @@ class TC_Provider_AIPuffer implements TC_AI_Provider_Interface {
 				$key = VMAI_Encryption::decrypt( $key );
 			}
 		}
+		if ( empty( $key ) ) {
+			$aipkit_opts = get_option( 'aipkit_options', array() );
+			if ( ! empty( $aipkit_opts['api_keys']['public_api_key'] ) ) {
+				$key = trim( (string) $aipkit_opts['api_keys']['public_api_key'] );
+			}
+		}
 		return $key;
 	}
 

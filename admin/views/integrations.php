@@ -15,7 +15,7 @@ $webhook_url        = rest_url( 'tc-agents/v1/whatsapp-webhook' );
 $secret_token       = get_option( 'tc_agents_whatsapp_webhook_secret', '' );
 $voice_enabled      = '1' === (string) get_option( 'tc_agents_voice_enabled', '0' );
 $sheets_enabled     = '1' === (string) get_option( 'tc_agents_sheets_enabled', '0' );
-$wa_mode            = get_option( 'tc_agents_whatsapp_mode', 'legacy' );
+$wa_mode            = get_option( 'tc_agents_whatsapp_mode', 'evolution' );
 ?>
 
 <style>
@@ -132,10 +132,41 @@ $wa_mode            = get_option( 'tc_agents_whatsapp_mode', 'legacy' );
 .tc-status-pill.online .tc-status-dot { background: #10b981; }
 .tc-status-pill.down .tc-status-dot { background: #ef4444; }
 
+.tc-int-wrap * {
+	box-sizing: border-box;
+}
+.tc-int-wrap table.form-table td,
+.tc-int-wrap table.form-table th {
+	line-height: 1.5 !important;
+	vertical-align: middle !important;
+	padding: 14px 10px 14px 0 !important;
+}
+.tc-int-wrap table.form-table p.description {
+	line-height: 1.5 !important;
+	margin-top: 6px !important;
+	font-size: 13px !important;
+}
+.tc-int-wrap code {
+	display: inline-block;
+	line-height: 1.4 !important;
+	vertical-align: middle;
+}
+.tc-card-desc {
+	margin: 0 0 18px 0;
+	color: #64748b;
+	font-size: 13.5px;
+	line-height: 1.6 !important;
+	height: auto !important;
+	overflow: visible !important;
+}
+
 .tc-input-lux, select.tc-input-lux, textarea.tc-input-lux {
 	width: 100%;
 	max-width: 580px;
-	padding: 10px 14px;
+	height: auto !important;
+	min-height: 42px !important;
+	line-height: 1.4 !important;
+	padding: 10px 14px !important;
 	border: 1.5px solid #cbd5e1;
 	border-radius: 10px;
 	font-size: 13.5px;
@@ -388,7 +419,7 @@ $wa_mode            = get_option( 'tc_agents_whatsapp_mode', 'legacy' );
 			</div>
 
 			<!-- Evolution API Box -->
-			<div id="tc-wa-evo-box" style="display: <?php echo $wa_mode === 'evolution' ? 'block' : 'none'; ?>; border-top: 1px dashed #e2e8f0; padding-top: 16px; margin-top: 10px;">
+			<div id="tc-wa-evo-box" style="display: block; border-top: 1px dashed #e2e8f0; padding-top: 16px; margin-top: 10px;">
 				<h4 style="margin: 0 0 12px 0; color: #0284c7;">Evolution API Configuration</h4>
 				<table class="form-table" style="margin: 0;">
 					<tr>
@@ -411,6 +442,62 @@ $wa_mode            = get_option( 'tc_agents_whatsapp_mode', 'legacy' );
 						</td>
 					</tr>
 				</table>
+
+				<!-- Live Evolution WhatsApp Reconnect & QR Scanner Panel -->
+				<div style="margin-top: 20px; padding: 18px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 12px;">
+					<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+						<h4 style="margin: 0; font-size: 14px; font-weight: 700; color: #0f172a; display: flex; align-items: center; gap: 8px;">
+							<span>📱</span> Live WhatsApp Gateway Link &amp; QR Scanner (+91 93361 16210)
+						</h4>
+						<span id="tc-evo-status-badge" style="background: #fee2e2; color: #991b1b; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 700;">
+							Checking Status...
+						</span>
+					</div>
+
+					<div style="background: #eff6ff; border-left: 4px solid #3b82f6; padding: 10px 14px; border-radius: 6px; margin-bottom: 14px; font-size: 12px; color: #1e3a8a; line-height: 1.5;">
+						<strong>Why is Evolution API disconnected?</strong> Baileys WhatsApp Web sessions disconnect if:
+						<ul style="margin: 4px 0 0 16px; padding: 0;">
+							<li>1. The host phone (+91 93361 16210) went offline or WhatsApp auto-unlinked idle web sessions.</li>
+							<li>2. Multi-device conflict occurred or session was disconnected in WhatsApp Linked Devices.</li>
+							<li>3. The Evolution API service container at <code>wa.vmstudio.digital</code> restarted or had socket drop.</li>
+						</ul>
+						<div style="margin-top: 6px;"><em>Click <strong>"Generate QR Code to Scan"</strong> below to generate a new QR and re-link your device in seconds.</em></div>
+					</div>
+
+					<div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px;">
+						<button type="button" class="button button-primary" id="tc-btn-evo-qr" style="background: #10b981; border-color: #059669; font-weight: 700;">
+							📱 Generate QR Code to Scan
+						</button>
+						<button type="button" class="button" id="tc-btn-evo-check" style="font-weight: 600;">
+							🔄 Check Live Status
+						</button>
+						<button type="button" class="button" id="tc-btn-evo-restart" style="color: #b91c1c; border-color: #fca5a5; font-weight: 600;">
+							⚡ Force Socket Reset &amp; Fresh QR
+						</button>
+						<a href="https://wa.vmstudio.digital/manager" target="_blank" class="button" style="text-decoration: none;">
+							🌐 Open Evolution Manager UI &rarr;
+						</a>
+					</div>
+
+					<div id="tc-evo-qr-container" style="display: none; text-align: center; padding: 20px; background: #ffffff; border-radius: 12px; border: 2px dashed #0284c7; margin-top: 10px;">
+						<div id="tc-evo-qr-spinner" style="display: none; padding: 20px; font-size: 14px; color: #0284c7; font-weight: 700;">
+							⏳ Generating live pairing QR from Evolution server...
+						</div>
+						<div id="tc-evo-qr-content" style="display: none;">
+							<div style="font-size: 15px; font-weight: 700; color: #0f172a; margin-bottom: 6px;">
+								Scan with WhatsApp on Office Phone (+91 93361 16210)
+							</div>
+							<p style="font-size: 12px; color: #64748b; margin: 0 0 14px 0;">
+								Open WhatsApp &rarr; Settings / Menu (⋮) &rarr; Linked Devices &rarr; Link a Device &rarr; Scan this code:
+							</p>
+							<img id="tc-evo-qr-img" src="" alt="WhatsApp QR Code" style="width: 250px; height: 250px; border-radius: 12px; border: 3px solid #10b981; box-shadow: 0 4px 15px rgba(0,0,0,0.1);" />
+							<div id="tc-evo-pairing-box" style="margin-top: 10px; font-size: 13px; font-weight: 700; color: #1e3a8a;"></div>
+							<div style="margin-top: 12px; font-size: 11px; color: #94a3b8;">
+								⏳ Auto-detecting scan... This page will update automatically once connected.
+							</div>
+						</div>
+					</div>
+				</div>
 			</div>
 		</div>
 
@@ -520,46 +607,162 @@ $wa_mode            = get_option( 'tc_agents_whatsapp_mode', 'legacy' );
 			</table>
 		</div>
 
-		<!-- 7. VOICE TELEPHONY -->
-		<div class="tc-card-lux" style="border-left: 5px solid <?php echo $voice_enabled ? '#10b981' : '#64748b'; ?>;">
+		<!-- 7. VOICE TELEPHONY & MULTI-MODE TELEPHONY ENGINE -->
+		<?php 
+			$voice_provider = get_option( 'tc_agents_voice_provider', 'livekit_webrtc' );
+		?>
+		<div class="tc-card-lux" style="border-left: 5px solid <?php echo $voice_enabled ? '#f59e0b' : '#64748b'; ?>;">
 			<div class="tc-card-header-flex">
 				<div class="tc-card-title">
 					<span>📞</span>
-					7. Voice Telephony &amp; AI Phone Calling
+					7. Telephony &amp; Calling Engine (3-Way Switchable)
 				</div>
 				<span class="tc-status-pill <?php echo $voice_enabled ? 'online' : 'down'; ?>">
 					<span class="tc-status-dot"></span>
-					<?php echo $voice_enabled ? 'VOICE ENABLED' : 'VOICE DISABLED (SAFE)'; ?>
+					<?php echo $voice_enabled ? 'TELEPHONY LIVE' : 'DISABLED'; ?>
 				</span>
 			</div>
 			<p class="tc-card-desc">
-				Configures automated voice calling capabilities (e.g. Vapi, Retell, Twilio). Kept disabled by default for cost and volume safety.
+				Toggle seamlessly between <strong>Option 1 (100% Free LiveKit WebRTC + Evolution WhatsApp)</strong>, <strong>Option 2 (Office Android GSM SIM Bridge via +91 93361 16210)</strong>, and <strong>Option 3 (Enterprise Cloud SIP Trunk / Asterisk)</strong>.
 			</p>
 			<table class="form-table">
 				<tr>
-					<th scope="row"><label for="voice_enabled">Outbound Voice Calls</label></th>
+					<th scope="row"><label for="voice_enabled">Calling Functionality</label></th>
 					<td>
 						<label style="font-weight: 600;">
 							<input type="checkbox" name="voice_enabled" id="voice_enabled" value="1" <?php checked( $voice_enabled ); ?> />
-							Allow outbound voice calls for follow-up confirmations
+							Enable multi-channel customer calling from X-Agents and Website
 						</label>
 					</td>
 				</tr>
 				<tr>
-					<th scope="row"><label for="voice_provider">Voice Platform</label></th>
+					<th scope="row"><label for="voice_provider">Active Calling Engine</label></th>
 					<td>
-						<select name="voice_provider" id="voice_provider" class="tc-input-lux" style="width: 320px;">
-							<option value="vapi" <?php selected( get_option( 'tc_agents_voice_provider', 'vapi' ), 'vapi' ); ?>>Vapi (Recommended AI Voice)</option>
-							<option value="retell" <?php selected( get_option( 'tc_agents_voice_provider', 'vapi' ), 'retell' ); ?>>Retell AI</option>
-							<option value="twilio" <?php selected( get_option( 'tc_agents_voice_provider', 'vapi' ), 'twilio' ); ?>>Twilio</option>
+						<select name="voice_provider" id="voice_provider" class="tc-input-lux" style="width: 440px;" onchange="
+							document.getElementById('tc-voice-rtc-box').style.display = (this.value === 'livekit_webrtc' ? 'table-row-group' : 'none');
+							document.getElementById('tc-voice-gsm-box').style.display = (this.value === 'jio_sim' || this.value === 'gsm_bridge' ? 'table-row-group' : 'none');
+							document.getElementById('tc-voice-sip-box').style.display = (this.value === 'sip_trunk' ? 'table-row-group' : 'none');
+							document.getElementById('tc-voice-airtel-box').style.display = (this.value === 'airtel_iq' ? 'table-row-group' : 'none');
+							document.getElementById('tc-voice-cloud-box').style.display = (this.value === 'vapi' || this.value === 'retell' ? 'table-row-group' : 'none');
+						">
+							<option value="livekit_webrtc" <?php selected( $voice_provider, 'livekit_webrtc' ); ?>>Option 1: LiveKit WebRTC + Evolution WhatsApp (100% Free - Recommended)</option>
+							<option value="jio_sim" <?php selected( $voice_provider, 'jio_sim' ); ?>>Option 2: Android GSM Bridge Phone (Office SIM +91 93361 16210 - Free)</option>
+							<option value="airtel_iq" <?php selected( $voice_provider, 'airtel_iq' ); ?>>Option 3: Airtel IQ Business Connect (Virtual Number &amp; Masked Calling)</option>
+							<option value="sip_trunk" <?php selected( $voice_provider, 'sip_trunk' ); ?>>Option 4: Enterprise Cloud SIP Trunk (Asterisk / PBX)</option>
+							<option value="vapi" <?php selected( $voice_provider, 'vapi' ); ?>>Cloud AI Agent (Vapi.ai Fallback)</option>
 						</select>
 					</td>
 				</tr>
+			</table>
+
+			<!-- Option 1: LiveKit WebRTC Settings -->
+			<table class="form-table" id="tc-voice-rtc-box" style="display: <?php echo $voice_provider === 'livekit_webrtc' ? 'table-row-group' : 'none'; ?>; border-top: 1px dashed #e2e8f0;">
+				<tr>
+					<th scope="row"><label for="livekit_ws_url">LiveKit Server WebSocket URL</label></th>
+					<td>
+						<input type="text" name="livekit_ws_url" id="livekit_ws_url" class="tc-input-lux" value="<?php echo esc_attr( get_option( 'tc_agents_livekit_ws_url', 'wss://rtc.onlinepuja.live' ) ); ?>" placeholder="wss://rtc.onlinepuja.live" />
+						<p class="description">Self-hosted WebRTC gateway. Delivers 100% free encrypted audio calling with zero SIM dependencies.</p>
+					</td>
+				</tr>
+				<tr>
+					<th scope="row">WhatsApp 1-Tap Call Dispatch</th>
+					<td>
+						<span style="background: #ecfdf5; color: #065f46; font-weight: 700; font-size: 12px; padding: 4px 10px; border-radius: 6px;">
+							✓ Connected to Evolution API (wa.vmstudio.digital) via +91 93361 16210
+						</span>
+						<p class="description">When agents call, a 1-tap call invite link is sent to the customer's WhatsApp instantly.</p>
+					</td>
+				</tr>
+			</table>
+
+			<!-- Option 2: Android GSM Bridge Settings -->
+			<table class="form-table" id="tc-voice-gsm-box" style="display: <?php echo ( $voice_provider === 'jio_sim' || $voice_provider === 'gsm_bridge' ) ? 'table-row-group' : 'none'; ?>; border-top: 1px dashed #e2e8f0;">
+				<tr>
+					<th scope="row"><label for="gsm_sim_number">Office Bridge SIM Number</label></th>
+					<td>
+						<input type="text" name="gsm_sim_number" id="gsm_sim_number" class="tc-input-lux" value="<?php echo esc_attr( get_option( 'tc_agents_gsm_sim_number', '+919336116210' ) ); ?>" placeholder="+919336116210" />
+						<p class="description">The physical phone number in your office Android phone that places cellular GSM calls.</p>
+					</td>
+				</tr>
+			</table>
+
+			<!-- Option 3: Enterprise Cloud SIP Trunk Settings -->
+			<table class="form-table" id="tc-voice-sip-box" style="display: <?php echo $voice_provider === 'sip_trunk' ? 'table-row-group' : 'none'; ?>; border-top: 1px dashed #e2e8f0;">
+				<tr>
+					<th scope="row"><label for="sip_host">SIP Server / Proxy Host</label></th>
+					<td>
+						<input type="text" name="sip_host" id="sip_host" class="tc-input-lux" value="<?php echo esc_attr( get_option( 'tc_agents_sip_host', '' ) ); ?>" placeholder="e.g. sip.yourserver.com or 192.168.1.100" />
+					</td>
+				</tr>
+				<tr>
+					<th scope="row"><label for="sip_port">SIP Port</label></th>
+					<td>
+						<input type="text" name="sip_port" id="sip_port" class="tc-input-lux" style="width: 140px;" value="<?php echo esc_attr( get_option( 'tc_agents_sip_port', '5060' ) ); ?>" />
+					</td>
+				</tr>
+				<tr>
+					<th scope="row"><label for="sip_username">SIP Auth Username / Extension</label></th>
+					<td>
+						<input type="text" name="sip_username" id="sip_username" class="tc-input-lux" value="<?php echo esc_attr( get_option( 'tc_agents_sip_username', '' ) ); ?>" />
+					</td>
+				</tr>
+				<tr>
+					<th scope="row"><label for="sip_password">SIP Auth Password</label></th>
+					<td>
+						<input type="password" name="sip_password" id="sip_password" class="tc-input-lux" value="" placeholder="<?php echo esc_attr( TC_Agents_Vault::hint( 'sip_password' ) ?: '••••••••••••' ); ?>" autocomplete="new-password" />
+					</td>
+				</tr>
+				<tr>
+					<th scope="row"><label for="sip_caller_id">Outbound Caller ID (CLI)</label></th>
+					<td>
+						<input type="text" name="sip_caller_id" id="sip_caller_id" class="tc-input-lux" value="<?php echo esc_attr( get_option( 'tc_agents_sip_caller_id', '+919336116210' ) ); ?>" />
+						<p class="description">Displays as Caller ID on customer phones (e.g. <code>+919336116210</code>).</p>
+					</td>
+				</tr>
+			</table>
+
+			<!-- Option 3: Airtel IQ Business Connect Settings -->
+			<table class="form-table" id="tc-voice-airtel-box" style="display: <?php echo $voice_provider === 'airtel_iq' ? 'table-row-group' : 'none'; ?>; border-top: 1px dashed #e2e8f0;">
+				<tr>
+					<th scope="row"><label for="airtel_iq_vmn">Airtel Virtual Mobile Number (VMN)</label></th>
+					<td>
+						<input type="text" name="airtel_iq_vmn" id="airtel_iq_vmn" class="tc-input-lux" value="<?php echo esc_attr( get_option( 'tc_agents_airtel_iq_vmn', '+919152011111' ) ); ?>" placeholder="+919152011111" />
+						<p class="description">Your dedicated Virtual Number from Airtel IQ. Customers see this number as Caller ID; agent personal numbers remain 100% masked.</p>
+					</td>
+				</tr>
+				<tr>
+					<th scope="row"><label for="airtel_iq_app_id">Airtel IQ Application ID</label></th>
+					<td>
+						<input type="text" name="airtel_iq_app_id" id="airtel_iq_app_id" class="tc-input-lux" value="<?php echo esc_attr( get_option( 'tc_agents_airtel_iq_app_id', '' ) ); ?>" placeholder="e.g. app_live_xxxxxxxxxxxx" />
+					</td>
+				</tr>
+				<tr>
+					<th scope="row"><label for="airtel_iq_app_key">Airtel IQ App Secret / Bearer Token</label></th>
+					<td>
+						<input type="password" name="airtel_iq_app_key" id="airtel_iq_app_key" class="tc-input-lux" value="" placeholder="<?php echo esc_attr( TC_Agents_Vault::hint( 'airtel_iq_app_key' ) ?: '••••••••••••' ); ?>" autocomplete="new-password" />
+					</td>
+				</tr>
+				<tr>
+					<th scope="row"><label for="airtel_iq_customer_id">Airtel Customer Account ID</label></th>
+					<td>
+						<input type="text" name="airtel_iq_customer_id" id="airtel_iq_customer_id" class="tc-input-lux" value="<?php echo esc_attr( get_option( 'tc_agents_airtel_iq_customer_id', '' ) ); ?>" placeholder="e.g. CUST_TRIPCOSMOS_01" />
+					</td>
+				</tr>
+				<tr>
+					<th scope="row">Webhook Endpoint (Recording &amp; Call Status)</th>
+					<td>
+						<code><?php echo esc_html( rest_url( 'tc-agents/v1/telephony-webhook' ) ); ?></code>
+						<p class="description">Paste this Webhook URL into your Airtel IQ dashboard to automatically sync call recordings and durations to lead timelines.</p>
+					</td>
+				</tr>
+			</table>
+
+			<!-- Cloud AI Vapi Fallback Box -->
+			<table class="form-table" id="tc-voice-cloud-box" style="display: <?php echo ( $voice_provider === 'vapi' || $voice_provider === 'retell' ) ? 'table-row-group' : 'none'; ?>; border-top: 1px dashed #e2e8f0;">
 				<tr>
 					<th scope="row"><label for="voice_api_key">Voice API Key</label></th>
 					<td>
 						<input type="password" name="voice_api_key" id="voice_api_key" class="tc-input-lux" value="" placeholder="<?php echo esc_attr( TC_Agents_Vault::hint( 'voice_api_key' ) ?: '••••••••••••' ); ?>" autocomplete="new-password" />
-						<?php if ( TC_Agents_Vault::has( 'voice_api_key' ) ) : ?><span class="dashicons dashicons-yes-alt" style="color:#10b981; vertical-align: middle;"></span> <small style="color:#10b981; font-weight: 600;">Vault Encrypted</small><?php endif; ?>
 					</td>
 				</tr>
 				<tr>
@@ -572,12 +775,6 @@ $wa_mode            = get_option( 'tc_agents_whatsapp_mode', 'legacy' );
 					<th scope="row"><label for="voice_phone_number_id">Registered Phone Number ID</label></th>
 					<td>
 						<input type="text" name="voice_phone_number_id" id="voice_phone_number_id" class="tc-input-lux" value="<?php echo esc_attr( get_option( 'tc_agents_voice_phone_number_id', '' ) ); ?>" />
-					</td>
-				</tr>
-				<tr>
-					<th scope="row"><label>Transcript Webhook URL</label></th>
-					<td>
-						<code style="padding: 6px 10px; background: #f1f5f9; border-radius: 6px; font-size: 13px; color: #0284c7;"><?php echo esc_html( rest_url( 'tc-agents/v1/voice-webhook' ) ); ?></code>
 					</td>
 				</tr>
 			</table>
@@ -629,6 +826,95 @@ document.addEventListener('DOMContentLoaded', function() {
 			resEl.textContent = '✕ Network error: ' + err.message;
 		});
 	});
+
+	// Evolution WhatsApp Gateway Link & QR Scanner
+	var evoBadge = document.getElementById('tc-evo-status-badge');
+	var evoQrBtn = document.getElementById('tc-btn-evo-qr');
+	var evoCheckBtn = document.getElementById('tc-btn-evo-check');
+	var evoRestartBtn = document.getElementById('tc-btn-evo-restart');
+	var evoQrContainer = document.getElementById('tc-evo-qr-container');
+	var evoQrSpinner = document.getElementById('tc-evo-qr-spinner');
+	var evoQrContent = document.getElementById('tc-evo-qr-content');
+	var evoQrImg = document.getElementById('tc-evo-qr-img');
+	var evoPairingBox = document.getElementById('tc-evo-pairing-box');
+	var evoPollTimer = null;
+
+	function checkEvoStatus() {
+		if (!evoBadge) return;
+		var data = new FormData();
+		data.append('action', 'tc_evolution_status');
+		data.append('nonce', '<?php echo wp_create_nonce( 'tc_agents_admin_nonce' ); ?>');
+
+		fetch(ajaxurl, { method: 'POST', body: data })
+		.then(function(res) { return res.json(); })
+		.then(function(res) {
+			if (res.success && res.data) {
+				if (res.data.online) {
+					evoBadge.style.background = '#d1fae5';
+					evoBadge.style.color = '#065f46';
+					evoBadge.textContent = '🟢 Online & Connected (' + res.data.instance + ')';
+					if (evoQrContainer) evoQrContainer.style.display = 'none';
+					if (evoPollTimer) clearInterval(evoPollTimer);
+				} else {
+					evoBadge.style.background = '#fee2e2';
+					evoBadge.style.color = '#991b1b';
+					evoBadge.textContent = '🔴 Disconnected (' + (res.data.state || 'close') + ')';
+				}
+			}
+		}).catch(function() {});
+	}
+
+	function loadEvoQr(action) {
+		if (evoQrBtn) evoQrBtn.disabled = true;
+		if (evoRestartBtn) evoRestartBtn.disabled = true;
+		if (evoQrContainer) evoQrContainer.style.display = 'block';
+		if (evoQrSpinner) evoQrSpinner.style.display = 'block';
+		if (evoQrContent) evoQrContent.style.display = 'none';
+
+		var data = new FormData();
+		data.append('action', action || 'tc_evolution_qr');
+		data.append('nonce', '<?php echo wp_create_nonce( 'tc_agents_admin_nonce' ); ?>');
+
+		fetch(ajaxurl, { method: 'POST', body: data })
+		.then(function(res) { return res.json(); })
+		.then(function(res) {
+			if (evoQrBtn) evoQrBtn.disabled = false;
+			if (evoRestartBtn) evoRestartBtn.disabled = false;
+			if (evoQrSpinner) evoQrSpinner.style.display = 'none';
+
+			if (res.success && res.data && res.data.qr) {
+				if (evoQrContent) evoQrContent.style.display = 'block';
+				if (evoQrImg) evoQrImg.src = res.data.qr;
+				if (evoPairingBox) {
+					evoPairingBox.textContent = res.data.pairing_code ? 'Pairing Code: ' + res.data.pairing_code : '';
+				}
+				if (evoPollTimer) clearInterval(evoPollTimer);
+				evoPollTimer = setInterval(checkEvoStatus, 3500);
+			} else if (res.success && res.data && res.data.state === 'open') {
+				alert('WhatsApp is already connected and online!');
+				checkEvoStatus();
+			} else {
+				var errMsg = (res.data && res.data.message) ? res.data.message : 'Could not generate QR code. Check Evolution API server & credentials.';
+				alert('Notice: ' + errMsg);
+			}
+		})
+		.catch(function(err) {
+			if (evoQrBtn) evoQrBtn.disabled = false;
+			if (evoRestartBtn) evoRestartBtn.disabled = false;
+			if (evoQrSpinner) evoQrSpinner.style.display = 'none';
+			alert('Network Error: ' + err.message);
+		});
+	}
+
+	if (evoCheckBtn) evoCheckBtn.addEventListener('click', checkEvoStatus);
+	if (evoQrBtn) evoQrBtn.addEventListener('click', function() { loadEvoQr('tc_evolution_qr'); });
+	if (evoRestartBtn) evoRestartBtn.addEventListener('click', function() {
+		if (confirm('Are you sure you want to restart the instance and force a fresh pairing QR?')) {
+			loadEvoQr('tc_evolution_reconnect');
+		}
+	});
+
+	checkEvoStatus();
 });
 </script>
 

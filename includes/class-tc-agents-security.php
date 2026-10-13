@@ -22,9 +22,12 @@ class TC_Agents_Security {
 	/* ------------------------------------------------------------------ rate limiting */
 
 	/**
-	 * Only REMOTE_ADDR is trusted; forwarded-for headers are client-controlled.
+	 * Extracts client IP, honoring Cloudflare CF-Connecting-IP header when present.
 	 */
 	public static function client_ip() {
+		if ( ! empty( $_SERVER['HTTP_CF_CONNECTING_IP'] ) ) {
+			return sanitize_text_field( wp_unslash( $_SERVER['HTTP_CF_CONNECTING_IP'] ) );
+		}
 		return isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) ) : '';
 	}
 
@@ -94,10 +97,12 @@ class TC_Agents_Security {
 	/**
 	 * Create a token for one agent/device. The plaintext is returned once and only its hash is stored.
 	 */
-	public static function create_agent_token( $label ) {
-		$label = sanitize_text_field( $label );
+	public static function create_agent_token( $label, $user_id = 0 ) {
+		$label   = sanitize_text_field( $label );
+		$user_id = (int) $user_id;
+		$user    = $user_id ? get_userdata( $user_id ) : null;
 		if ( '' === $label ) {
-			$label = 'Unnamed device';
+			$label = $user ? $user->display_name : 'Unnamed device';
 		}
 		$token  = 'tca_' . wp_generate_password( 40, false, false );
 		$id     = strtolower( wp_generate_password( 8, false, false ) );
@@ -108,10 +113,28 @@ class TC_Agents_Security {
 			'hash'      => hash( 'sha256', $token ),
 			'created'   => time(),
 			'last_used' => 0,
+			// The WordPress user this phone acts as. Their CRM role decides what the app may see and do:
+			// a Sales Agent sees their own (and unassigned) leads, a Sales Manager sees everything.
+			'user_id'   => $user ? $user_id : 0,
 		);
 		update_option( self::TOKENS_OPTION, $tokens, false );
 
 		return array( 'id' => $id, 'token' => $token );
+	}
+
+	/** Links an existing token to a WordPress user (0 = no user: full access, as before 2.0). */
+	public static function set_token_user( $id, $user_id ) {
+		$tokens = self::agent_tokens();
+		if ( ! isset( $tokens[ $id ] ) ) {
+			return false;
+		}
+		$user_id = (int) $user_id;
+		if ( $user_id && ! get_userdata( $user_id ) ) {
+			return false;
+		}
+		$tokens[ $id ]['user_id'] = $user_id;
+		update_option( self::TOKENS_OPTION, $tokens, false );
+		return true;
 	}
 
 	public static function revoke_agent_token( $id ) {
@@ -128,6 +151,16 @@ class TC_Agents_Security {
 	 * Returns the agent label for a valid token, or false.
 	 */
 	public static function match_agent_token( $token ) {
+		$m = self::match_agent_token_row( $token );
+		return $m ? (string) $m['label'] : false;
+	}
+
+	/**
+	 * The stored row (plus its 'id') for a valid token, or false.
+	 *
+	 * @return array|false
+	 */
+	public static function match_agent_token_row( $token ) {
 		if ( ! is_string( $token ) || '' === $token ) {
 			return false;
 		}
@@ -139,7 +172,7 @@ class TC_Agents_Security {
 					$tokens[ $id ]['last_used'] = time();
 					update_option( self::TOKENS_OPTION, $tokens, false );
 				}
-				return (string) $row['label'];
+				return array_merge( $row, array( 'id' => (string) $id, 'user_id' => (int) ( $row['user_id'] ?? 0 ) ) );
 			}
 		}
 		return false;
@@ -154,7 +187,8 @@ class TC_Agents_Security {
 		check_admin_referer( 'tc_agents_token_action' );
 
 		$label   = isset( $_POST['agent_label'] ) ? sanitize_text_field( wp_unslash( $_POST['agent_label'] ) ) : '';
-		$created = self::create_agent_token( $label );
+		$user_id = isset( $_POST['agent_user'] ) ? absint( $_POST['agent_user'] ) : 0;
+		$created = self::create_agent_token( $label, $user_id );
 		set_transient( 'tcag_new_token_' . get_current_user_id(), $created, 120 );
 
 		wp_safe_redirect( admin_url( 'admin.php?page=tc-agents-integrations&token_created=1#tc-mobile-access' ) );
