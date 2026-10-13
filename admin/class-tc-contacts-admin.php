@@ -529,6 +529,9 @@ View the details, accept and pay the advance securely here:
 			update_user_meta( $uid, 'tc_crm_rotation', empty( $m['rotation'] ) ? '0' : '1' );
 			update_user_meta( $uid, 'tc_crm_away', empty( $m['away'] ) ? '0' : '1' );
 			update_user_meta( $uid, 'tc_crm_whatsapp', sanitize_text_field( $m['whatsapp'] ?? '' ) );
+			if ( ! empty( $m['ai_agent'] ) ) {
+				update_user_meta( $uid, 'tc_paired_ai_name', sanitize_text_field( $m['ai_agent'] ) );
+			}
 			if ( user_can( $u, TC_CRM_Access::CAP_MANAGE ) ) {
 				update_user_meta( $uid, 'tc_crm_manager_alerts', empty( $m['manager_alerts'] ) ? '0' : '1' );
 			}

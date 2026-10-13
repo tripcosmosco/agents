@@ -900,6 +900,7 @@ if ( 'team' === $view && $is_mgr ) :
 				<thead><tr>
 					<th><?php esc_html_e( 'Member', 'tripcosmos-agents' ); ?></th>
 					<th><?php esc_html_e( 'Role', 'tripcosmos-agents' ); ?></th>
+					<th><?php esc_html_e( '🤖 Paired AI Agent', 'tripcosmos-agents' ); ?></th>
 					<th title="<?php esc_attr_e( 'Receives new leads automatically', 'tripcosmos-agents' ); ?>"><?php esc_html_e( 'Auto-assign', 'tripcosmos-agents' ); ?></th>
 					<th><?php esc_html_e( 'Away', 'tripcosmos-agents' ); ?></th>
 					<th><?php esc_html_e( 'WhatsApp for alerts', 'tripcosmos-agents' ); ?></th>
@@ -942,6 +943,9 @@ if ( 'team' === $view && $is_mgr ) :
 							<?php if ( user_can( $u, TC_CRM_Access::CAP_MANAGE ) ) : $pref = (string) get_user_meta( $uid, 'tc_crm_manager_alerts', true ); ?>
 								<br /><label style="font-size:12px;"><input type="checkbox" name="member[<?php echo $uid; ?>][manager_alerts]" value="1" <?php checked( '' === $pref ? in_array( TC_CRM_Access::ROLE_MANAGER, (array) $u->roles, true ) : '1' === $pref ); ?> /> <?php esc_html_e( 'Manager alerts', 'tripcosmos-agents' ); ?></label>
 							<?php endif; ?>
+						</td>
+						<td>
+							<input type="text" name="member[<?php echo $uid; ?>][ai_agent]" value="<?php echo esc_attr( (string) ( get_user_meta( $uid, 'tc_paired_ai_name', true ) ?: 'Aditi AI' ) ); ?>" placeholder="e.g. Aditi AI" style="width:110px; font-weight:600; color:#0f766e; background:#f0fdfa; border:1px solid #99f6e4; border-radius:6px; padding:3px 8px;" title="Dedicated AI Co-Pilot assigned to this sales specialist" />
 						</td>
 						<td><input type="checkbox" name="member[<?php echo $uid; ?>][rotation]" value="1" <?php checked( TC_CRM_Access::in_rotation( $u ) ); ?> /></td>
 						<td><input type="checkbox" name="member[<?php echo $uid; ?>][away]" value="1" <?php checked( TC_CRM_Access::is_away( $uid ) ); ?> /></td>

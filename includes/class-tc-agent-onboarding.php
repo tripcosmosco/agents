@@ -275,6 +275,7 @@ class TC_Agent_Onboarding {
 					'name'       => $user->display_name,
 					'agent_id'   => $user->ID,
 					'role'       => $is_manager ? 'manager' : 'agent',
+					'paired_ai'  => get_user_meta( $user->ID, 'tc_paired_ai_name', true ) ?: 'Aditi AI',
 				)
 			)
 		);
@@ -544,6 +545,7 @@ class TC_Agent_Onboarding {
 					'name'       => $user->display_name,
 					'agent_id'   => $user->ID,
 					'role'       => $is_manager ? 'manager' : 'agent',
+					'paired_ai'  => get_user_meta( $user->ID, 'tc_paired_ai_name', true ) ?: 'Aditi AI',
 				)
 			)
 		);

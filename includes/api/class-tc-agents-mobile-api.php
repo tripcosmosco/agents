@@ -382,6 +382,17 @@ class TC_Agents_Mobile_API {
 				'permission_callback' => array( __CLASS__, 'verify_token' ),
 			)
 		);
+
+		// 30. Agent Profile & Dedicated AI Sales Co-Pilot (e.g. Aditi AI)
+		register_rest_route(
+			self::NAMESPACE,
+			'/mobile/agent-profile',
+			array(
+				'methods'             => 'GET',
+				'callback'            => array( __CLASS__, 'handle_get_agent_profile' ),
+				'permission_callback' => array( __CLASS__, 'verify_token' ),
+			)
+		);
 	}
 
 	/**
@@ -428,6 +439,7 @@ class TC_Agents_Mobile_API {
 				}
 				$request->set_param( '_tc_agent', $label );
 				$request->set_param( '_tc_token_id', (string) $row['id'] );
+				$request->set_param( '_tc_user_id', $user ? (int) $user->ID : ( (int) ( $row['user_id'] ?? 0 ) ) );
 				return true;
 			}
 		}
@@ -870,7 +882,7 @@ class TC_Agents_Mobile_API {
 		);
 		$crm_stage = $stage_map[ $stage ] ?? 'inquiry';
 
-		$owner_name = ( '' !== $agent && 'master' !== $agent && 'admin' !== $agent ) ? $agent : 'Santosh Yadav';
+		$owner_name = ( '' !== $agent && 'master' !== $agent && 'admin' !== $agent ) ? $agent : '';
 
 		$upsert = TC_Contact_Service::upsert(
 			array(
@@ -1022,7 +1034,7 @@ class TC_Agents_Mobile_API {
 
 			$stage      = $matched_contact ? (string) ( $matched_contact['stage'] ?: 'inquiry' ) : ( $matched_agency ? 'b2b_partner' : 'new' );
 			$deal_value = $matched_contact ? (float) ( $matched_contact['deal_value'] ?? 0 ) : 0.0;
-			$owner      = $matched_contact && ! empty( $matched_contact['owner'] ) ? (string) $matched_contact['owner'] : ( $meta['assigned_manager'] ?? 'Santosh Yadav' );
+			$owner      = $matched_contact && ! empty( $matched_contact['owner'] ) ? (string) $matched_contact['owner'] : ( $meta['assigned_manager'] ?? '' );
 			$dest       = ! empty( $meta['destination'] ) ? (string) $meta['destination'] : ( $matched_agency ? '🏢 B2B DMC • ' . ( $matched_agency['city'] ?? 'India' ) : 'Varanasi Pilgrimage' );
 			$call_hist  = isset( $meta['call_history'] ) && is_array( $meta['call_history'] ) ? $meta['call_history'] : array();
 			$ai_active  = isset( $meta['is_ai_active'] ) ? (bool) $meta['is_ai_active'] : false;
@@ -1073,7 +1085,7 @@ class TC_Agents_Mobile_API {
 
 			$meta        = json_decode( (string) ( $c['meta_data'] ?? '' ), true ) ?: array();
 			$matched_ag  = isset( $agency_by_suffix[ $suffix ] ) ? $agency_by_suffix[ $suffix ] : null;
-			$owner       = ! empty( $c['owner'] ) ? (string) $c['owner'] : ( $meta['assigned_manager'] ?? 'Santosh Yadav' );
+			$owner       = ! empty( $c['owner'] ) ? (string) $c['owner'] : ( $meta['assigned_manager'] ?? '' );
 			$last_msg    = ! empty( $meta['last_message'] ) ? (string) $meta['last_message'] : '';
 			$has_real_chat = false;
 			if ( '' === $last_msg ) {
@@ -1896,7 +1908,7 @@ class TC_Agents_Mobile_API {
 						'phone'          => $phone,
 						'source_channel' => 'whatsapp',
 						'stage'          => '' !== $stage ? $stage : 'inquiry',
-						'owner'          => '' !== $owner ? $owner : 'Santosh Yadav',
+						'owner'          => '' !== $owner ? $owner : ( ( '' !== (string) $request->get_param( '_tc_agent' ) && 'master' !== (string) $request->get_param( '_tc_agent' ) && 'admin' !== (string) $request->get_param( '_tc_agent' ) ) ? (string) $request->get_param( '_tc_agent' ) : '' ),
 					)
 				);
 				if ( ! empty( $upsert['id'] ) ) {
@@ -1960,12 +1972,14 @@ class TC_Agents_Mobile_API {
 
 		if ( ! empty( $note ) ) {
 			$notes_arr = isset( $meta['internal_notes'] ) && is_array( $meta['internal_notes'] ) ? $meta['internal_notes'] : array();
+			$curr_agent = (string) $request->get_param( '_tc_agent' );
+			$note_author = '' !== $owner ? $owner : ( ( '' !== $curr_agent && 'master' !== $curr_agent ) ? $curr_agent : 'Executive Agent' );
 			array_unshift(
 				$notes_arr,
 				array(
 					'id'        => 'note_' . time() . '_' . wp_rand( 100, 999 ),
 					'text'      => $note,
-					'author'    => '' !== $owner ? $owner : ( (string) $request->get_param( '_tc_agent' ) ?: 'Santosh Yadav' ),
+					'author'    => $note_author,
 					'timestamp' => current_time( 'mysql' ),
 					'epoch'     => time(),
 				)
@@ -2316,7 +2330,7 @@ class TC_Agents_Mobile_API {
 		$session_id = sanitize_text_field( $request['session_id'] );
 		$params     = array_merge( (array) $request->get_params(), (array) $request->get_json_params() );
 		$message    = sanitize_textarea_field( $params['message'] ?? '' );
-		$agent_name = sanitize_text_field( $params['agent_name'] ?? 'Santosh Yadav' );
+		$agent_name = sanitize_text_field( $params['agent_name'] ?? ( (string) $request->get_param( '_tc_agent' ) ?: 'Agent' ) );
 
 		if ( empty( $message ) ) {
 			return new WP_REST_Response( array( 'ok' => false, 'error' => 'Message cannot be empty' ), 400 );
@@ -2992,7 +3006,7 @@ class TC_Agents_Mobile_API {
 						'is_internal_note' => true,
 						'is_call_event'    => false,
 						'channel'          => 'note',
-						'author_name'      => (string) ( $n['author'] ?? 'Santosh Yadav' ),
+						'author_name'      => (string) ( $n['author'] ?? ( (string) $request->get_param( '_tc_agent' ) ?: 'Team Member' ) ),
 					);
 				}
 			}
@@ -3137,6 +3151,183 @@ class TC_Agents_Mobile_API {
 				'pairing_code' => $pairing_code,
 				'server'       => TC_Integration_Evolution::get_base_url(),
 				'instance'     => TC_Integration_Evolution::get_instance(),
+			),
+			200
+		);
+	}
+
+	/**
+	 * 30. Agent Profile & Paired AI Sales Agent Co-Pilot (e.g. Aditi AI).
+	 */
+	public static function handle_get_agent_profile( WP_REST_Request $request ) {
+		$agent_name = (string) $request->get_param( '_tc_agent' );
+		$user_id    = (int) $request->get_param( '_tc_user_id' );
+
+		if ( ! $user_id && '' !== $agent_name && 'master' !== $agent_name && 'admin' !== $agent_name ) {
+			$u = get_user_by( 'display_name', $agent_name );
+			if ( ! $u ) {
+				$u = get_user_by( 'login', $agent_name );
+			}
+			if ( $u ) {
+				$user_id = $u->ID;
+			}
+		}
+
+		$user = $user_id ? get_userdata( $user_id ) : wp_get_current_user();
+		if ( ! $user || ! $user->ID ) {
+			$admins = get_users( array( 'role' => 'administrator', 'number' => 1 ) );
+			$user   = ! empty( $admins[0] ) ? $admins[0] : null;
+		}
+
+		$display_name = $user ? $user->display_name : ( '' !== $agent_name && 'master' !== $agent_name ? $agent_name : 'Executive Agent' );
+		$user_id      = $user ? (int) $user->ID : 0;
+		$user_email   = $user ? $user->user_email : 'sales@tripcosmos.co';
+		$user_phone   = $user_id ? (string) get_user_meta( $user_id, 'tc_crm_whatsapp', true ) : '';
+		$user_role    = $user && ! empty( $user->roles ) ? $user->roles[0] : 'tc_sales_agent';
+
+		// Paired AI Sales Agent details (Aditi AI by default)
+		$paired_ai_name = $user_id ? (string) get_user_meta( $user_id, 'tc_paired_ai_name', true ) : '';
+		if ( empty( $paired_ai_name ) ) {
+			$paired_ai_name = 'Aditi AI';
+		}
+
+		$paired_ai_role = $user_id ? (string) get_user_meta( $user_id, 'tc_paired_ai_role', true ) : '';
+		if ( empty( $paired_ai_role ) ) {
+			$paired_ai_role = 'Senior Sales AI Co-Pilot & Closer';
+		}
+
+		$paired_ai_avatar = 'https://tripcosmos.co/wp-content/plugins/tripcosmos-agents/assets/images/aditi-ai.png';
+
+		$package_catalog = array(
+			array(
+				'slug'          => 'varanasi-3d2n',
+				'title'         => 'Varanasi (Kashi) 3D/2N Complete Pilgrimage',
+				'duration'      => '3 Days / 2 Nights',
+				'retail_price'  => 14500,
+				'b2b_net_price' => 12200,
+				'min_pax'       => 2,
+				'inclusions'    => array(
+					'Kashi Vishwanath Sugam Darshan passes (No line waiting)',
+					'Subah-e-Banaras early morning sunrise boat ride (Assi to Manikarnika)',
+					'Dashashwamedh Ghat Ganga Aarti VIP reserved seats on Bajra boat',
+					'Kaal Bhairav, Sankat Mochan, Sarnath Buddhist Stupa, Banaras Hindu University',
+					'AC Dzire / Innova Crysta throughout with professional local chauffeur',
+					'2 Nights Ghat-facing Deluxe AC Hotel with Daily Breakfast',
+				),
+				'exclusions'    => array( 'Airfare/Train tickets', 'Lunch & Dinner', 'Personal shopping' ),
+			),
+			array(
+				'slug'          => 'ayodhya-2d1n',
+				'title'         => 'Ayodhya Ram Janmabhoomi 2D/1N Sacred Tour',
+				'duration'      => '2 Days / 1 Night',
+				'retail_price'  => 9800,
+				'b2b_net_price' => 8100,
+				'min_pax'       => 2,
+				'inclusions'    => array(
+					'Ram Janmabhoomi Mandir Darshan Coordination',
+					'Hanumangarhi, Kanak Bhavan, Dashrath Mahal, Sita Ki Rasoi',
+					'Evening Saryu River Maha Aarti & Surya Kund Sound-and-Light show',
+					'AC Cab pickup from Varanasi / Lucknow and return transfer',
+					'1 Night 3-Star AC stay near Ram Janmabhoomi corridor with breakfast',
+				),
+				'exclusions'    => array( 'Personal pooja dakshina', 'Meals other than breakfast' ),
+			),
+			array(
+				'slug'          => 'kashi-ayodhya-prayagraj-4d3n',
+				'title'         => 'Kashi - Ayodhya - Prayagraj 4D/3N Golden Trinetra Yatra',
+				'duration'      => '4 Days / 3 Nights',
+				'retail_price'  => 22500,
+				'b2b_net_price' => 18900,
+				'min_pax'       => 2,
+				'inclusions'    => array(
+					'Complete coverage of all 3 sacred destinations',
+					'Varanasi Kashi Vishwanath Sugam Pass & Evening Bajra Boat Aarti',
+					'Prayagraj Triveni Sangam Holy Dip with life-jacket boat, Bade Hanuman Ji, Alopi Devi',
+					'Ayodhya Ram Lalla Mandir, Hanumangarhi, Saryu Aarti',
+					'Dedicated Toyota Innova Crysta / Swift Dzire from arrival to departure',
+					'3 Nights Deluxe AC Hotel Accommodations + Daily Breakfast',
+				),
+				'exclusions'    => array( 'Train/flight tickets', 'Personal expenses' ),
+			),
+			array(
+				'slug'          => 'prayagraj-day-excursion',
+				'title'         => 'Prayagraj Triveni Sangam 1-Day Excursion',
+				'duration'      => 'Same Day (12 Hours)',
+				'retail_price'  => 4800,
+				'b2b_net_price' => 3900,
+				'min_pax'       => 2,
+				'inclusions'    => array(
+					'Private round-trip AC cab from Varanasi (125 km each way)',
+					'Triveni Sangam Boat ride to holy confluence of Ganga, Yamuna & Saraswati',
+					'Bade Hanuman Mandir (Shayana pose) & Alopi Sankari Shaktipeeth',
+					'Anand Bhavan & Swaraj Bhavan Nehru memorial',
+					'All toll taxes, state permits, and driver allowance included',
+				),
+				'exclusions'    => array( 'Pandit pooja dakshina', 'Meals' ),
+			),
+			array(
+				'slug'          => 'bodhgaya-gaya-2d1n',
+				'title'         => 'Bodhgaya & Gaya 2D/1N Enlightenment & Pitra Yatra',
+				'duration'      => '2 Days / 1 Night',
+				'retail_price'  => 13200,
+				'b2b_net_price' => 11000,
+				'min_pax'       => 2,
+				'inclusions'    => array(
+					'Mahabodhi Temple UNESCO World Heritage Site & Sacred Bodhi Tree',
+					'80-ft Great Buddha Statue, Thai, Japanese & Tibetan Monasteries',
+					'Gaya Vishnupad Temple & Falgu River Pind Daan coordination',
+					'Round-trip AC Cab from Varanasi with all toll/interstate permits',
+					'1 Night AC stay in Bodhgaya with breakfast',
+				),
+				'exclusions'    => array( 'Pind Daan puja samagri & pandit fee', 'Personal expenses' ),
+			),
+		);
+
+		$fleet_rates = array(
+			'sedan'           => array( 'name' => 'Swift Dzire / Etios', 'pax' => '1-4', 'per_km' => 11, 'airport_transfer' => 950, 'day_city_8hr' => 2200 ),
+			'suv_ertiga'      => array( 'name' => 'Maruti Ertiga', 'pax' => '4-6', 'per_km' => 14, 'airport_transfer' => 1400, 'day_city_8hr' => 2800 ),
+			'suv_crysta'      => array( 'name' => 'Toyota Innova Crysta', 'pax' => '4-7', 'per_km' => 17, 'airport_transfer' => 1800, 'day_city_8hr' => 3600 ),
+			'tempo_traveller' => array( 'name' => 'Tempo Traveller (12-26 Seater)', 'pax' => '8-20', 'per_km' => 24, 'airport_transfer' => 2800, 'day_city_8hr' => 5200 ),
+		);
+
+		$hotel_tiers = array(
+			'standard'        => array( 'title' => 'Standard 3-Star', 'range' => '₹2,200 - ₹3,000/night', 'locations' => 'Cantt Railway Station, Godowlia, Sigra' ),
+			'deluxe_ghat'     => array( 'title' => 'Deluxe Riverside Ghat Hotel', 'range' => '₹4,500 - ₹7,500/night', 'locations' => 'Assi Ghat, Dashashwamedh, Kedar Ghat (balcony Ganga view)' ),
+			'luxury_heritage' => array( 'title' => 'Luxury Heritage Palace', 'range' => '₹12,000 - ₹35,000/night', 'locations' => 'BrijRama Palace (Darbhanga Ghat), Taj Nadesar Palace' ),
+		);
+
+		return new WP_REST_Response(
+			array(
+				'ok'    => true,
+				'agent' => array(
+					'id'            => $user_id,
+					'name'          => $display_name,
+					'email'         => $user_email,
+					'phone'         => $user_phone,
+					'role'          => $user_role,
+					'paired_ai'     => array(
+						'id'               => 'ai_copilot_' . $user_id,
+						'name'             => $paired_ai_name,
+						'role'             => $paired_ai_role,
+						'avatar'           => $paired_ai_avatar,
+						'voice_name'       => 'Aditi (Hindi-English Warm & Devotional)',
+						'tone'             => 'Devotional, Respectful, Persuasive & Transparent',
+						'status'           => 'online',
+						'circuits'         => array( 'Varanasi (Kashi)', 'Ayodhya', 'Prayagraj', 'Bodhgaya', 'Chitrakoot', 'Mathura-Vrindavan' ),
+						'skills'           => array(
+							'Dynamic Tour Package Quotation (B2C & B2B DMC)',
+							'Kashi Vishwanath Sugam Darshan & Aarti Quota Advisory',
+							'Dashashwamedh Ganga Aarti Bajra Boat Allocation',
+							'Outstation Fleet & Per-Km Fare Calculations',
+							'Ghat Riverside Hotel Room Blocks',
+							'1-Tap WhatsApp Itinerary & Brochure Dispatch',
+							'Negotiation Guardrail (Max 10% discount, escalate beyond)',
+						),
+						'packages_catalog' => $package_catalog,
+						'fleet_rates'      => $fleet_rates,
+						'hotel_tiers'      => $hotel_tiers,
+					),
+				),
 			),
 			200
 		);
