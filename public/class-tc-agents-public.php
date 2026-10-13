@@ -14,6 +14,7 @@ class TC_Agents_Public {
 	public static function init() {
 		add_action( 'wp_enqueue_scripts', array( __CLASS__, 'enqueue_assets' ) );
 		add_action( 'wp_footer', array( __CLASS__, 'render_widget_markup' ) );
+		add_action( 'wp_footer', array( __CLASS__, 'render_mobile_sticky_bar' ), 20 );
 		add_shortcode( 'tripcosmos_chat', array( __CLASS__, 'render_shortcode' ) );
 	}
 
@@ -416,6 +417,83 @@ class TC_Agents_Public {
 						<a href="<?php echo esc_url( $direct_wa ); ?>" target="_blank" rel="noopener">Talk to human &rarr;</a>
 					</div>
 				</div>
+			</div>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Render high-converting Sticky Mobile Bottom Bar across all posts and pages.
+	 */
+	public static function render_mobile_sticky_bar() {
+		if ( is_admin() || is_feed() ) {
+			return;
+		}
+
+		// Only show if widget is enabled
+		if ( '1' !== (string) get_option( 'tc_agents_widget_enabled', '1' ) ) {
+			return;
+		}
+
+		$wa_num = preg_replace( '/[^0-9]/', '', get_option( 'tc_agents_human_whatsapp_number', '' ) );
+		if ( empty( $wa_num ) ) {
+			$wa_num = '919336116210';
+		}
+		$phone = '+919336116210';
+
+		$page_title = '';
+		if ( is_singular() ) {
+			$page_title = get_the_title();
+		} elseif ( is_archive() ) {
+			$page_title = single_term_title( '', false ) ?: 'Pilgrimage Tours';
+		} else {
+			$page_title = 'Varanasi & Ayodhya Tour Packages';
+		}
+		$page_title = trim( wp_strip_all_tags( (string) $page_title ) );
+
+		$wa_msg = sprintf(
+			"Namaste TripCosmos! 🙏 I am looking at '%s' on your website and would like to check available dates, VIP passes, and verified package prices.",
+			$page_title
+		);
+		$wa_url = "https://wa.me/{$wa_num}?text=" . rawurlencode( $wa_msg );
+		?>
+		<!-- TripCosmos High-Converting Sticky Mobile Bottom Bar -->
+		<div id="tc-mobile-sticky-bar" class="tc-mobile-sticky-bar" role="region" aria-label="Quick Booking & Inquiry">
+			<div class="tc-sticky-inner">
+				<!-- 1. Instant WhatsApp Button -->
+				<a href="<?php echo esc_url( $wa_url ); ?>" class="tc-sticky-btn tc-sticky-btn-wa" target="_blank" rel="noopener" data-channel="whatsapp" aria-label="Chat on WhatsApp">
+					<span class="tc-sticky-icon tc-sticky-icon-wa">
+						<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+							<path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.582 2.128 2.182-.573c.978.58 1.911.928 3.145.929 3.178 0 5.767-2.587 5.768-5.766 0-3.187-2.59-5.771-5.764-5.771zm3.392 8.244c-.144.405-.837.774-1.17.824-.312.045-.694.072-2.18-.545-1.898-.787-3.13-2.73-3.224-2.855-.094-.127-.775-1.03-.775-1.965 0-.934.489-1.393.663-1.583.175-.19.38-.238.508-.238.127 0 .254.002.365.008.117.006.273-.044.428.328.16.383.548 1.339.596 1.436.048.098.08.212.015.339-.064.127-.095.207-.19.317-.095.111-.2.248-.286.333-.095.096-.195.2-.084.391.111.19.493.813 1.056 1.314.726.645 1.338.845 1.53.94.19.096.302.08.413-.048.111-.127.476-.556.603-.746.127-.19.254-.159.429-.095.174.064 1.111.524 1.302.619.19.096.317.143.365.223.048.079.048.461-.096.866z"/>
+						</svg>
+					</span>
+					<div class="tc-sticky-text">
+						<span class="tc-sticky-title">WhatsApp Rates</span>
+						<span class="tc-sticky-sub">⚡ Fast &lt; 30s</span>
+					</div>
+				</a>
+
+				<!-- 2. Instant Call Button -->
+				<a href="tel:<?php echo esc_attr( $phone ); ?>" class="tc-sticky-btn tc-sticky-btn-call" data-channel="phone" aria-label="Call Reservations Desk">
+					<span class="tc-sticky-icon tc-sticky-icon-call">
+						<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+							<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+						</svg>
+					</span>
+					<div class="tc-sticky-text">
+						<span class="tc-sticky-title">Call Expert</span>
+						<span class="tc-sticky-sub">📞 ₹0 Toll Free</span>
+					</div>
+				</a>
+
+				<!-- 3. Mini AI Concierge Trigger -->
+				<button type="button" class="tc-sticky-btn tc-sticky-btn-ai" id="tc-sticky-open-ai" aria-label="Open AI Tour Concierge">
+					<span class="tc-sticky-icon">🛕</span>
+					<div class="tc-sticky-text">
+						<span class="tc-sticky-title">AI Concierge</span>
+						<span class="tc-sticky-sub">Live Itinerary</span>
+					</div>
+				</button>
 			</div>
 		</div>
 		<?php

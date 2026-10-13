@@ -2147,3 +2147,126 @@
 	box-shadow: 0 8px 18px rgba(234, 88, 12, 0.35) !important;
 	color: #ffffff !important;
 }
+
+/* ==========================================================================
+   20. TripCosmos High-Converting Sticky Mobile Bottom Bar
+   Applied dynamically across all 2,235 posts and tour landing pages.
+   ========================================================================== */
+.tc-mobile-sticky-bar {
+	display: none !important;
+}
+
+@media (max-width: 768px) {
+	.tc-mobile-sticky-bar {
+		display: block !important;
+		position: fixed !important;
+		bottom: 0 !important;
+		left: 0 !important;
+		right: 0 !important;
+		width: 100% !important;
+		z-index: 2147483645 !important;
+		background: rgba(15, 23, 42, 0.96) !important;
+		backdrop-filter: blur(16px) !important;
+		-webkit-backdrop-filter: blur(16px) !important;
+		border-top: 1px solid rgba(245, 158, 11, 0.38) !important;
+		box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.32) !important;
+		padding: 7px 10px calc(7px + env(safe-area-inset-bottom, 0px)) !important;
+		font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+		box-sizing: border-box !important;
+	}
+
+	.tc-mobile-sticky-bar .tc-sticky-inner {
+		display: grid !important;
+		grid-template-columns: 1.35fr 1.15fr 0.95fr !important;
+		gap: 8px !important;
+		align-items: center !important;
+		max-width: 480px !important;
+		margin: 0 auto !important;
+		box-sizing: border-box !important;
+	}
+
+	.tc-mobile-sticky-bar .tc-sticky-btn {
+		display: flex !important;
+		align-items: center !important;
+		justify-content: center !important;
+		gap: 6px !important;
+		padding: 8px 8px !important;
+		border-radius: 12px !important;
+		text-decoration: none !important;
+		color: #ffffff !important;
+		border: none !important;
+		cursor: pointer !important;
+		transition: transform 0.15s ease, filter 0.15s ease !important;
+		-webkit-tap-highlight-color: transparent !important;
+		user-select: none !important;
+		box-sizing: border-box !important;
+	}
+
+	.tc-mobile-sticky-bar .tc-sticky-btn:active {
+		transform: scale(0.96) !important;
+		filter: brightness(1.1) !important;
+	}
+
+	.tc-mobile-sticky-bar .tc-sticky-btn-wa {
+		background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%) !important;
+		box-shadow: 0 4px 14px rgba(34, 197, 94, 0.36) !important;
+	}
+
+	.tc-mobile-sticky-bar .tc-sticky-btn-call {
+		background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%) !important;
+		box-shadow: 0 4px 14px rgba(2, 132, 199, 0.36) !important;
+	}
+
+	.tc-mobile-sticky-bar .tc-sticky-btn-ai {
+		background: linear-gradient(135deg, #f59e0b 0%, #ea580c 100%) !important;
+		box-shadow: 0 4px 14px rgba(234, 88, 12, 0.36) !important;
+	}
+
+	.tc-mobile-sticky-bar .tc-sticky-icon {
+		display: flex !important;
+		align-items: center !important;
+		justify-content: center !important;
+		flex-shrink: 0 !important;
+		line-height: 1 !important;
+	}
+
+	.tc-mobile-sticky-bar .tc-sticky-icon svg {
+		display: block !important;
+	}
+
+	.tc-mobile-sticky-bar .tc-sticky-text {
+		display: flex !important;
+		flex-direction: column !important;
+		align-items: flex-start !important;
+		text-align: left !important;
+		line-height: 1.15 !important;
+	}
+
+	.tc-mobile-sticky-bar .tc-sticky-title {
+		font-size: 11.5px !important;
+		font-weight: 800 !important;
+		color: #ffffff !important;
+		white-space: nowrap !important;
+		letter-spacing: -0.01em !important;
+	}
+
+	.tc-mobile-sticky-bar .tc-sticky-sub {
+		font-size: 9.5px !important;
+		font-weight: 500 !important;
+		color: rgba(255, 255, 255, 0.88) !important;
+		white-space: nowrap !important;
+		margin-top: 1px !important;
+	}
+
+	/* Elevate the floating AI FAB so it never collides with sticky bottom bar */
+	#tc-agent-widget-root {
+		bottom: 74px !important;
+		right: 14px !important;
+	}
+
+	#tc-agent-widget-root .tc-widget-teaser {
+		bottom: 84px !important;
+		right: 0 !important;
+	}
+}
+

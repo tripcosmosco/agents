@@ -2937,7 +2937,7 @@ class TC_Agents_Mobile_API {
 					"SELECT m.id, m.role, m.content, m.external_id, m.created_at, cv.channel
 					 FROM {$wpdb->prefix}tc_agent_messages m
 					 INNER JOIN {$wpdb->prefix}tc_agent_conversations cv ON cv.id = m.conversation_id
-					 WHERE cv.contact_id = %d AND m.content <> ''
+					 WHERE cv.contact_id = %d AND m.content <> '' AND m.role IN ('user', 'assistant', 'agent')
 					 ORDER BY m.id DESC LIMIT 30",
 					$contact_id
 				),
@@ -2945,6 +2945,12 @@ class TC_Agents_Mobile_API {
 			) ?: array();
 
 			foreach ( $wp_msgs as $wm ) {
+				$raw_text = trim( (string) $wm['content'] );
+				// Guard: Suppress internal tool outputs and JSON blobs from user-facing conversation timeline
+				if ( 0 === strpos( $raw_text, '{"success":' ) || 0 === strpos( $raw_text, '{"error":' ) || 0 === strpos( $raw_text, '{"local_crm":' ) ) {
+					continue;
+				}
+
 				$ext_id = (string) ( $wm['external_id'] ?? '' );
 				if ( '' !== $ext_id && isset( $seen_ids[ $ext_id ] ) ) {
 					continue;
@@ -2952,7 +2958,7 @@ class TC_Agents_Mobile_API {
 				$ts = strtotime( (string) $wm['created_at'] ) ?: time();
 				$timeline[] = array(
 					'id'               => 'wpmsg_' . $wm['id'],
-					'text'             => (string) $wm['content'],
+					'text'             => $raw_text,
 					'is_from_customer' => ( 'user' === $wm['role'] ),
 					'timestamp'        => gmdate( 'c', $ts ),
 					'epoch'            => $ts,

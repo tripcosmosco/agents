@@ -263,6 +263,14 @@
 			toggleWidget();
 		});
 
+		const stickyAiBtn = document.getElementById('tc-sticky-open-ai');
+		if (stickyAiBtn) {
+			stickyAiBtn.addEventListener('click', function(e) {
+				e.preventDefault();
+				toggleWidget(true);
+			});
+		}
+
 		if (closeBtn) {
 			closeBtn.addEventListener('click', function(e) {
 				e.preventDefault();
