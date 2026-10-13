@@ -308,7 +308,71 @@ $qr_image_url = 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin
 			</div>
 		</div>
 
-		<!-- 2. FRONTEND CHATBOT VISIBILITY TOGGLE -->
+		<!-- 2. WHATSAPP GATEWAY (EVOLUTION API) & LIVE PAIRING QR -->
+		<div class="tc-card-lux" style="border-left: 5px solid #10b981;" id="tc-wa-gateway-card">
+			<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+				<div class="tc-card-title" style="margin: 0;">
+					<span>💬</span>
+					WhatsApp Gateway &amp; Live QR Reconnect (+91 93361 16210)
+					<span class="tc-badge-gold" style="font-size: 10px; background: #0284c7; color: #fff;">Evolution API</span>
+				</div>
+				<span id="tc-evo-status-badge" style="background: #fee2e2; color: #991b1b; padding: 5px 14px; border-radius: 20px; font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; gap: 6px;">
+					<span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#ef4444;"></span> Checking Evolution Status...
+				</span>
+			</div>
+			<p class="tc-card-desc">
+				Central WhatsApp messaging engine powered by Evolution API (Instance: <code>TripCosmos.co</code> on <code>wa.vmstudio.digital</code>). Sends instant quotations, automated booking confirmations, and pilgrim customer care.
+			</p>
+
+			<div style="background: #eff6ff; border-left: 4px solid #3b82f6; padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; font-size: 12.5px; color: #1e3a8a; line-height: 1.5;">
+				<strong>Why does WhatsApp disconnect?</strong> Baileys multi-device sessions disconnect when:
+				<ul style="margin: 4px 0 0 16px; padding: 0;">
+					<li>1. The host phone (+91 93361 16210) is powered off, lacks internet, or WhatsApp logged out idle devices.</li>
+					<li>2. The linked session was removed from WhatsApp &gt; Linked Devices on your phone.</li>
+					<li>3. Evolution API socket at <code>wa.vmstudio.digital</code> restarted or encountered a timeout.</li>
+				</ul>
+				<div style="margin-top: 6px;"><em>Click <strong>"Generate QR Code to Scan"</strong> below to generate a new live pairing QR and reconnect in 5 seconds.</em></div>
+			</div>
+
+			<div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px;">
+				<button type="button" class="button button-primary" id="tc-btn-evo-qr" style="background: #10b981; border-color: #059669; font-weight: 700; height: 36px;">
+					📱 Generate QR Code to Scan
+				</button>
+				<button type="button" class="button button-secondary" id="tc-btn-evo-check" style="font-weight: 600; height: 36px;">
+					🔄 Check Live Status
+				</button>
+				<button type="button" class="button button-secondary" id="tc-btn-evo-restart" style="color: #b91c1c; border-color: #fca5a5; font-weight: 600; height: 36px;">
+					⚡ Force Socket Reset &amp; Fresh QR
+				</button>
+				<a href="<?php echo esc_url( admin_url( 'admin.php?page=tc-agents-integrations' ) ); ?>" class="button button-secondary" style="height: 36px; line-height: 34px; text-decoration: none;">
+					⚙️ Full Integrations Settings &rarr;
+				</a>
+				<a href="https://wa.vmstudio.digital/manager" target="_blank" rel="noopener noreferrer" class="button button-secondary" style="height: 36px; line-height: 34px; text-decoration: none;">
+					🌐 Open Evolution Manager UI &rarr;
+				</a>
+			</div>
+
+			<div id="tc-evo-qr-container" style="display: none; text-align: center; padding: 24px; background: #ffffff; border-radius: 14px; border: 2px dashed #0284c7; margin-top: 12px; box-shadow: 0 4px 16px rgba(0,0,0,0.06);">
+				<div id="tc-evo-qr-spinner" style="display: none; padding: 20px; font-size: 14px; color: #0284c7; font-weight: 700;">
+					⏳ Generating live pairing QR from Evolution server...
+				</div>
+				<div id="tc-evo-qr-content" style="display: none;">
+					<div style="font-size: 16px; font-weight: 700; color: #0f172a; margin-bottom: 6px;">
+						Scan with WhatsApp on Office Phone (+91 93361 16210)
+					</div>
+					<p style="font-size: 12.5px; color: #64748b; margin: 0 0 16px 0;">
+						Open WhatsApp on your phone &rarr; Tap Settings or (⋮) &rarr; <strong>Linked Devices</strong> &rarr; <strong>Link a Device</strong> &rarr; Scan this code:
+					</p>
+					<img id="tc-evo-qr-img" src="" alt="WhatsApp QR Code" style="width: 250px; height: 250px; border-radius: 12px; border: 3px solid #10b981; box-shadow: 0 4px 15px rgba(0,0,0,0.1); display: inline-block;" />
+					<div id="tc-evo-pairing-box" style="margin-top: 12px; font-size: 13.5px; font-weight: 700; color: #1e3a8a;"></div>
+					<div style="margin-top: 12px; font-size: 11.5px; color: #94a3b8;">
+						⏳ Auto-detecting scan... This page will update automatically once connected.
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<!-- 3. FRONTEND CHATBOT VISIBILITY TOGGLE -->
 		<div class="tc-card-lux" style="border-left: 5px solid <?php echo $is_widget_live ? '#10b981' : '#ef4444'; ?>; background: <?php echo $is_widget_live ? '#f0fdf4' : '#fef2f2'; ?>;">
 			<div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
 				<div>
@@ -600,5 +664,95 @@ document.addEventListener('DOMContentLoaded', function() {
 			this.style.display = 'none';
 		});
 	}
+
+	// Evolution WhatsApp Gateway Link & QR Scanner
+	var evoBadge = document.getElementById('tc-evo-status-badge');
+	var evoQrBtn = document.getElementById('tc-btn-evo-qr');
+	var evoCheckBtn = document.getElementById('tc-btn-evo-check');
+	var evoRestartBtn = document.getElementById('tc-btn-evo-restart');
+	var evoQrContainer = document.getElementById('tc-evo-qr-container');
+	var evoQrSpinner = document.getElementById('tc-evo-qr-spinner');
+	var evoQrContent = document.getElementById('tc-evo-qr-content');
+	var evoQrImg = document.getElementById('tc-evo-qr-img');
+	var evoPairingBox = document.getElementById('tc-evo-pairing-box');
+	var evoPollTimer = null;
+
+	function checkEvoStatus() {
+		if (!evoBadge) return;
+		var data = new FormData();
+		data.append('action', 'tc_evolution_status');
+		data.append('nonce', '<?php echo wp_create_nonce( 'tc_agents_admin_nonce' ); ?>');
+
+		fetch(ajaxurl, { method: 'POST', body: data })
+		.then(function(res) { return res.json(); })
+		.then(function(res) {
+			if (res.success && res.data) {
+				if (res.data.online) {
+					evoBadge.style.background = '#d1fae5';
+					evoBadge.style.color = '#065f46';
+					evoBadge.innerHTML = '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#10b981;"></span> 🟢 Online & Connected (' + res.data.instance + ')';
+					if (evoQrContainer) evoQrContainer.style.display = 'none';
+					if (evoPollTimer) clearInterval(evoPollTimer);
+				} else {
+					evoBadge.style.background = '#fee2e2';
+					evoBadge.style.color = '#991b1b';
+					evoBadge.innerHTML = '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#ef4444;"></span> 🔴 Disconnected (' + (res.data.state || 'close') + ')';
+				}
+			}
+		}).catch(function() {});
+	}
+
+	function loadEvoQr(action) {
+		if (evoQrBtn) evoQrBtn.disabled = true;
+		if (evoRestartBtn) evoRestartBtn.disabled = true;
+		if (evoQrContainer) evoQrContainer.style.display = 'block';
+		if (evoQrSpinner) evoQrSpinner.style.display = 'block';
+		if (evoQrContent) evoQrContent.style.display = 'none';
+
+		var data = new FormData();
+		data.append('action', action || 'tc_evolution_qr');
+		data.append('nonce', '<?php echo wp_create_nonce( 'tc_agents_admin_nonce' ); ?>');
+
+		fetch(ajaxurl, { method: 'POST', body: data })
+		.then(function(res) { return res.json(); })
+		.then(function(res) {
+			if (evoQrBtn) evoQrBtn.disabled = false;
+			if (evoRestartBtn) evoRestartBtn.disabled = false;
+			if (evoQrSpinner) evoQrSpinner.style.display = 'none';
+
+			if (res.success && res.data && res.data.qr) {
+				if (evoQrContent) evoQrContent.style.display = 'block';
+				if (evoQrImg) evoQrImg.src = res.data.qr;
+				if (evoPairingBox) {
+					evoPairingBox.textContent = res.data.pairing_code ? 'Pairing Code: ' + res.data.pairing_code : '';
+				}
+				if (evoPollTimer) clearInterval(evoPollTimer);
+				evoPollTimer = setInterval(checkEvoStatus, 3500);
+			} else if (res.success && res.data && res.data.state === 'open') {
+				alert('WhatsApp is already connected and online!');
+				checkEvoStatus();
+			} else {
+				var errMsg = (res.data && res.data.message) ? res.data.message : 'Could not generate QR code. Check Evolution API server & credentials.';
+				alert('Notice: ' + errMsg);
+			}
+		})
+		.catch(function(err) {
+			if (evoQrBtn) evoQrBtn.disabled = false;
+			if (evoRestartBtn) evoRestartBtn.disabled = false;
+			if (evoQrSpinner) evoQrSpinner.style.display = 'none';
+			alert('Network Error: ' + err.message);
+		});
+	}
+
+	if (evoCheckBtn) evoCheckBtn.addEventListener('click', checkEvoStatus);
+	if (evoQrBtn) evoQrBtn.addEventListener('click', function() { loadEvoQr('tc_evolution_qr'); });
+	if (evoRestartBtn) evoRestartBtn.addEventListener('click', function() {
+		if (confirm('Restart Evolution container session and generate fresh QR?')) {
+			loadEvoQr('tc_evolution_reconnect');
+		}
+	});
+
+	// Initial check
+	checkEvoStatus();
 });
 </script>

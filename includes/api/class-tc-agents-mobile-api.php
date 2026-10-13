@@ -3114,22 +3114,29 @@ class TC_Agents_Mobile_API {
 		$state = TC_Integration_Evolution::connection_state();
 		$state_str = is_wp_error( $state ) ? $state->get_error_message() : (string) $state;
 		$qr = '';
+		$pairing_code = '';
 
 		if ( 'open' !== $state_str ) {
 			$qr_res = TC_Integration_Evolution::connect_qr();
-			if ( ! is_wp_error( $qr_res ) && is_string( $qr_res ) ) {
-				$qr = $qr_res;
+			if ( ! is_wp_error( $qr_res ) ) {
+				if ( is_array( $qr_res ) ) {
+					$qr           = (string) ( $qr_res['qr'] ?? '' );
+					$pairing_code = (string) ( $qr_res['pairing_code'] ?? '' );
+				} elseif ( is_string( $qr_res ) ) {
+					$qr = $qr_res;
+				}
 			}
 		}
 
 		return new WP_REST_Response(
 			array(
-				'ok'       => true,
-				'state'    => $state_str,
-				'is_open'  => 'open' === $state_str,
-				'qr'       => $qr,
-				'server'   => TC_Integration_Evolution::get_base_url(),
-				'instance' => TC_Integration_Evolution::get_instance(),
+				'ok'           => true,
+				'state'        => $state_str,
+				'is_open'      => 'open' === $state_str,
+				'qr'           => $qr,
+				'pairing_code' => $pairing_code,
+				'server'       => TC_Integration_Evolution::get_base_url(),
+				'instance'     => TC_Integration_Evolution::get_instance(),
 			),
 			200
 		);
