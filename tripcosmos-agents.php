@@ -41,6 +41,7 @@ require_once TC_AGENTS_PATH . 'includes/class-tc-crm-notify.php';
 require_once TC_AGENTS_PATH . 'includes/class-tc-quote-service.php';
 require_once TC_AGENTS_PATH . 'includes/class-tc-payments.php';
 require_once TC_AGENTS_PATH . 'includes/class-tc-whatsapp-hub.php';
+require_once TC_AGENTS_PATH . 'includes/class-tc-agent-onboarding.php';
 require_once TC_AGENTS_PATH . 'public/class-tc-quote-page.php';
 
 // 3. AI Layer Includes
@@ -111,6 +112,7 @@ add_action( 'plugins_loaded', function() {
 
 	// Central WhatsApp CRM: lead routing to agents' own WhatsApp, relay, receipts
 	TC_WhatsApp_Hub::init();
+	TC_Agent_Onboarding::init();
 	TC_Quote_Page::init();
 
 	// Initialize Background Queue

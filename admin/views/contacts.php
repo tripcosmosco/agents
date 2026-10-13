@@ -885,9 +885,15 @@ if ( 'team' === $view && $is_mgr ) :
 		<?php $tc_nonce(); ?>
 		<input type="hidden" name="tc_contacts_action" value="save_team" />
 		<div class="tc-cx-card" style="margin:12px 0;">
-			<h3><?php esc_html_e( 'Team members', 'tripcosmos-agents' ); ?>
-				<a class="tc-cx-btn" style="margin-left:auto;" href="<?php echo esc_url( admin_url( 'user-new.php' ) ); ?>"><?php esc_html_e( '+ Add team member', 'tripcosmos-agents' ); ?></a>
-			</h3>
+			<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; flex-wrap:wrap; gap:10px;">
+				<h3 style="margin:0;"><?php esc_html_e( 'Team members', 'tripcosmos-agents' ); ?></h3>
+				<div style="display:flex; gap:8px;">
+					<button type="button" class="button button-primary" id="tc-open-invite-modal" style="background:#10b981; border-color:#059669; font-weight:700;">
+						⚡ 1-Tap Invite via WhatsApp
+					</button>
+					<a class="button" href="<?php echo esc_url( admin_url( 'user-new.php' ) ); ?>"><?php esc_html_e( '+ Manual WP User', 'tripcosmos-agents' ); ?></a>
+				</div>
+			</div>
 			<p class="tc-cx-muted"><?php esc_html_e( 'Add a user with the role "TripCosmos Sales Agent" (works own + unassigned leads) or "TripCosmos Sales Manager" (sees everything, assigns, imports, merges). They only see the CRM screens, not site settings.', 'tripcosmos-agents' ); ?></p>
 			<div style="overflow-x:auto;">
 			<table class="widefat striped">
@@ -901,6 +907,7 @@ if ( 'team' === $view && $is_mgr ) :
 					<th><?php esc_html_e( 'Overdue', 'tripcosmos-agents' ); ?></th>
 					<th><?php esc_html_e( 'Won (30d)', 'tripcosmos-agents' ); ?></th>
 					<th title="<?php esc_attr_e( 'Average time from lead arrival to the first action by a person, leads from the last 30 days', 'tripcosmos-agents' ); ?>"><?php esc_html_e( '1st response', 'tripcosmos-agents' ); ?></th>
+					<th style="min-width:130px;"><?php esc_html_e( '1-Tap Login / App', 'tripcosmos-agents' ); ?></th>
 				</tr></thead>
 				<tbody>
 				<?php
@@ -943,6 +950,16 @@ if ( 'team' === $view && $is_mgr ) :
 						<td style="<?php echo (int) $stats['overdue_n'] ? 'color:#b91c1c;font-weight:600;' : ''; ?>"><?php echo (int) $stats['overdue_n']; ?></td>
 						<td><?php echo (int) $stats['won_n']; ?><?php echo (float) $stats['won_v'] > 0 ? '<br /><small>₹' . esc_html( number_format_i18n( (float) $stats['won_v'] ) ) . '</small>' : ''; ?></td>
 						<td><?php echo null === $resp ? '—' : esc_html( $resp < 60 ? sprintf( __( '%d min', 'tripcosmos-agents' ), $resp ) : sprintf( __( '%.1f h', 'tripcosmos-agents' ), $resp / 60 ) ); ?></td>
+						<td>
+							<div style="display:flex; gap:6px; align-items:center;">
+								<button type="button" class="button button-small tc-send-magic-wa-btn" data-user-id="<?php echo $uid; ?>" data-user-name="<?php echo esc_attr( $u->display_name ); ?>" style="color:#059669; border-color:#10b981; font-weight:600;" title="Send 1-Tap Magic Login link to Agent on WhatsApp">
+									📲 Invite WA
+								</button>
+								<button type="button" class="button button-small tc-show-agent-qr-btn" data-user-id="<?php echo $uid; ?>" data-user-name="<?php echo esc_attr( $u->display_name ); ?>" title="View App Pairing QR code">
+									📱 QR
+								</button>
+							</div>
+						</td>
 					</tr>
 				<?php endforeach; ?>
 				</tbody>
@@ -977,6 +994,210 @@ if ( 'team' === $view && $is_mgr ) :
 		<button class="tc-cx-btn tc-cx-btn-primary"><?php esc_html_e( 'Save team settings', 'tripcosmos-agents' ); ?></button>
 	</form>
 </div>
+
+<!-- Modal 1: 1-Tap Invite Sales Agent via WhatsApp -->
+<div id="tc-invite-agent-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(15,23,42,0.7); z-index:99999; backdrop-filter:blur(4px); align-items:center; justify-content:center;">
+	<div style="background:#ffffff; border-radius:18px; max-width:500px; width:90%; padding:28px; box-shadow:0 20px 40px rgba(0,0,0,0.3); position:relative;">
+		<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+			<h3 style="margin:0; font-size:18px; font-weight:800; color:#0f172a; display:flex; align-items:center; gap:8px;">
+				<span>⚡</span> 1-Tap Invite Sales Agent via WhatsApp
+			</h3>
+			<button type="button" class="button-link" onclick="document.getElementById('tc-invite-agent-modal').style.display='none';" style="font-size:22px; text-decoration:none; color:#64748b;">&times;</button>
+		</div>
+		<p style="font-size:13px; color:#64748b; margin-bottom:18px; line-height:1.4;">
+			Registers the agent into WordPress, issues an API token, and dispatches a 1-tap magic login link directly to their WhatsApp phone number.
+		</p>
+		<form id="tc-invite-agent-form">
+			<div style="margin-bottom:14px;">
+				<label style="display:block; font-size:12px; font-weight:700; color:#334155; margin-bottom:4px;">Agent Full Name *</label>
+				<input type="text" id="tc-inv-name" class="regular-text" style="width:100%; padding:8px 12px; border-radius:8px; border:1px solid #cbd5e1;" placeholder="e.g. Santosh Sharma" required />
+			</div>
+			<div style="margin-bottom:14px;">
+				<label style="display:block; font-size:12px; font-weight:700; color:#334155; margin-bottom:4px;">WhatsApp Number *</label>
+				<input type="tel" id="tc-inv-phone" class="regular-text" style="width:100%; padding:8px 12px; border-radius:8px; border:1px solid #cbd5e1;" placeholder="+91 93361 16210" required />
+			</div>
+			<div style="margin-bottom:18px;">
+				<label style="display:block; font-size:12px; font-weight:700; color:#334155; margin-bottom:4px;">CRM Role</label>
+				<select id="tc-inv-role" style="width:100%; padding:8px 12px; border-radius:8px; border:1px solid #cbd5e1;">
+					<option value="tc_sales_agent">TripCosmos Sales Agent (Own + Unassigned leads)</option>
+					<option value="tc_sales_manager">TripCosmos Sales Manager (All leads + team oversight)</option>
+				</select>
+			</div>
+			<div id="tc-inv-status" style="display:none; padding:10px 14px; border-radius:8px; font-size:12.5px; margin-bottom:14px; line-height:1.4;"></div>
+			<div style="display:flex; justify-content:flex-end; gap:10px;">
+				<button type="button" class="button" onclick="document.getElementById('tc-invite-agent-modal').style.display='none';">Cancel</button>
+				<button type="submit" id="tc-inv-submit-btn" class="button button-primary" style="background:#10b981; border-color:#059669; font-weight:700;">
+					🚀 Send WhatsApp Invite
+				</button>
+			</div>
+		</form>
+	</div>
+</div>
+
+<!-- Modal 2: Agent App Pairing QR Modal -->
+<div id="tc-agent-qr-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(15,23,42,0.7); z-index:99999; backdrop-filter:blur(4px); align-items:center; justify-content:center;">
+	<div style="background:#ffffff; border-radius:18px; max-width:440px; width:90%; padding:26px; box-shadow:0 20px 40px rgba(0,0,0,0.3); text-align:center; position:relative;">
+		<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+			<h3 style="margin:0; font-size:17px; font-weight:800; color:#0f172a;" id="tc-qr-modal-title">Agent App Pairing QR</h3>
+			<button type="button" class="button-link" onclick="document.getElementById('tc-agent-qr-modal').style.display='none';" style="font-size:22px; text-decoration:none; color:#64748b;">&times;</button>
+		</div>
+		<p style="font-size:12.5px; color:#64748b; margin-bottom:14px;">
+			Scan this code inside the <strong>X-Agents Mobile App</strong> to pair this phone directly to this agent's CRM desk.
+		</p>
+		<div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:16px; padding:16px; display:inline-block; margin-bottom:16px;">
+			<img id="tc-qr-modal-img" src="" alt="App Pairing QR" style="width:200px; height:200px; display:block; border-radius:8px;" />
+		</div>
+		<div style="margin-bottom:14px; text-align:left;">
+			<label style="font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase;">Magic Login Link:</label>
+			<div style="display:flex; gap:6px; margin-top:4px;">
+				<input type="text" id="tc-qr-modal-magic-url" readonly style="flex:1; font-size:11.5px; padding:4px 8px; border-radius:6px; border:1px solid #cbd5e1; background:#f1f5f9;" />
+				<button type="button" class="button button-small" onclick="navigator.clipboard.writeText(document.getElementById('tc-qr-modal-magic-url').value); alert('Copied magic login link!');">Copy</button>
+			</div>
+		</div>
+		<div style="margin-bottom:18px; text-align:left;">
+			<label style="font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase;">Mobile Pairing Key:</label>
+			<div style="display:flex; gap:6px; margin-top:4px;">
+				<input type="text" id="tc-qr-modal-token" readonly style="flex:1; font-size:11.5px; padding:4px 8px; border-radius:6px; border:1px solid #cbd5e1; background:#f1f5f9; font-family:monospace;" />
+				<button type="button" class="button button-small" onclick="navigator.clipboard.writeText(document.getElementById('tc-qr-modal-token').value); alert('Copied pairing key!');">Copy</button>
+			</div>
+		</div>
+		<button type="button" class="button" onclick="document.getElementById('tc-agent-qr-modal').style.display='none';">Close</button>
+	</div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+	var invModal = document.getElementById('tc-invite-agent-modal');
+	var qrModal = document.getElementById('tc-agent-qr-modal');
+	var openInvBtn = document.getElementById('tc-open-invite-modal');
+	var invForm = document.getElementById('tc-invite-agent-form');
+	var invStatus = document.getElementById('tc-inv-status');
+	var invSubmitBtn = document.getElementById('tc-inv-submit-btn');
+
+	if (openInvBtn && invModal) {
+		openInvBtn.addEventListener('click', function() {
+			invModal.style.display = 'flex';
+			if (invStatus) invStatus.style.display = 'none';
+		});
+	}
+
+	if (invForm) {
+		invForm.addEventListener('submit', function(e) {
+			e.preventDefault();
+			var name = document.getElementById('tc-inv-name').value.trim();
+			var phone = document.getElementById('tc-inv-phone').value.trim();
+			var role = document.getElementById('tc-inv-role').value;
+
+			if (!name || !phone) return;
+
+			invSubmitBtn.disabled = true;
+			invSubmitBtn.textContent = '⏳ Sending Invite...';
+			invStatus.style.display = 'block';
+			invStatus.style.background = '#eff6ff';
+			invStatus.style.color = '#1e3a8a';
+			invStatus.textContent = 'Creating agent account and sending WhatsApp invite...';
+
+			var data = new FormData();
+			data.append('action', 'tc_invite_agent');
+			data.append('nonce', '<?php echo wp_create_nonce( 'tc_agents_admin_nonce' ); ?>');
+			data.append('agent_name', name);
+			data.append('agent_phone', phone);
+			data.append('agent_role', role);
+
+			fetch(ajaxurl, { method: 'POST', body: data })
+			.then(function(res) { return res.json(); })
+			.then(function(res) {
+				invSubmitBtn.disabled = false;
+				invSubmitBtn.textContent = '🚀 Send WhatsApp Invite';
+				if (res.success && res.data) {
+					invStatus.style.background = '#ecfdf5';
+					invStatus.style.color = '#065f46';
+					var waText = res.data.wa_sent ? '✓ WhatsApp Invite Sent Successfully!' : '⚠️ Account created, WhatsApp queued/check Evolution.';
+					invStatus.innerHTML = '<strong>' + waText + '</strong><br />Magic Login URL generated. Refreshing team table...';
+					setTimeout(function() { window.location.reload(); }, 2000);
+				} else {
+					invStatus.style.background = '#fef2f2';
+					invStatus.style.color = '#991b1b';
+					invStatus.textContent = (res.data && res.data.message) ? res.data.message : 'Error inviting agent.';
+				}
+			})
+			.catch(function(err) {
+				invSubmitBtn.disabled = false;
+				invSubmitBtn.textContent = '🚀 Send WhatsApp Invite';
+				invStatus.style.background = '#fef2f2';
+				invStatus.style.color = '#991b1b';
+				invStatus.textContent = 'Network error: ' + err.message;
+			});
+		});
+	}
+
+	// Resend WA invite button
+	document.querySelectorAll('.tc-send-magic-wa-btn').forEach(function(btn) {
+		btn.addEventListener('click', function() {
+			var uid = this.getAttribute('data-user-id');
+			var uname = this.getAttribute('data-user-name');
+			if (!confirm('Send 1-Tap Magic Login WhatsApp invite to ' + uname + '?')) return;
+
+			var oldText = this.textContent;
+			this.textContent = '⏳ Sending...';
+			this.disabled = true;
+
+			var data = new FormData();
+			data.append('action', 'tc_resend_agent_invite');
+			data.append('nonce', '<?php echo wp_create_nonce( 'tc_agents_admin_nonce' ); ?>');
+			data.append('user_id', uid);
+
+			var self = this;
+			fetch(ajaxurl, { method: 'POST', body: data })
+			.then(function(res) { return res.json(); })
+			.then(function(res) {
+				self.textContent = oldText;
+				self.disabled = false;
+				if (res.success && res.data) {
+					alert(res.data.wa_sent ? '✓ WhatsApp Magic Link dispatched to ' + uname + '!' : 'Notice: Magic link created. Note: ' + (res.data.wa_note || ''));
+				} else {
+					alert('Error: ' + (res.data && res.data.message ? res.data.message : 'Could not send WhatsApp invite.'));
+				}
+			})
+			.catch(function(err) {
+				self.textContent = oldText;
+				self.disabled = false;
+				alert('Network error: ' + err.message);
+			});
+		});
+	});
+
+	// Show Agent QR button
+	document.querySelectorAll('.tc-show-agent-qr-btn').forEach(function(btn) {
+		btn.addEventListener('click', function() {
+			var uid = this.getAttribute('data-user-id');
+			var uname = this.getAttribute('data-user-name');
+
+			var data = new FormData();
+			data.append('action', 'tc_get_agent_pairing_qr');
+			data.append('nonce', '<?php echo wp_create_nonce( 'tc_agents_admin_nonce' ); ?>');
+			data.append('user_id', uid);
+
+			fetch(ajaxurl, { method: 'POST', body: data })
+			.then(function(res) { return res.json(); })
+			.then(function(res) {
+				if (res.success && res.data) {
+					document.getElementById('tc-qr-modal-title').textContent = res.data.name + ' — App Pairing';
+					document.getElementById('tc-qr-modal-img').src = res.data.qr_image_url;
+					document.getElementById('tc-qr-modal-magic-url').value = res.data.magic_url;
+					document.getElementById('tc-qr-modal-token').value = res.data.mobile_token;
+					qrModal.style.display = 'flex';
+				} else {
+					alert('Error loading pairing QR.');
+				}
+			})
+			.catch(function(err) {
+				alert('Network error: ' + err.message);
+			});
+		});
+	});
+});
+</script>
 	<?php
 	return;
 endif;
