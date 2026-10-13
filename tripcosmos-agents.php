@@ -42,6 +42,7 @@ require_once TC_AGENTS_PATH . 'includes/class-tc-quote-service.php';
 require_once TC_AGENTS_PATH . 'includes/class-tc-payments.php';
 require_once TC_AGENTS_PATH . 'includes/class-tc-whatsapp-hub.php';
 require_once TC_AGENTS_PATH . 'includes/class-tc-agent-onboarding.php';
+require_once TC_AGENTS_PATH . 'includes/class-tc-agents-redirects.php';
 require_once TC_AGENTS_PATH . 'public/class-tc-quote-page.php';
 
 // 3. AI Layer Includes
@@ -114,6 +115,7 @@ add_action( 'plugins_loaded', function() {
 	TC_WhatsApp_Hub::init();
 	TC_Agent_Onboarding::init();
 	TC_Quote_Page::init();
+	TC_Agents_Redirects::init();
 
 	// Initialize Background Queue
 	TC_Agents_Queue::init();
