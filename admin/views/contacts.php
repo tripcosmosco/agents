@@ -1014,11 +1014,19 @@ if ( 'team' === $view && $is_mgr ) :
 		<form id="tc-invite-agent-form">
 			<div style="margin-bottom:14px;">
 				<label style="display:block; font-size:12px; font-weight:700; color:#334155; margin-bottom:4px;">Agent Full Name *</label>
-				<input type="text" id="tc-inv-name" class="regular-text" style="width:100%; padding:8px 12px; border-radius:8px; border:1px solid #cbd5e1;" placeholder="e.g. Santosh Sharma" required />
+				<input type="text" id="tc-inv-name" class="regular-text" style="width:100%; padding:8px 12px; border-radius:8px; border:1px solid #cbd5e1;" placeholder="e.g. Aditi Sharma" required />
 			</div>
 			<div style="margin-bottom:14px;">
-				<label style="display:block; font-size:12px; font-weight:700; color:#334155; margin-bottom:4px;">WhatsApp Number *</label>
-				<input type="tel" id="tc-inv-phone" class="regular-text" style="width:100%; padding:8px 12px; border-radius:8px; border:1px solid #cbd5e1;" placeholder="+91 93361 16210" required />
+				<label style="display:block; font-size:12px; font-weight:700; color:#334155; margin-bottom:4px;">Email Address * (for account & notifications)</label>
+				<input type="email" id="tc-inv-email" class="regular-text" style="width:100%; padding:8px 12px; border-radius:8px; border:1px solid #cbd5e1;" placeholder="e.g. aditi@tripcosmos.co" required />
+			</div>
+			<div style="margin-bottom:14px;">
+				<label style="display:block; font-size:12px; font-weight:700; color:#334155; margin-bottom:4px;">WhatsApp Number (Optional, add now or later for telephony/SIM)</label>
+				<input type="tel" id="tc-inv-phone" class="regular-text" style="width:100%; padding:8px 12px; border-radius:8px; border:1px solid #cbd5e1;" placeholder="+91 93361 16210 (Optional)" />
+			</div>
+			<div style="margin-bottom:14px;">
+				<label style="display:block; font-size:12px; font-weight:700; color:#334155; margin-bottom:4px;">🤖 Paired AI Sales Co-Pilot</label>
+				<input type="text" id="tc-inv-ai" class="regular-text" style="width:100%; padding:8px 12px; border-radius:8px; border:1px solid #cbd5e1; font-weight:600; color:#0f766e; background:#f0fdfa;" value="Aditi AI" placeholder="e.g. Aditi AI" />
 			</div>
 			<div style="margin-bottom:18px;">
 				<label style="display:block; font-size:12px; font-weight:700; color:#334155; margin-bottom:4px;">CRM Role</label>
@@ -1031,7 +1039,7 @@ if ( 'team' === $view && $is_mgr ) :
 			<div style="display:flex; justify-content:flex-end; gap:10px;">
 				<button type="button" class="button" onclick="document.getElementById('tc-invite-agent-modal').style.display='none';">Cancel</button>
 				<button type="submit" id="tc-inv-submit-btn" class="button button-primary" style="background:#10b981; border-color:#059669; font-weight:700;">
-					🚀 Send WhatsApp Invite
+					🚀 Create Agent & Pair AI Co-Pilot
 				</button>
 			</div>
 		</form>
@@ -1089,30 +1097,34 @@ document.addEventListener('DOMContentLoaded', function() {
 		invForm.addEventListener('submit', function(e) {
 			e.preventDefault();
 			var name = document.getElementById('tc-inv-name').value.trim();
+			var email = document.getElementById('tc-inv-email').value.trim();
 			var phone = document.getElementById('tc-inv-phone').value.trim();
 			var role = document.getElementById('tc-inv-role').value;
+			var pairedAi = document.getElementById('tc-inv-ai') ? document.getElementById('tc-inv-ai').value.trim() : 'Aditi AI';
 
-			if (!name || !phone) return;
+			if (!name || (!email && !phone)) return;
 
 			invSubmitBtn.disabled = true;
-			invSubmitBtn.textContent = '⏳ Sending Invite...';
+			invSubmitBtn.textContent = '⏳ Creating Account...';
 			invStatus.style.display = 'block';
 			invStatus.style.background = '#eff6ff';
 			invStatus.style.color = '#1e3a8a';
-			invStatus.textContent = 'Creating agent account and sending WhatsApp invite...';
+			invStatus.textContent = 'Creating agent workspace and pairing AI Co-Pilot...';
 
 			var data = new FormData();
 			data.append('action', 'tc_invite_agent');
 			data.append('nonce', '<?php echo wp_create_nonce( 'tc_agents_admin_nonce' ); ?>');
 			data.append('agent_name', name);
+			data.append('agent_email', email);
 			data.append('agent_phone', phone);
 			data.append('agent_role', role);
+			data.append('paired_ai', pairedAi);
 
 			fetch(ajaxurl, { method: 'POST', body: data })
 			.then(function(res) { return res.json(); })
 			.then(function(res) {
 				invSubmitBtn.disabled = false;
-				invSubmitBtn.textContent = '🚀 Send WhatsApp Invite';
+				invSubmitBtn.textContent = '🚀 Create Agent & Pair AI Co-Pilot';
 				if (res.success && res.data) {
 					invStatus.style.background = '#ecfdf5';
 					invStatus.style.color = '#065f46';

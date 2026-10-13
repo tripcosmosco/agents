@@ -101,63 +101,79 @@ class TC_Agent_Onboarding {
 	 * @param bool   $send_whatsapp Whether to dispatch message via Evolution API.
 	 * @return array
 	 */
-	public static function invite_agent( $name, $phone, $role = TC_CRM_Access::ROLE_AGENT, $send_whatsapp = true ) {
+	public static function invite_agent( $name, $phone = '', $role = TC_CRM_Access::ROLE_AGENT, $send_whatsapp = true, $email = '', $paired_ai = 'Aditi AI' ) {
 		$name        = sanitize_text_field( $name );
 		$clean_phone = self::sanitize_phone( $phone );
+		$email       = sanitize_email( $email );
 
-		if ( empty( $name ) || strlen( $clean_phone ) < 10 ) {
+		if ( empty( $name ) ) {
 			return array(
 				'success' => false,
-				'message' => __( 'Please enter a valid agent name and phone number (minimum 10 digits).', 'tripcosmos-agents' ),
+				'message' => __( 'Please enter a valid agent name.', 'tripcosmos-agents' ),
+			);
+		}
+
+		if ( empty( $email ) && strlen( $clean_phone ) < 10 ) {
+			return array(
+				'success' => false,
+				'message' => __( 'Please enter either a valid Email Address or WhatsApp Phone number.', 'tripcosmos-agents' ),
 			);
 		}
 
 		// Ensure CRM roles exist
 		TC_CRM_Access::install_roles();
 
-		// Check if user exists by WhatsApp phone meta or username/email
+		// Check if user exists by email or WhatsApp phone meta
 		$user_id = 0;
-		$matched = get_users(
-			array(
-				'meta_key'   => 'tc_crm_whatsapp',
-				'meta_value' => '+' . $clean_phone,
-				'number'     => 1,
-				'fields'     => 'ID',
-			)
-		);
-		if ( empty( $matched ) ) {
+		if ( ! empty( $email ) ) {
+			$existing_user = get_user_by( 'email', $email );
+			if ( $existing_user ) {
+				$user_id = $existing_user->ID;
+			}
+		}
+
+		if ( ! $user_id && strlen( $clean_phone ) >= 10 ) {
 			$matched = get_users(
 				array(
 					'meta_key'   => 'tc_crm_whatsapp',
-					'meta_value' => $clean_phone,
+					'meta_value' => '+' . $clean_phone,
 					'number'     => 1,
 					'fields'     => 'ID',
 				)
 			);
+			if ( empty( $matched ) ) {
+				$matched = get_users(
+					array(
+						'meta_key'   => 'tc_crm_whatsapp',
+						'meta_value' => $clean_phone,
+						'number'     => 1,
+						'fields'     => 'ID',
+					)
+				);
+			}
+			if ( ! empty( $matched ) ) {
+				$user_id = (int) $matched[0];
+			}
 		}
 
-		if ( ! empty( $matched ) ) {
-			$user_id = (int) $matched[0];
-		} else {
-			// Find by email or generate username
-			$email = sanitize_email( 'agent.' . $clean_phone . '@tripcosmos.co' );
-			$existing_user = get_user_by( 'email', $email );
-			if ( $existing_user ) {
-				$user_id = $existing_user->ID;
-			} else {
-				$username = 'agent_' . substr( $clean_phone, -6 );
-				if ( username_exists( $username ) ) {
-					$username .= '_' . wp_rand( 10, 99 );
-				}
-				$password = wp_generate_password( 24, true );
-				$user_id  = wp_create_user( $username, $password, $email );
+		if ( ! $user_id ) {
+			// Generate email if not given
+			if ( empty( $email ) ) {
+				$email = sanitize_email( 'agent.' . $clean_phone . '@tripcosmos.co' );
+			}
+			$base_slug = sanitize_title( $name );
+			$username  = 'agent_' . ( $base_slug ?: ( $clean_phone ? substr( $clean_phone, -6 ) : wp_rand( 1000, 9999 ) ) );
+			if ( username_exists( $username ) ) {
+				$username .= '_' . wp_rand( 10, 99 );
+			}
+			$password = wp_generate_password( 24, true );
+			$user_id  = wp_create_user( $username, $password, $email );
 
-				if ( is_wp_error( $user_id ) ) {
-					return array(
-						'success' => false,
-						'message' => $user_id->get_error_message(),
-					);
-				}
+			if ( is_wp_error( $user_id ) ) {
+				return array(
+					'success' => false,
+					'message' => $user_id->get_error_message(),
+				);
 			}
 		}
 
@@ -175,19 +191,24 @@ class TC_Agent_Onboarding {
 		}
 
 		// Save agent metadata
-		update_user_meta( $user_id, 'tc_crm_whatsapp', '+' . $clean_phone );
+		if ( strlen( $clean_phone ) >= 10 ) {
+			update_user_meta( $user_id, 'tc_crm_whatsapp', '+' . $clean_phone );
+		}
 		update_user_meta( $user_id, 'tc_crm_rotation', '1' ); // Put into auto-assignment
 		update_user_meta( $user_id, 'tc_crm_away', '0' );
+		if ( ! empty( $paired_ai ) ) {
+			update_user_meta( $user_id, 'tc_paired_ai_name', sanitize_text_field( $paired_ai ) );
+		}
 
 		// Generate Mobile API Token & Magic Login Token
 		$mobile_token = self::get_or_create_mobile_token( $user_id );
 		$magic_token  = self::generate_magic_token( $user_id, 14 ); // Valid 14 days
 		$magic_url    = self::get_magic_login_url( $user_id, $magic_token );
 
-		// Prepare WhatsApp message
+		// Prepare WhatsApp message if phone available
 		$wa_status  = false;
 		$wa_message = '';
-		if ( $send_whatsapp && class_exists( 'TC_Integration_Evolution' ) ) {
+		if ( $send_whatsapp && strlen( $clean_phone ) >= 10 && class_exists( 'TC_Integration_Evolution' ) ) {
 			$role_title = ( $role === TC_CRM_Access::ROLE_MANAGER ) ? 'Sales Manager' : 'Sales AI & CRM Specialist';
 			$wa_text    = "Namaste {$name}! 🙏\n\n"
 				. "Welcome to the *TripCosmos.co* Executive Sales Team as *{$role_title}*.\n\n"
@@ -210,7 +231,9 @@ class TC_Agent_Onboarding {
 			'success'      => true,
 			'user_id'      => $user_id,
 			'name'         => $name,
-			'phone'        => '+' . $clean_phone,
+			'email'        => $email,
+			'phone'        => $clean_phone ? '+' . $clean_phone : '',
+			'paired_ai'    => $paired_ai,
 			'magic_url'    => $magic_url,
 			'mobile_token' => $mobile_token,
 			'wa_sent'      => $wa_status,
@@ -474,11 +497,13 @@ class TC_Agent_Onboarding {
 			wp_send_json_error( array( 'message' => 'Unauthorized permission.' ), 403 );
 		}
 
-		$name  = sanitize_text_field( wp_unslash( $_POST['agent_name'] ?? '' ) );
-		$phone = sanitize_text_field( wp_unslash( $_POST['agent_phone'] ?? '' ) );
-		$role  = sanitize_text_field( wp_unslash( $_POST['agent_role'] ?? TC_CRM_Access::ROLE_AGENT ) );
+		$name      = sanitize_text_field( wp_unslash( $_POST['agent_name'] ?? '' ) );
+		$phone     = sanitize_text_field( wp_unslash( $_POST['agent_phone'] ?? '' ) );
+		$email     = sanitize_email( wp_unslash( $_POST['agent_email'] ?? '' ) );
+		$role      = sanitize_text_field( wp_unslash( $_POST['agent_role'] ?? TC_CRM_Access::ROLE_AGENT ) );
+		$paired_ai = sanitize_text_field( wp_unslash( $_POST['paired_ai'] ?? 'Aditi AI' ) );
 
-		$res = self::invite_agent( $name, $phone, $role, true );
+		$res = self::invite_agent( $name, $phone, $role, ! empty( $phone ), $email, $paired_ai );
 
 		if ( ! empty( $res['success'] ) ) {
 			wp_send_json_success( $res );
