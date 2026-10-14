@@ -262,11 +262,6 @@ class TC_Contact_Service {
 			} elseif ( ! empty( $opts['auto_assign'] ) || ! isset( $opts['auto_assign'] ) ) {
 				self::auto_assign( $id );
 			}
-
-			// Speed-to-Lead Automation: Dispatch WhatsApp welcome and tariff brochure in 15 seconds
-			if ( ! empty( $row['phone'] ) && class_exists( 'TC_Agents_Queue' ) ) {
-				TC_Agents_Queue::push( 'speed_to_lead_wa', array( 'contact_id' => $id ), 15 );
-			}
 		}
 
 		if ( ! empty( $opts['activity'] ) && $id ) {
@@ -807,7 +802,7 @@ class TC_Contact_Service {
 	/**
 	 * Assign a contact to a staff member (0 = unassigned). Keeps the legacy text owner + mobile-app meta in sync.
 	 */
-	public static function set_owner( $id, $user_id, $notify = true ) {
+	public static function set_owner( $id, $user_id, $notify = true, $custom_owner_name = '' ) {
 		global $wpdb;
 		$c = self::get( $id );
 		if ( ! $c ) {
@@ -818,10 +813,12 @@ class TC_Contact_Service {
 		if ( $user_id && ! $u ) {
 			return false;
 		}
-		if ( (int) $c['owner_user_id'] === $user_id ) {
+
+		$name = '' !== trim( (string) $custom_owner_name ) ? sanitize_text_field( $custom_owner_name ) : ( $u ? $u->display_name : '' );
+		if ( (int) $c['owner_user_id'] === $user_id && (string) $c['owner'] === $name ) {
 			return true;
 		}
-		$name = $u ? $u->display_name : '';
+
 		$meta = json_decode( (string) $c['meta_data'], true ) ?: array();
 		$meta['assigned_manager'] = $name;
 		$meta['assigned_at']      = current_time( 'mysql' );
@@ -832,7 +829,7 @@ class TC_Contact_Service {
 		);
 		$by   = function_exists( 'get_current_user_id' ) ? (int) get_current_user_id() : 0;
 		$text = $name ? sprintf( __( 'Assigned to %s', 'tripcosmos-agents' ), $name ) : __( 'Unassigned', 'tripcosmos-agents' );
-		if ( $c['owner'] ) {
+		if ( $c['owner'] && $c['owner'] !== $name ) {
 			$text .= sprintf( __( ' (was %s)', 'tripcosmos-agents' ), $c['owner'] );
 		}
 		self::add_activity( $id, 'system', $text );
@@ -843,19 +840,40 @@ class TC_Contact_Service {
 	}
 
 	/**
-	 * Auto-assign a new contact per the Team settings: 'round_robin' or 'least_loaded' among available
-	 * team members in rotation. Unassigned leads alert the managers instead.
+	 * Auto-assign a new contact.
+	 * Default: Assign to Nishkarsh AI (Team Nishkarsh, User 73657).
+	 * Unassigned leads alert the managers instead.
 	 *
 	 * @return int Assigned user id (0 when none).
 	 */
 	public static function auto_assign( $id, $notify = true ) {
 		global $wpdb;
-		$mode = (string) get_option( 'tc_agents_crm_assign_mode', 'none' );
+		$mode = (string) get_option( 'tc_agents_crm_assign_mode', 'nishkarsh_ai' );
+		if ( 'none' === $mode ) {
+			return 0;
+		}
+
+		// Dedicated default assignment rule: Always auto-assign new leads to Nishkarsh AI.
+		if ( 'nishkarsh_ai' === $mode || empty( $mode ) || 'round_robin' === $mode ) {
+			$nishkarsh_user = get_user_by( 'email', 'hellonishkarsh@gmail.com' ) ?: get_userdata( 73657 );
+			$pick = $nishkarsh_user ? (int) $nishkarsh_user->ID : 73657;
+			self::set_owner( $id, $pick, $notify, 'Nishkarsh AI' );
+			return $pick;
+		}
+
 		$pool = array();
-		if ( in_array( $mode, array( 'round_robin', 'least_loaded' ), true ) && class_exists( 'TC_CRM_Access' ) ) {
+		if ( class_exists( 'TC_CRM_Access' ) ) {
 			foreach ( TC_CRM_Access::team() as $u ) {
 				if ( TC_CRM_Access::in_rotation( $u ) && ! TC_CRM_Access::is_away( $u->ID ) ) {
 					$pool[] = (int) $u->ID;
+				}
+			}
+			// If rotation pool is empty, fallback to active managers
+			if ( empty( $pool ) ) {
+				foreach ( TC_CRM_Access::team( TC_CRM_Access::CAP_MANAGE ) as $m ) {
+					if ( ! TC_CRM_Access::is_away( $m->ID ) ) {
+						$pool[] = (int) $m->ID;
+					}
 				}
 			}
 		}

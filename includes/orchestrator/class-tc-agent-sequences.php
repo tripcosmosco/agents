@@ -318,40 +318,14 @@ class TC_Agent_Sequences {
 			// Cross-Channel Smart Failover Dispatch
 			$sent         = false;
 			$used_channel = '';
-			$primary_wa   = ( 'whatsapp' === $seq['channel'] );
+			// Strict Anti-Spam Policy: Unsolicited automated background WhatsApp drips to customer numbers are DISABLED.
+			// WhatsApp messaging is reserved for active two-way customer-initiated conversations or explicit human staff replies.
+			$primary_wa   = false;
 
-			if ( $primary_wa && TC_Contact_Service::can_contact( $con, 'whatsapp' ) ) {
-				$check = TC_Agents_Guardrails::check_permission( 'whatsapp', $con['phone'] );
-				if ( ! is_wp_error( $check ) ) {
-					$sent = TC_Integration_WhatsApp::send_message( $con['phone'], $message_body );
-					if ( $sent ) {
-						$used_channel = 'whatsapp';
-						TC_Agents_Guardrails::record_outbound( 'whatsapp' );
-					}
-				}
-			} elseif ( ! $primary_wa && TC_Contact_Service::can_contact( $con, 'email' ) ) {
+			if ( TC_Contact_Service::can_contact( $con, 'email' ) ) {
 				$sent = self::send_sequence_email( $con['email'], $subject, $message_body, $con['name'] ?? '' );
 				if ( $sent ) {
 					$used_channel = 'email';
-				}
-			}
-
-			// Failover to secondary channel if primary was unavailable or failed
-			if ( ! $sent ) {
-				if ( $primary_wa && TC_Contact_Service::can_contact( $con, 'email' ) ) {
-					$sent = self::send_sequence_email( $con['email'], $subject, $message_body, $con['name'] ?? '' );
-					if ( $sent ) {
-						$used_channel = 'email (failover)';
-					}
-				} elseif ( ! $primary_wa && TC_Contact_Service::can_contact( $con, 'whatsapp' ) ) {
-					$check = TC_Agents_Guardrails::check_permission( 'whatsapp', $con['phone'] );
-					if ( ! is_wp_error( $check ) ) {
-						$sent = TC_Integration_WhatsApp::send_message( $con['phone'], $message_body );
-						if ( $sent ) {
-							$used_channel = 'whatsapp (failover)';
-							TC_Agents_Guardrails::record_outbound( 'whatsapp' );
-						}
-					}
 				}
 			}
 
@@ -452,9 +426,9 @@ class TC_Agent_Sequences {
 		$formatted_body = nl2br( esc_html( $message_text ) );
 		$safe_name      = esc_html( $name ?: 'Traveler' );
 		$site_url       = esc_url( home_url() );
-		$raw_wa         = get_option( 'tc_agents_human_whatsapp_number', '' );
-		$clean_num      = preg_replace( '/[^0-9]/', '', $raw_wa ) ?: '';
-		$helpline       = '+' . substr( $clean_num, 0, 2 ) . ' ' . substr( $clean_num, 2, 5 ) . ' ' . substr( $clean_num, 7 );
+		$raw_wa         = get_option( 'tc_agents_human_whatsapp_number', '919336116210' );
+		$clean_num      = preg_replace( '/[^0-9]/', '', $raw_wa ) ?: '919336116210';
+		$helpline       = '+91 93361 16210';
 
 		return '<!DOCTYPE html>
 <html>

@@ -114,10 +114,19 @@ class TC_Agents_REST {
 			)
 		);
 
-		// 5. WhatsApp Inbound Webhook
+		// 5. WhatsApp Inbound Webhook (standard and evolution alias)
 		register_rest_route(
 			self::NAMESPACE,
 			'/whatsapp-webhook',
+			array(
+				'methods'             => array( 'GET', 'POST' ),
+				'callback'            => array( 'TC_Integration_WhatsApp', 'handle_incoming_webhook' ),
+				'permission_callback' => '__return_true',
+			)
+		);
+		register_rest_route(
+			self::NAMESPACE,
+			'/webhook/evolution',
 			array(
 				'methods'             => array( 'GET', 'POST' ),
 				'callback'            => array( 'TC_Integration_WhatsApp', 'handle_incoming_webhook' ),
@@ -292,12 +301,28 @@ class TC_Agents_REST {
 			}
 		}
 
+		$user_ctx = null;
+		if ( ! empty( $params['currentUser'] ) && is_array( $params['currentUser'] ) ) {
+			$user_ctx = $params['currentUser'];
+		} elseif ( ! empty( $params['user'] ) && is_array( $params['user'] ) ) {
+			$user_ctx = $params['user'];
+		} elseif ( is_user_logged_in() ) {
+			$u = wp_get_current_user();
+			$user_ctx = array(
+				'id'    => (int) $u->ID,
+				'name'  => (string) $u->display_name,
+				'email' => (string) $u->user_email,
+				'phone' => (string) ( get_user_meta( $u->ID, 'billing_phone', true ) ?: get_user_meta( $u->ID, 'phone', true ) ?: '' ),
+			);
+		}
+
 		$metadata = array(
 			'ip'         => sanitize_text_field( $_SERVER['REMOTE_ADDR'] ?? '' ),
 			'user_agent' => sanitize_text_field( $_SERVER['HTTP_USER_AGENT'] ?? '' ),
 			'page_url'   => esc_url_raw( $params['page_url'] ?? '' ),
 			'page_title' => sanitize_text_field( $params['page_title'] ?? '' ),
 			'language'   => sanitize_text_field( $params['language'] ?? 'en' ),
+			'user'       => $user_ctx,
 		);
 
 		$is_stream = ! empty( $params['stream'] );
@@ -697,15 +722,56 @@ class TC_Agents_REST {
 		}
 		$device_label = $os . ' • ' . $browser;
 
-		// Check if session has a known traveler name/phone from chat or CRM
-		$visitor_name  = '';
-		$visitor_phone = '';
+		// Check if user info was passed from frontend or WP session
+		$user_ctx = null;
+		if ( ! empty( $params['currentUser'] ) && is_array( $params['currentUser'] ) ) {
+			$user_ctx = $params['currentUser'];
+		} elseif ( ! empty( $params['user'] ) && is_array( $params['user'] ) ) {
+			$user_ctx = $params['user'];
+		} elseif ( is_user_logged_in() ) {
+			$u = wp_get_current_user();
+			$user_ctx = array(
+				'id'    => (int) $u->ID,
+				'name'  => (string) $u->display_name,
+				'email' => (string) $u->user_email,
+				'phone' => (string) ( get_user_meta( $u->ID, 'billing_phone', true ) ?: get_user_meta( $u->ID, 'phone', true ) ?: '' ),
+			);
+		}
+
+		// Check if session has a known traveler name/phone from chat, CRM or logged-in user
+		$visitor_name  = ! empty( $user_ctx['name'] ) ? sanitize_text_field( $user_ctx['name'] ) : '';
+		$visitor_phone = ! empty( $user_ctx['phone'] ) ? sanitize_text_field( $user_ctx['phone'] ) : '';
+
 		if ( ! empty( $session_id ) ) {
 			global $wpdb;
 			$conv_table = $wpdb->prefix . 'tc_agent_conversations';
 			$cont_table = $wpdb->prefix . 'tc_agent_contacts';
-			$conv       = $wpdb->get_row( $wpdb->prepare( "SELECT contact_id, metadata FROM {$conv_table} WHERE session_id = %s ORDER BY id DESC LIMIT 1", $session_id ), ARRAY_A );
-			if ( ! empty( $conv['contact_id'] ) ) {
+			$conv       = $wpdb->get_row( $wpdb->prepare( "SELECT id, contact_id, metadata FROM {$conv_table} WHERE session_id = %s ORDER BY id DESC LIMIT 1", $session_id ), ARRAY_A );
+
+			// If logged in and conversation has no contact_id yet, link it!
+			if ( $user_ctx && ( ! empty( $user_ctx['email'] ) || ! empty( $user_ctx['id'] ) ) ) {
+				$matched_cid = (int) ( $conv['contact_id'] ?? 0 );
+				if ( ! $matched_cid ) {
+					$upsert = TC_Contact_Service::upsert(
+						array(
+							'wp_user_id'     => (int) ( $user_ctx['id'] ?? 0 ),
+							'email'          => sanitize_email( $user_ctx['email'] ?? '' ),
+							'name'           => sanitize_text_field( $user_ctx['name'] ?? '' ),
+							'phone'          => sanitize_text_field( $user_ctx['phone'] ?? '' ),
+							'source_channel' => 'web',
+						),
+						array( 'sync' => false )
+					);
+					if ( ! empty( $upsert['id'] ) ) {
+						$matched_cid = (int) $upsert['id'];
+						if ( $conv ) {
+							$wpdb->update( $conv_table, array( 'contact_id' => $matched_cid ), array( 'id' => (int) $conv['id'] ) );
+						}
+					}
+				}
+			}
+
+			if ( empty( $visitor_name ) && ! empty( $conv['contact_id'] ) ) {
 				$c = $wpdb->get_row( $wpdb->prepare( "SELECT name, phone FROM {$cont_table} WHERE id = %d", (int) $conv['contact_id'] ), ARRAY_A );
 				if ( $c ) {
 					$visitor_name  = (string) ( $c['name'] ?? '' );

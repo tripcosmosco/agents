@@ -43,6 +43,7 @@ class TC_Agents_Mobile_CRM_API {
 			array( '/mobile/dashboard', 'GET', 'dashboard' ),
 			array( '/mobile/notifications', 'GET', 'notifications' ),
 			array( '/mobile/calls', 'GET', 'calls' ),
+			array( '/mobile/call-logs', 'GET', 'calls' ),
 			array( '/mobile/leads/' . $id, 'GET', 'lead_detail' ),
 			array( '/mobile/leads/list', 'GET', 'lead_list' ),
 			array( '/mobile/leads/create', 'POST', 'lead_create' ),
@@ -56,6 +57,12 @@ class TC_Agents_Mobile_CRM_API {
 			array( '/mobile/quotes/' . $id . '/send', 'POST', 'quote_send' ),
 			array( '/mobile/payments/link', 'POST', 'payment_link' ),
 			array( '/mobile/payments/record', 'POST', 'payment_record' ),
+			array( '/mobile/financials', 'GET', 'financials' ),
+			array( '/mobile/dispatch-driver', 'POST', 'dispatch_driver' ),
+			array( '/mobile/caller-lookup', 'GET', 'caller_lookup' ),
+			array( '/mobile/caller-lookup', 'POST', 'caller_lookup' ),
+			array( '/mobile/voice-note-summary', 'POST', 'voice_note_summary' ),
+			array( '/mobile/payments/generate-link', 'POST', 'payment_generate_link' ),
 			array( '/mobile/conversations/' . $id, 'GET', 'conversation' ),
 			array( '/mobile/conversations/' . $id . '/reply', 'POST', 'conversation_reply' ),
 			array( '/mobile/conversations/' . $id . '/ai', 'POST', 'conversation_ai' ),
@@ -406,13 +413,20 @@ class TC_Agents_Mobile_CRM_API {
 			$meta    = json_decode( (string) $r['meta'], true ) ?: array();
 			$calls[] = array(
 				'id'            => (int) $r['id'],
+				'call_id'       => (string) ( $meta['call_id'] ?? $r['id'] ),
 				'lead_id'       => (int) $r['contact_id'],
 				'name'          => $r['name'] ?: 'Traveler',
-				'phone'         => (string) $r['phone'],
-				'type'          => (string) ( $meta['type'] ?? '' ),
+				'customer_name' => $r['name'] ?: 'Traveler',
+				'phone'         => (string) ( $meta['phone'] ?? $r['phone'] ),
+				'type'          => (string) ( $meta['type'] ?? 'outbound' ),
+				'direction'     => (string) ( $meta['type'] ?? 'outbound' ),
+				'status'        => (string) ( $meta['status'] ?? 'completed' ),
 				'duration'      => (int) ( $meta['duration'] ?? 0 ),
 				'recording_url' => (string) ( $meta['recording_url'] ?? '' ),
 				'note'          => wp_strip_all_tags( (string) $r['content'] ),
+				'notes'         => wp_strip_all_tags( (string) $r['content'] ),
+				'sim_card'      => (string) ( $meta['sim_card'] ?? 'Jio 5G (+91 93361 16210)' ),
+				'timestamp'     => self::iso( $r['created_at'] ),
 				'at'            => self::iso( $r['created_at'] ),
 			);
 		}
@@ -1061,4 +1075,505 @@ class TC_Agents_Mobile_CRM_API {
 		self::audit( $request, $enabled ? 'ai_on' : 'ai_off', array( 'lead_id' => (int) $c['id'] ) );
 		return self::ok( array( 'ai_enabled' => $enabled ) );
 	}
+
+	/* ------------------------------------------------------------------ Financials & Analytics */
+
+	public static function handle_financials( WP_REST_Request $request ) {
+		global $wpdb;
+		$bk  = $wpdb->prefix . 'tc_agent_bookings';
+		$pay = $wpdb->prefix . 'tc_agent_payments';
+		$c   = TC_Contact_Service::table();
+
+		// GMV = total booking quotes or won deal values
+		$gmv_bookings = (float) $wpdb->get_var( "SELECT COALESCE(SUM(quote_amount),0) FROM $bk WHERE status <> 'cancelled'" );
+		$gmv_contacts = (float) $wpdb->get_var( "SELECT COALESCE(SUM(deal_value),0) FROM $c WHERE stage IN ('won','completed')" );
+		$gmv = max( $gmv_bookings, $gmv_contacts );
+
+		// Collections from payments
+		$total_collected_pay = (float) $wpdb->get_var( "SELECT COALESCE(SUM(amount),0) FROM $pay WHERE status = 'paid'" );
+		$total_collected_bk  = (float) $wpdb->get_var( "SELECT COALESCE(SUM(advance_paid),0) FROM $bk" );
+		$total_collected     = max( $total_collected_pay, $total_collected_bk );
+
+		$pending_receivables = max( 0.0, round( $gmv - $total_collected, 2 ) );
+
+		$deals_won_count = (int) $wpdb->get_var( "SELECT COUNT(*) FROM $c WHERE stage IN ('won','completed')" );
+		$active_bookings = (int) $wpdb->get_var( "SELECT COUNT(*) FROM $bk WHERE status IN ('quoted','confirmed','advance_paid','paid')" );
+
+		// Method breakdown
+		$methods_raw = $wpdb->get_results( "SELECT COALESCE(method, 'upi') as method, COALESCE(SUM(amount),0) as total FROM $pay WHERE status = 'paid' GROUP BY method", ARRAY_A ) ?: array();
+		$method_split = array( 'cashfree' => 0.0, 'upi' => 0.0, 'cash' => 0.0, 'bank' => 0.0 );
+		foreach ( $methods_raw as $mr ) {
+			$m = strtolower( trim( (string) $mr['method'] ) );
+			if ( isset( $method_split[ $m ] ) ) {
+				$method_split[ $m ] += (float) $mr['total'];
+			} else {
+				$method_split['upi'] += (float) $mr['total'];
+			}
+		}
+
+		// Status breakdown
+		$status_raw = $wpdb->get_results( "SELECT status, COUNT(*) as cnt, COALESCE(SUM(quote_amount),0) as val FROM $bk GROUP BY status", ARRAY_A ) ?: array();
+		$status_split = array();
+		foreach ( $status_raw as $sr ) {
+			$st = (string) $sr['status'];
+			$status_split[ $st ] = array(
+				'count' => (int) $sr['cnt'],
+				'value' => (float) $sr['val'],
+			);
+		}
+
+		// Monthly trend (last 6 months)
+		$monthly_raw = $wpdb->get_results( "SELECT DATE_FORMAT(COALESCE(paid_at, created_at), '%Y-%m') as m_key, COALESCE(SUM(amount),0) as total_amt, COUNT(*) as cnt FROM $pay WHERE status = 'paid' GROUP BY m_key ORDER BY m_key DESC LIMIT 6", ARRAY_A ) ?: array();
+		$monthly_trend = array();
+		foreach ( array_reverse( $monthly_raw ) as $mr ) {
+			if ( ! empty( $mr['m_key'] ) ) {
+				$monthly_trend[] = array(
+					'month'     => $mr['m_key'],
+					'label'     => gmdate( 'M Y', strtotime( $mr['m_key'] . '-01' ) ),
+					'collected' => (float) $mr['total_amt'],
+					'count'     => (int) $mr['cnt'],
+				);
+			}
+		}
+
+		// Recent 15 transactions
+		$tx_rows = $wpdb->get_results(
+			"SELECT p.id, p.booking_id, p.amount, p.currency, p.provider, p.method, p.status, p.reference, p.paid_at, p.created_at, b.ref as booking_ref, c.name as customer_name
+			 FROM $pay p
+			 LEFT JOIN $bk b ON b.id = p.booking_id
+			 LEFT JOIN $c c ON c.id = p.contact_id
+			 ORDER BY p.id DESC LIMIT 15",
+			ARRAY_A
+		) ?: array();
+
+		$recent_transactions = array();
+		foreach ( $tx_rows as $t ) {
+			$recent_transactions[] = array(
+				'id'            => (int) $t['id'],
+				'booking_id'    => (int) $t['booking_id'],
+				'booking_ref'   => (string) ( $t['booking_ref'] ?: ( 'TC-' . (int) $t['booking_id'] ) ),
+				'customer_name' => (string) ( $t['customer_name'] ?: 'Traveler' ),
+				'amount'        => (float) $t['amount'],
+				'currency'      => (string) ( $t['currency'] ?: 'INR' ),
+				'provider'      => (string) $t['provider'],
+				'method'        => (string) ( $t['method'] ?: 'upi' ),
+				'status'        => (string) $t['status'],
+				'reference'     => (string) $t['reference'],
+				'date'          => self::iso( $t['paid_at'] ?: $t['created_at'] ),
+			);
+		}
+
+		// Sales Leaderboard
+		$leader_rows = $wpdb->get_results(
+			"SELECT COALESCE(u.display_name, c.owner, 'Unassigned') as agent_name, COUNT(*) as deals_won, COALESCE(SUM(c.deal_value),0) as revenue
+			 FROM $c c
+			 LEFT JOIN {$wpdb->users} u ON u.ID = c.owner_user_id
+			 WHERE c.stage IN ('won','completed')
+			 GROUP BY agent_name
+			 ORDER BY revenue DESC LIMIT 10",
+			ARRAY_A
+		) ?: array();
+
+		$pipeline_value    = (float) $wpdb->get_var( "SELECT COALESCE(SUM(deal_value),0) FROM $c WHERE stage NOT IN ('lost','cancelled')" );
+		$total_leads_count = (int) $wpdb->get_var( "SELECT COUNT(*) FROM $c" );
+
+		return self::ok(
+			array(
+				'summary' => array(
+					'gmv'                 => $gmv,
+					'total_collected'     => $total_collected,
+					'pending_receivables' => $pending_receivables,
+					'pipeline_value'      => $pipeline_value,
+					'total_leads_count'   => $total_leads_count,
+					'deals_won_count'     => $deals_won_count,
+					'active_bookings'     => $active_bookings,
+					'collection_rate'     => $gmv > 0 ? round( ( $total_collected / $gmv ) * 100, 1 ) : 0.0,
+				),
+				'method_split'        => $method_split,
+				'status_split'        => $status_split,
+				'monthly_trend'       => $monthly_trend,
+				'recent_transactions' => $recent_transactions,
+				'sales_leaderboard'   => $leader_rows,
+			)
+		);
+	}
+
+	/* ------------------------------------------------------------------ Driver & Chauffeur Dispatch */
+
+	public static function handle_dispatch_driver( WP_REST_Request $request ) {
+		global $wpdb;
+		$p          = self::params( $request );
+		$lead_id    = absint( $p['lead_id'] ?? $p['contact_id'] ?? 0 );
+		$booking_id = absint( $p['booking_id'] ?? 0 );
+
+		$c = null;
+		if ( $lead_id ) {
+			$c = self::lead_or_error( $lead_id );
+		} elseif ( $booking_id ) {
+			$b = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}tc_agent_bookings WHERE id = %d", $booking_id ), ARRAY_A );
+			if ( $b && ! empty( $b['contact_id'] ) ) {
+				$c = self::lead_or_error( (int) $b['contact_id'] );
+			}
+		}
+
+		if ( ! $c ) {
+			return self::fail( 'Lead not found.', 404 );
+		}
+
+		$driver_name     = sanitize_text_field( $p['driver_name'] ?? '' );
+		$driver_phone    = sanitize_text_field( $p['driver_phone'] ?? '' );
+		$vehicle_model   = sanitize_text_field( $p['vehicle_model'] ?? 'AC Sedan' );
+		$vehicle_number  = sanitize_text_field( $p['vehicle_number'] ?? '' );
+		$reporting_time  = sanitize_text_field( $p['reporting_time'] ?? '' );
+		$pickup_location = sanitize_text_field( $p['pickup_location'] ?? 'Varanasi' );
+		$drop_location   = sanitize_text_field( $p['drop_location'] ?? '' );
+		$balance_amount  = (float) ( $p['balance_amount'] ?? 0 );
+		$notify_customer = ! isset( $p['notify_customer'] ) || ! empty( $p['notify_customer'] );
+		$notify_driver   = ! empty( $p['notify_driver'] ) && ! empty( $driver_phone );
+
+		if ( empty( $driver_name ) || empty( $driver_phone ) || empty( $vehicle_number ) ) {
+			return self::fail( 'Driver name, driver phone, and vehicle number are required.' );
+		}
+
+		$customer_name  = ! empty( $c['name'] ) ? $c['name'] : 'Traveler';
+		$customer_phone = (string) ( $c['phone'] ?? '' );
+
+		if ( $booking_id ) {
+			$wpdb->update(
+				$wpdb->prefix . 'tc_agent_bookings',
+				array(
+					'driver'     => $driver_name . ' (' . $driver_phone . ')',
+					'vehicle'    => $vehicle_model . ' - ' . $vehicle_number,
+					'updated_at' => current_time( 'mysql' ),
+				),
+				array( 'id' => $booking_id )
+			);
+		}
+
+		$cust_sent   = false;
+		$driver_sent = false;
+
+		// 1. WhatsApp Trip Sheet to traveler
+		if ( $notify_customer && ! empty( $customer_phone ) && class_exists( 'TC_Integration_WhatsApp' ) ) {
+			$traveler_msg = sprintf(
+				"Namaste %s ji 🙏\nYour chauffeur & vehicle for your TripCosmos journey have been assigned! 🚗✨\n\n🚖 *Vehicle:* %s (%s)\n👤 *Chauffeur:* %s\n📞 *Driver Phone:* %s\n⏰ *Reporting Time:* %s\n📍 *Pickup Location:* %s%s\n💰 *Duty Balance on Arrival:* ₹%s\n\nFor 24/7 journey concierge support, reply directly to this chat. Have a blessed and memorable trip! 🕉️",
+				$customer_name,
+				$vehicle_model,
+				$vehicle_number,
+				$driver_name,
+				$driver_phone,
+				$reporting_time ?: 'As scheduled',
+				$pickup_location,
+				$drop_location ? "\n🎯 *Destination:* " . $drop_location : '',
+				number_format_i18n( $balance_amount )
+			);
+			$res_cust  = TC_Integration_WhatsApp::send_message_ex( $customer_phone, $traveler_msg );
+			$cust_sent = false !== $res_cust;
+			if ( $cust_sent ) {
+				TC_WhatsApp_Hub::record_agent_message( $c, $traveler_msg, (string) $res_cust, self::agent( $request ) ?: 'app' );
+			}
+		}
+
+		// 2. WhatsApp Duty Sheet to chauffeur
+		if ( $notify_driver && class_exists( 'TC_Integration_WhatsApp' ) ) {
+			$driver_msg = sprintf(
+				"Namaste %s ji 🚗\nYou have a new TripCosmos duty assignment:\n\n👤 *Guest:* %s\n📞 *Guest Phone:* %s\n⏰ *Reporting Time:* %s\n📍 *Pickup:* %s%s\n💰 *Collect Balance:* ₹%s\n\n⚠️ *Important Instructions:*\n1. Vehicle must be clean & AC running.\n2. Arrive 15 mins prior to reporting time.\n3. Assist guest politely with luggage.\nTripCosmos Desk: +91 93361 16210. Safe driving!",
+				$driver_name,
+				$customer_name,
+				$customer_phone,
+				$reporting_time ?: 'As scheduled',
+				$pickup_location,
+				$drop_location ? "\n🎯 *Drop:* " . $drop_location : '',
+				number_format_i18n( $balance_amount )
+			);
+			$res_drv    = TC_Integration_WhatsApp::send_message_ex( $driver_phone, $driver_msg );
+			$driver_sent = false !== $res_drv;
+		}
+
+		// Log activity on lead
+		TC_Contact_Service::add_activity(
+			(int) $c['id'],
+			'booking',
+			sprintf( '🚖 Chauffeur Dispatched: %s (%s) with %s %s. Balance: ₹%s.', $driver_name, $driver_phone, $vehicle_model, $vehicle_number, number_format_i18n( $balance_amount ) )
+		);
+
+		self::audit( $request, 'dispatch_driver', array( 'lead_id' => (int) $c['id'], 'driver' => $driver_name, 'vehicle' => $vehicle_number ) );
+
+		return self::ok(
+			array(
+				'dispatched'        => true,
+				'traveler_notified' => $cust_sent,
+				'driver_notified'   => $driver_sent,
+				'lead'              => self::fmt_lead( $c ),
+			)
+		);
+	}
+
+	/* ------------------------------------------------------------------ Caller Lookup */
+
+	public static function handle_caller_lookup( WP_REST_Request $request ) {
+		global $wpdb;
+		$p      = self::params( $request );
+		$phone  = sanitize_text_field( $p['phone'] ?? $request->get_param( 'phone' ) ?? '' );
+		$digits = self::digits( $phone );
+		if ( strlen( $digits ) < 7 ) {
+			return self::fail( 'Phone number is too short.' );
+		}
+
+		$suffix = substr( $digits, -10 );
+		$table  = TC_Contact_Service::table();
+		$lead   = $wpdb->get_row(
+			$wpdb->prepare( "SELECT * FROM $table WHERE phone LIKE %s OR phone_e164 LIKE %s ORDER BY id DESC LIMIT 1", '%' . $suffix, '%' . $suffix ),
+			ARRAY_A
+		);
+
+		if ( ! $lead ) {
+			return self::ok( array( 'found' => false, 'phone' => $phone ) );
+		}
+
+		// Get latest quote & booking
+		$bk           = $wpdb->prefix . 'tc_agent_bookings';
+		$qt           = $wpdb->prefix . 'tc_agent_quotes';
+		$last_booking = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $bk WHERE contact_id = %d ORDER BY id DESC LIMIT 1", (int) $lead['id'] ), ARRAY_A );
+		$last_quote   = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $qt WHERE contact_id = %d ORDER BY id DESC LIMIT 1", (int) $lead['id'] ), ARRAY_A );
+
+		// Financials
+		$total_quote  = $last_quote ? (float) $last_quote['total'] : ( $last_booking ? (float) $last_booking['quote_amount'] : (float) $lead['deal_value'] );
+		$advance_paid = $last_booking ? (float) $last_booking['advance_paid'] : 0.0;
+		$balance_due  = max( 0.0, round( $total_quote - $advance_paid, 2 ) );
+
+		// Last chat message
+		$conv_ids = self::conversation_ids( $lead );
+		$last_msg = null;
+		if ( ! empty( $conv_ids ) ) {
+			$in           = implode( ',', $conv_ids );
+			$last_msg_row = $wpdb->get_row( "SELECT role, content, created_at FROM {$wpdb->prefix}tc_agent_messages WHERE conversation_id IN ($in) ORDER BY id DESC LIMIT 1", ARRAY_A );
+			if ( $last_msg_row ) {
+				$last_msg = array(
+					'from' => 'user' === $last_msg_row['role'] ? 'customer' : 'agent',
+					'text' => wp_strip_all_tags( (string) $last_msg_row['content'] ),
+					'at'   => self::iso( $last_msg_row['created_at'] ),
+				);
+			}
+		}
+
+		return self::ok(
+			array(
+				'found'        => true,
+				'lead'         => self::fmt_lead( $lead ),
+				'financials'   => array(
+					'deal_value'   => (float) $lead['deal_value'],
+					'total_quote'  => $total_quote,
+					'advance_paid' => $advance_paid,
+					'balance_due'  => $balance_due,
+				),
+				'last_booking' => $last_booking ? self::fmt_booking( $last_booking ) : null,
+				'last_chat'    => $last_msg,
+			)
+		);
+	}
+
+	/* ------------------------------------------------------------------ Voice Note Ingestion */
+
+	public static function handle_voice_note_summary( WP_REST_Request $request ) {
+		global $wpdb;
+		$p          = self::params( $request );
+		$lead_id    = absint( $p['lead_id'] ?? 0 );
+		$phone      = sanitize_text_field( $p['phone'] ?? '' );
+		$transcript = self::text( sanitize_textarea_field( $p['transcript'] ?? $p['note'] ?? '' ), 4000 );
+		$stage      = sanitize_key( $p['stage'] ?? '' );
+		$deal_value = isset( $p['deal_value'] ) ? (float) $p['deal_value'] : null;
+		$follow_up  = sanitize_text_field( $p['follow_up_date'] ?? '' );
+
+		if ( empty( $transcript ) ) {
+			return self::fail( 'Voice note transcript or text is required.' );
+		}
+
+		$c = null;
+		if ( $lead_id ) {
+			$c = self::lead_or_error( $lead_id );
+		} elseif ( ! empty( $phone ) ) {
+			$digits = self::digits( $phone );
+			$suffix = substr( $digits, -10 );
+			$table  = TC_Contact_Service::table();
+			$c      = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $table WHERE phone LIKE %s ORDER BY id DESC LIMIT 1", '%' . $suffix ), ARRAY_A );
+		}
+
+		if ( ! $c ) {
+			if ( empty( $phone ) ) {
+				return self::fail( 'Lead not found and no phone number provided to create one.', 404 );
+			}
+			$created = TC_Contact_Service::upsert_contact(
+				array(
+					'phone'          => $phone,
+					'name'           => sanitize_text_field( $p['name'] ?? 'Traveler' ),
+					'source_channel' => 'field_voice_note',
+					'stage'          => $stage ?: 'inquiry',
+					'deal_value'     => $deal_value ?? 0,
+				)
+			);
+			if ( is_wp_error( $created ) ) {
+				return self::fail( $created->get_error_message() );
+			}
+			$c = TC_Contact_Service::get( (int) $created['id'] );
+		}
+
+		if ( ! empty( $stage ) && in_array( $stage, array_keys( TC_Contact_Service::stages() ), true ) ) {
+			TC_Contact_Service::set_stage( (int) $c['id'], $stage );
+		}
+
+		if ( null !== $deal_value && $deal_value >= 0 ) {
+			$wpdb->update( TC_Contact_Service::table(), array( 'deal_value' => $deal_value, 'updated_at' => current_time( 'mysql' ) ), array( 'id' => (int) $c['id'] ) );
+		}
+
+		TC_Contact_Service::add_activity(
+			(int) $c['id'],
+			'call',
+			'🎙️ Voice Note / Field Summary: ' . $transcript
+		);
+
+		if ( ! empty( $follow_up ) ) {
+			$local_due = self::to_local( $follow_up );
+			if ( $local_due ) {
+				$wpdb->insert(
+					$wpdb->prefix . 'tc_agent_activities',
+					array(
+						'contact_id' => (int) $c['id'],
+						'type'       => 'task',
+						'content'    => 'Follow up after voice note: ' . mb_substr( $transcript, 0, 100 ),
+						'due_at'     => $local_due,
+						'created_by' => get_current_user_id(),
+						'created_at' => current_time( 'mysql' ),
+					)
+				);
+			}
+		}
+
+		self::audit( $request, 'voice_note_ingested', array( 'lead_id' => (int) $c['id'] ) );
+
+		$updated_lead = TC_Contact_Service::get( (int) $c['id'] );
+		return self::ok(
+			array(
+				'lead'       => self::fmt_lead( $updated_lead ),
+				'transcript' => $transcript,
+			)
+		);
+	}
+
+	/* ------------------------------------------------------------------ 1-Tap Advance Payment Link */
+
+	public static function handle_payment_generate_link( WP_REST_Request $request ) {
+		global $wpdb;
+		$p          = self::params( $request );
+		$lead_id    = absint( $p['lead_id'] ?? 0 );
+		$booking_id = absint( $p['booking_id'] ?? 0 );
+		$amount     = (float) ( $p['amount'] ?? 0 );
+		$purpose    = sanitize_text_field( $p['purpose'] ?? 'TripCosmos Pilgrimage Advance' );
+		$send_wa    = ! isset( $p['send_whatsapp'] ) || ! empty( $p['send_whatsapp'] );
+
+		if ( $amount < 1 ) {
+			return self::fail( 'Amount must be greater than zero.' );
+		}
+
+		$c = null;
+		if ( $lead_id ) {
+			$c = self::lead_or_error( $lead_id );
+		} elseif ( $booking_id ) {
+			$b = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}tc_agent_bookings WHERE id = %d", $booking_id ), ARRAY_A );
+			if ( $b && ! empty( $b['contact_id'] ) ) {
+				$c = self::lead_or_error( (int) $b['contact_id'] );
+			}
+		}
+
+		if ( ! $c ) {
+			return self::fail( 'Lead or booking not found.', 404 );
+		}
+
+		if ( ! $booking_id ) {
+			$existing_bk = $wpdb->get_row( $wpdb->prepare( "SELECT id FROM {$wpdb->prefix}tc_agent_bookings WHERE contact_id = %d ORDER BY id DESC LIMIT 1", (int) $c['id'] ), ARRAY_A );
+			if ( $existing_bk ) {
+				$booking_id = (int) $existing_bk['id'];
+			} else {
+				$ref = 'TC-' . current_time( 'Y' ) . '-' . wp_rand( 1000, 9999 );
+				$wpdb->insert(
+					$wpdb->prefix . 'tc_agent_bookings',
+					array(
+						'contact_id'   => (int) $c['id'],
+						'ref'          => $ref,
+						'title'        => 'Tour for ' . ( $c['name'] ?: 'Traveler' ),
+						'quote_amount' => $amount,
+						'advance_paid' => 0,
+						'currency'     => 'INR',
+						'status'       => 'quoted',
+						'created_at'   => current_time( 'mysql' ),
+						'updated_at'   => current_time( 'mysql' ),
+					)
+				);
+				$booking_id = (int) $wpdb->insert_id;
+			}
+		}
+
+		$upi_url = TC_Payments::upi_link( $amount, $purpose );
+		if ( empty( $upi_url ) ) {
+			$upi_url = 'upi://pay?' . http_build_query(
+				array(
+					'pa' => '9336116210@upi',
+					'pn' => 'TripCosmos Pilgrimage Desk',
+					'am' => number_format( $amount, 2, '.', '' ),
+					'cu' => 'INR',
+					'tn' => substr( $purpose, 0, 80 ),
+				)
+			);
+		}
+		$cf_url  = '';
+		$pay_id  = 0;
+
+		if ( TC_Payments::cashfree_ready() ) {
+			$row = TC_Payments::create_cashfree_link( $booking_id, $amount, $purpose );
+			if ( ! is_wp_error( $row ) && ! empty( $row['link_url'] ) ) {
+				$cf_url = (string) $row['link_url'];
+				$pay_id = (int) $row['id'];
+			}
+		}
+
+		$primary_url = ! empty( $cf_url ) ? $cf_url : $upi_url;
+
+		// WhatsApp dispatch
+		$wa_sent = false;
+		if ( $send_wa && ! empty( $c['phone'] ) && class_exists( 'TC_Integration_WhatsApp' ) ) {
+			$customer_name = ! empty( $c['name'] ) ? $c['name'] : 'Traveler';
+			$pay_link_display = ! empty( $cf_url ) ? $cf_url : home_url( '/pay/?amt=' . $amount . '&ref=' . $booking_id );
+			$wa_msg = sprintf(
+				"Namaste %s ji 🙏\nHere is your official advance payment link for your TripCosmos booking:\n\n💰 *Advance Amount:* ₹%s\n📋 *Purpose:* %s\n\n💳 *Instant Payment Link:*\n%s\n\nDirect UPI ID: 9336116210@upi (TripCosmos Travel Desk)\nOnce completed, instant digital confirmation & GST voucher will be shared automatically. Thank you!",
+				$customer_name,
+				number_format_i18n( $amount ),
+				$purpose,
+				$pay_link_display
+			);
+			$res_wa  = TC_Integration_WhatsApp::send_message_ex( $c['phone'], $wa_msg );
+			$wa_sent = false !== $res_wa;
+			if ( $wa_sent ) {
+				TC_WhatsApp_Hub::record_agent_message( $c, $wa_msg, (string) $res_wa, self::agent( $request ) ?: 'app' );
+			}
+		}
+
+		// Log activity
+		TC_Contact_Service::add_activity(
+			(int) $c['id'],
+			'booking',
+			sprintf( '💳 1-Tap Advance Payment Link generated: ₹%s (%s). Sent via WhatsApp: %s', number_format_i18n( $amount ), $purpose, $wa_sent ? 'Yes' : 'No' )
+		);
+
+		return self::ok(
+			array(
+				'booking_id'    => $booking_id,
+				'amount'        => $amount,
+				'cashfree_url'  => $cf_url,
+				'upi_url'       => $upi_url,
+				'primary_url'   => $primary_url,
+				'whatsapp_sent' => $wa_sent,
+			)
+		);
+	}
 }
+

@@ -52,6 +52,20 @@ class TC_WhatsApp_Hub {
 				}
 			}
 		}
+		// Also parse manager_phones from option tc_agents_manager_phones (format: Name | 919XXXXXXXXX or just phone)
+		$raw_mgrs = (string) get_option( 'tc_agents_manager_phones', '' );
+		if ( '' !== $raw_mgrs ) {
+			foreach ( preg_split( '/[\r\n]+/', $raw_mgrs ) as $line ) {
+				$line = trim( $line );
+				if ( '' === $line ) { continue; }
+				$parts = explode( '|', $line );
+				$num   = isset( $parts[1] ) ? trim( $parts[1] ) : trim( $parts[0] );
+				$digits = preg_replace( '/\D/', '', $num );
+				if ( strlen( $digits ) >= 10 ) {
+					$map[ substr( $digits, -10 ) ] = 1; // Map to primary admin
+				}
+			}
+		}
 		self::$staff_cache = $map;
 		return $map;
 	}
@@ -223,6 +237,10 @@ class TC_WhatsApp_Hub {
 		if ( ! TC_Agents_Security::rate_limit( 'wa_forward', (string) $id, 40, HOUR_IN_SECONDS ) ) {
 			return;
 		}
+		if ( '' === trim( (string) $text ) ) {
+			return;
+		}
+
 		$owner = (int) $contact['owner_user_id'];
 		$name  = $contact['name'] ?: 'Traveler';
 		$quote = '“' . wp_trim_words( wp_strip_all_tags( (string) $text ), 60 ) . '”';
@@ -235,9 +253,24 @@ class TC_WhatsApp_Hub {
 			self::alert( $owner, $body, $id );
 			return;
 		}
-		// Unassigned: every manager sees it and anyone can take it.
-		foreach ( TC_CRM_Access::team( TC_CRM_Access::CAP_MANAGE ) as $m ) {
-			self::alert( (int) $m->ID, "🟡 *Unassigned WhatsApp lead* · #{$id}\n*{$name}* · {$phone}\n{$quote}\n\n↩️ Reply *CLAIM* to take it, or swipe-reply to answer.", $id );
+		// Unassigned: debounce so managers are not spammed with repetitive "Reply CLAIM" cards for every message
+		$debounced_key = 'tc_wa_unassigned_alert_' . $id;
+		$already_sent  = (bool) get_transient( $debounced_key );
+
+		if ( ! $already_sent ) {
+			set_transient( $debounced_key, 1, 15 * MINUTE_IN_SECONDS );
+			foreach ( TC_CRM_Access::team( TC_CRM_Access::CAP_MANAGE ) as $m ) {
+				self::alert( (int) $m->ID, "🟡 *Unassigned WhatsApp lead* · #{$id}\n*{$name}* · {$phone}\n{$quote}\n\n↩️ Reply *CLAIM* to take it, or swipe-reply to answer.", $id );
+			}
+		} else {
+			// Subdued compact snippet throttled so managers aren't pinged for rapid-fire typing
+			$sub_debounce_key = 'tc_wa_unassigned_sub_' . $id;
+			if ( ! get_transient( $sub_debounce_key ) ) {
+				set_transient( $sub_debounce_key, 1, 3 * MINUTE_IN_SECONDS );
+				foreach ( TC_CRM_Access::team( TC_CRM_Access::CAP_MANAGE ) as $m ) {
+					self::alert( (int) $m->ID, "💬 *#{$id} {$name}:* {$quote}", $id );
+				}
+			}
 		}
 	}
 
@@ -247,12 +280,34 @@ class TC_WhatsApp_Hub {
 		if ( strlen( $wa ) < 10 || ( class_exists( 'TC_CRM_Access' ) && TC_CRM_Access::is_away( (int) $user_id ) ) ) {
 			return false;
 		}
-		$msg_id = TC_Integration_WhatsApp::send_message_ex( $wa, $text );
+
+		// Desk number guard: Never send staff alert to the business desk itself
+		$desk_num = preg_replace( '/\D/', '', (string) get_option( 'tc_agents_human_whatsapp_number', '' ) );
+		if ( empty( $desk_num ) ) {
+			$desk_num = '919336116210';
+		}
+		if ( substr( $wa, -10 ) === substr( $desk_num, -10 ) ) {
+			return false;
+		}
+
+		// Security & UX Guard: Never send staff alerts back to the contact's own phone (e.g. staff testing as customer)
+		if ( $contact_id ) {
+			$contact = class_exists( 'TC_Contact_Service' ) ? TC_Contact_Service::get( (int) $contact_id ) : null;
+			if ( $contact && ! empty( $contact['phone'] ) ) {
+				$c_digits = preg_replace( '/\D/', '', (string) $contact['phone'] );
+				if ( substr( $c_digits, -10 ) === substr( $wa, -10 ) ) {
+					return false;
+				}
+			}
+		}
+
+		$msg_id = TC_Integration_WhatsApp::send_message_ex( $wa, $text, 'staff_alert' );
 		if ( false === $msg_id ) {
 			return false;
 		}
 		if ( '' !== $msg_id ) {
 			set_transient( 'tc_wa_alert_' . md5( $msg_id ), (int) $contact_id, self::ALERT_TTL );
+			set_transient( 'tc_wa_last_alert_' . substr( $wa, -10 ), (int) $contact_id, DAY_IN_SECONDS );
 		}
 		return true;
 	}
@@ -272,14 +327,33 @@ class TC_WhatsApp_Hub {
 	/** Which lead a staff message is about: the alert it quotes, or an explicit "#123" prefix. Returns [contact_id, text]. */
 	public static function target_of( array $n ) {
 		$text = trim( (string) $n['text'] );
-		if ( '' !== $n['quoted_id'] ) {
+		if ( '' !== (string) ( $n['quoted_id'] ?? '' ) ) {
 			$cid = (int) get_transient( 'tc_wa_alert_' . md5( $n['quoted_id'] ) );
 			if ( $cid ) {
 				return array( $cid, $text );
 			}
 		}
+		// Match "#123 text"
 		if ( preg_match( '/^#(\d{1,9})\s*(.*)$/s', $text, $m ) ) {
 			return array( (int) $m[1], trim( $m[2] ) );
+		}
+		// Match "CLAIM #123" or "CLAIM 123"
+		if ( preg_match( '/^CLAIM\s*#?(\d{1,9})$/i', $text, $m ) ) {
+			return array( (int) $m[1], 'CLAIM' );
+		}
+		// Match plain "CLAIM"
+		if ( 0 === strcasecmp( $text, 'CLAIM' ) ) {
+			$clean_from = substr( preg_replace( '/\D/', '', (string) $n['from'] ), -10 );
+			$last_cid   = (int) get_transient( 'tc_wa_last_alert_' . $clean_from );
+			if ( $last_cid ) {
+				return array( $last_cid, 'CLAIM' );
+			}
+			global $wpdb;
+			$table = $wpdb->prefix . 'tc_agent_contacts';
+			$recent_unassigned = $wpdb->get_var( "SELECT id FROM {$table} WHERE owner_user_id = 0 ORDER BY id DESC LIMIT 1" );
+			if ( $recent_unassigned ) {
+				return array( (int) $recent_unassigned, 'CLAIM' );
+			}
 		}
 		return array( 0, $text );
 	}
@@ -320,6 +394,61 @@ class TC_WhatsApp_Hub {
 			self::set_ai( (int) $conv['id'], 'AI ON' === $command );
 			return $reply( 'AI ON' === $command ? "✓ The AI will reply to {$name} again." : "✓ The AI will stay quiet for {$name}." );
 		}
+
+		if ( 'STATUS' === $command || 'INFO' === $command ) {
+			$stage_label = TC_Contact_Service::stages()[ $contact['stage'] ] ?? $contact['stage'];
+			$deal_str    = (float) ( $contact['deal_value'] ?? 0 ) > 0 ? '₹' . number_format( (float) $contact['deal_value'] ) : 'Not set';
+			$ai_st       = self::ai_enabled( $conv ) ? '🟢 Active' : '⏸️ Paused (Staff handling)';
+			$owner_name  = ! empty( $contact['owner'] ) ? $contact['owner'] : ( $owner ? ( ( $u = get_userdata( $owner ) ) ? $u->display_name : 'Agent #' . $owner ) : 'Unassigned' );
+			$msg = "📋 *Lead Brief #{$cid}*\n"
+				. "• *Traveler:* {$name} (" . self::pretty_phone( (string) $contact['phone'] ) . ")\n"
+				. "• *Stage:* {$stage_label}\n"
+				. "• *Deal Value:* {$deal_str}\n"
+				. "• *Assigned Agent:* {$owner_name}\n"
+				. "• *AI Assistant:* {$ai_st}\n\n"
+				. "⚡ Commands:\n"
+				. "• *STAGE WON* / *STAGE LOST [reason]*\n"
+				. "• *STAGE QUOTE* / *STAGE QUALIFIED*\n"
+				. "• *NOTE <internal note>*\n"
+				. "• *AI ON* / *AI OFF*\n"
+				. "• Or swipe-reply to message traveler directly.";
+			return $reply( $msg );
+		}
+
+		if ( 0 === strpos( $command, 'STAGE ' ) || in_array( $command, array( 'WON', 'LOST' ), true ) ) {
+			$stage_arg = trim( substr( $text, 0 === strpos( $command, 'STAGE ' ) ? 6 : 0 ) );
+			$parts     = explode( ' ', $stage_arg, 2 );
+			$target    = strtolower( trim( $parts[0] ) );
+			$reason    = isset( $parts[1] ) ? trim( $parts[1] ) : '';
+
+			$alias_map = array(
+				'won'       => 'won',
+				'lost'      => 'lost',
+				'quote'     => 'proposal',
+				'proposal'  => 'proposal',
+				'followup'  => 'qualified',
+				'qualified' => 'qualified',
+				'inquiry'   => 'inquiry',
+				'completed' => 'completed',
+			);
+			$final_stage = $alias_map[ $target ] ?? ( isset( TC_Contact_Service::stages()[ $target ] ) ? $target : '' );
+			if ( $final_stage ) {
+				TC_Contact_Service::set_stage( $cid, $final_stage, $reason );
+				$st_name = TC_Contact_Service::stages()[ $final_stage ] ?? $final_stage;
+				return $reply( "✓ Lead #{$cid} ({$name}) updated to stage: *{$st_name}*" . ( $reason ? " ({$reason})" : '' ) . "." );
+			}
+			return $reply( "Unknown stage '{$target}'. Valid: WON, LOST, QUOTE, QUALIFIED, COMPLETED." );
+		}
+
+		if ( 0 === strpos( $command, 'NOTE ' ) ) {
+			$note_text = trim( substr( $text, 5 ) );
+			if ( ! empty( $note_text ) ) {
+				$u = get_userdata( $user_id );
+				TC_Contact_Service::add_activity( $cid, 'note', $note_text . ' (via WhatsApp by ' . ( $u ? $u->display_name : 'staff' ) . ')' );
+				return $reply( "✓ Internal note saved for #{$cid} ({$name})." );
+			}
+		}
+
 		if ( '' === $text ) {
 			return $reply( 'Only text can be forwarded to the customer. Send photos and documents from the business phone or the app.' );
 		}
@@ -334,7 +463,7 @@ class TC_WhatsApp_Hub {
 			TC_Contact_Service::set_owner( $cid, (int) $user_id, false );
 		}
 
-		$sent = TC_Integration_WhatsApp::send_message_ex( $contact['phone'], $text );
+		$sent = TC_Integration_WhatsApp::send_message_ex( $contact['phone'], $text, 'staff_relay' );
 		if ( false === $sent ) {
 			return $reply( "✗ Could not deliver to {$name}. Check the WhatsApp connection." );
 		}
@@ -422,7 +551,20 @@ class TC_WhatsApp_Hub {
 
 			<table class="form-table" role="presentation">
 				<tr><th scope="row">Server</th><td><code><?php echo esc_html( TC_Integration_Evolution::get_base_url() ); ?></code> · instance <code><?php echo esc_html( TC_Integration_Evolution::get_instance() ); ?></code><?php echo $configured ? '' : ' <strong style="color:#b91c1c;">API key missing: add it above and save.</strong>'; ?></td></tr>
-				<tr><th scope="row">Status</th><td><?php echo '' === $state ? 'Not checked yet' : esc_html( 'open' === $state ? 'Connected' : 'Not connected (' . $state . ')' ); ?></td></tr>
+				<tr><th scope="row">Status</th><td><?php
+					if ( $configured ) {
+						$live_st = TC_Integration_Evolution::connection_state();
+						if ( ! is_wp_error( $live_st ) ) {
+							$state = sanitize_key( $live_st );
+							update_option( 'tc_agents_wa_state', $state, false );
+						}
+					}
+					if ( 'open' === $state ) {
+						echo '<span style="color:#10b981;font-weight:bold;">🟢 Connected</span> (WhatsApp web socket active)';
+					} else {
+						echo '<span style="color:#ef4444;font-weight:bold;">🔴 Not connected (' . esc_html( $state ?: 'unknown' ) . ')</span> — <em style="color:#64748b;">Session unlinked on server. Click "Show QR to link phone" below to scan pairing QR code.</em>';
+					}
+				?></td></tr>
 				<tr><th scope="row">Team numbers</th><td><?php echo esc_html( count( $staff ) ); ?> team member(s) have a WhatsApp number. Add numbers in <a href="<?php echo esc_url( class_exists( 'TC_Contacts_Admin' ) ? TC_Contacts_Admin::url( array( 'view' => 'team' ) ) : admin_url( 'admin.php' ) ); ?>">Contacts › Team</a>; only those people receive leads on WhatsApp.</td></tr>
 			</table>
 			<?php if ( $configured ) : ?>

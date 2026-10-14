@@ -415,7 +415,24 @@ class TC_Agents_Mobile_API {
 	public static function verify_token( WP_REST_Request $request ) {
 		$ip = TC_Agents_Security::client_ip();
 		$request->set_param( '_tc_agent', '' );
+
+		// Robust token extraction: header (mixed/lower case), fastcgi $_SERVER, Bearer auth, or query param
 		$token = (string) $request->get_header( 'X-Mobile-Token' );
+		if ( empty( $token ) ) {
+			$token = (string) $request->get_header( 'x-mobile-token' );
+		}
+		if ( empty( $token ) && ! empty( $_SERVER['HTTP_X_MOBILE_TOKEN'] ) ) {
+			$token = sanitize_text_field( wp_unslash( $_SERVER['HTTP_X_MOBILE_TOKEN'] ) );
+		}
+		if ( empty( $token ) ) {
+			$auth = (string) $request->get_header( 'Authorization' );
+			if ( 0 === stripos( $auth, 'Bearer ' ) ) {
+				$token = trim( substr( $auth, 7 ) );
+			}
+		}
+		if ( empty( $token ) && ! empty( $request->get_param( 'mobile_token' ) ) ) {
+			$token = sanitize_text_field( $request->get_param( 'mobile_token' ) );
+		}
 
 		if ( '' !== $token ) {
 			$master = '' !== (string) self::get_api_token() && hash_equals( (string) self::get_api_token(), $token );
@@ -596,30 +613,32 @@ class TC_Agents_Mobile_API {
 			)
 		);
 
-		// Courtesy reply to a missed call: only to people already in the CRM (never to a staff member's personal
-		// contacts or spam numbers) and at most once every 6 hours per number.
+		// Missed call handling: NEVER send unsolicited automated WhatsApp messages to customer numbers!
+		// Instead, dispatch an instant staff notification strictly to Nishkarsh (918433284773).
 		$auto_reply_sent = false;
-		if ( 'missed' === $call_type && $contact && TC_Contact_Service::can_contact( $contact, 'whatsapp' ) ) {
-			$cooldown_key = 'tc_missed_ar_' . substr( md5( $suffix ), 0, 20 );
+		if ( 'missed' === $call_type && ! empty( $phone ) ) {
+			$cooldown_key = 'tc_missed_staff_alert_' . substr( md5( $suffix ), 0, 20 );
 			if ( ! get_transient( $cooldown_key ) ) {
 				$name = ! empty( $contact['name'] ) ? $contact['name'] : 'Traveler';
-				$msg  = sprintf(
-					"Namaste %s! 🙏 Sorry we missed your call at TripCosmos Travel Desk. Our Varanasi specialists are currently assisting pilgrims and travelers. How can we help you with your tour, outstation cab, or temple darshan booking?",
-					$name
+				$alert_msg = sprintf(
+					"📞 *Missed Call Alert*\nMissed call from: +%s (%s)\nTime: %s\nPlease open X-Agents app to call back or follow up.",
+					$phone,
+					$name,
+					current_time( 'h:i A, d M' )
 				);
-				$auto_reply_sent = (bool) TC_Integration_WhatsApp::send_message( $phone, $msg );
-				if ( $auto_reply_sent ) {
-					set_transient( $cooldown_key, 1, 6 * HOUR_IN_SECONDS );
+				if ( class_exists( 'TC_Integration_WhatsApp' ) ) {
+					TC_Integration_WhatsApp::send_message_ex( '918433284773', $alert_msg, 'staff_alert' );
 				}
+				set_transient( $cooldown_key, 1, 15 * MINUTE_IN_SECONDS );
 			}
 		}
 
 		return new WP_REST_Response(
 			array(
-				'ok'         => true,
-				'message'    => 'Call log recorded successfully.',
-				'contact_id' => $contact_id,
-				'auto_reply_sent' => $auto_reply_sent,
+				'ok'              => true,
+				'message'         => 'Call log recorded successfully.',
+				'contact_id'      => $contact_id,
+				'auto_reply_sent' => false,
 			),
 			200
 		);
@@ -768,8 +787,19 @@ class TC_Agents_Mobile_API {
 
 		$agent = (string) $request->get_param( '_tc_agent' );
 		if ( '' !== $agent && 'master' !== $agent && 'admin' !== $agent ) {
-			$where .= ' AND ( owner = %s OR owner = "" OR owner IS NULL )';
-			$params[] = $agent;
+			$lower_a = strtolower( trim( $agent ) );
+			if ( strpos( $lower_a, 'nishkarsh' ) !== false ) {
+				$where .= ' AND ( owner LIKE %s OR owner LIKE %s OR owner = "" OR owner IS NULL )';
+				$params[] = '%Nishkarsh%';
+				$params[] = '%Nishkarsh AI%';
+			} elseif ( strpos( $lower_a, 'aditi' ) !== false || strpos( $lower_a, 'adity' ) !== false ) {
+				$where .= ' AND ( owner LIKE %s OR owner LIKE %s OR owner = "" OR owner IS NULL )';
+				$params[] = '%Aditi%';
+				$params[] = '%Aditi AI%';
+			} else {
+				$where .= ' AND ( owner = %s OR owner = "" OR owner IS NULL )';
+				$params[] = $agent;
+			}
 		}
 
 		// Paged, so the list keeps working as the CRM grows. The defaults keep the old behaviour (first 100).
@@ -882,7 +912,10 @@ class TC_Agents_Mobile_API {
 		);
 		$crm_stage = $stage_map[ $stage ] ?? 'inquiry';
 
-		$owner_name = ( '' !== $agent && 'master' !== $agent && 'admin' !== $agent ) ? $agent : '';
+		$owner_name = sanitize_text_field( $params['owner'] ?? '' );
+		if ( empty( $owner_name ) ) {
+			$owner_name = ( '' !== $agent && 'master' !== $agent && 'admin' !== $agent ) ? $agent : 'Nishkarsh AI';
+		}
 
 		$upsert = TC_Contact_Service::upsert(
 			array(
@@ -1035,6 +1068,9 @@ class TC_Agents_Mobile_API {
 			$stage      = $matched_contact ? (string) ( $matched_contact['stage'] ?: 'inquiry' ) : ( $matched_agency ? 'b2b_partner' : 'new' );
 			$deal_value = $matched_contact ? (float) ( $matched_contact['deal_value'] ?? 0 ) : 0.0;
 			$owner      = $matched_contact && ! empty( $matched_contact['owner'] ) ? (string) $matched_contact['owner'] : ( $meta['assigned_manager'] ?? '' );
+			if ( empty( $owner ) ) {
+				$owner = 'Nishkarsh AI';
+			}
 			$dest       = ! empty( $meta['destination'] ) ? (string) $meta['destination'] : ( $matched_agency ? '🏢 B2B DMC • ' . ( $matched_agency['city'] ?? 'India' ) : 'Varanasi Pilgrimage' );
 			$call_hist  = isset( $meta['call_history'] ) && is_array( $meta['call_history'] ) ? $meta['call_history'] : array();
 			$ai_active  = isset( $meta['is_ai_active'] ) ? (bool) $meta['is_ai_active'] : false;
@@ -1086,6 +1122,9 @@ class TC_Agents_Mobile_API {
 			$meta        = json_decode( (string) ( $c['meta_data'] ?? '' ), true ) ?: array();
 			$matched_ag  = isset( $agency_by_suffix[ $suffix ] ) ? $agency_by_suffix[ $suffix ] : null;
 			$owner       = ! empty( $c['owner'] ) ? (string) $c['owner'] : ( $meta['assigned_manager'] ?? '' );
+			if ( empty( $owner ) ) {
+				$owner = 'Nishkarsh AI';
+			}
 			$last_msg    = ! empty( $meta['last_message'] ) ? (string) $meta['last_message'] : '';
 			$has_real_chat = false;
 			if ( '' === $last_msg ) {
@@ -1212,9 +1251,9 @@ class TC_Agents_Mobile_API {
 	 * @return string
 	 */
 	private static function booking_link( $ref ) {
-		$wa = preg_replace( '/[^0-9]/', '', (string) get_option( 'tc_agents_human_whatsapp_number', '' ) );
+		$wa = preg_replace( '/[^0-9]/', '', (string) get_option( 'tc_agents_human_whatsapp_number', '919336116210' ) );
 		if ( '' === $wa ) {
-			return home_url( '/contact/' );
+			$wa = '919336116210';
 		}
 		return 'https://wa.me/' . $wa . '?text=' . rawurlencode( 'Hello TripCosmos, I would like to confirm my quote (ref ' . $ref . ').' );
 	}
@@ -1278,31 +1317,47 @@ class TC_Agents_Mobile_API {
 		$meta['assigned_at']        = current_time( 'mysql' );
 
 		// Assigning a lead does not qualify it, so the pipeline stage is left exactly as it was.
-		// Map the app's manager name to a CRM user so ownership, "My leads" and alerts work.
-		$staff = null;
-		foreach ( TC_CRM_Access::team() as $u ) {
-			if ( 0 === strcasecmp( $u->display_name, $manager_name ) || 0 === strcasecmp( $u->user_login, $manager_name ) || 0 === strcasecmp( $u->user_email, $manager_name ) ) {
-				$staff = $u;
-				break;
+		// Dedicated two-team & AI personas mapping:
+		// Team Nishkarsh: Nishkarsh (Human), Nishkarsh AI (AI Co-pilot)
+		// Team Aditi: Aditi (Human), Aditi AI (AI Co-pilot)
+		$lower_m           = strtolower( trim( $manager_name ) );
+		$target_owner_name = $manager_name;
+		$owner_uid         = 0;
+
+		if ( strpos( $lower_m, 'nishkarsh' ) !== false ) {
+			$owner_uid         = 73657;
+			$target_owner_name = ( strpos( $lower_m, 'ai' ) !== false ) ? 'Nishkarsh AI' : 'Nishkarsh';
+		} elseif ( strpos( $lower_m, 'aditi' ) !== false || strpos( $lower_m, 'adity' ) !== false ) {
+			$owner_uid         = 75870;
+			$target_owner_name = ( strpos( $lower_m, 'ai' ) !== false ) ? 'Aditi AI' : 'Aditi';
+		} else {
+			if ( class_exists( 'TC_CRM_Access' ) ) {
+				foreach ( TC_CRM_Access::team() as $u ) {
+					if ( (int) $manager_name === (int) $u->ID || 0 === strcasecmp( $u->display_name, $manager_name ) || 0 === strcasecmp( $u->user_login, $manager_name ) || 0 === strcasecmp( $u->user_email, $manager_name ) || stripos( $u->display_name, $manager_name ) !== false || stripos( $manager_name, $u->display_name ) !== false ) {
+						$owner_uid         = (int) $u->ID;
+						$target_owner_name = $u->display_name;
+						break;
+					}
+				}
 			}
 		}
-		if ( $staff ) {
-			TC_Contact_Service::set_owner( $lead_id, (int) $staff->ID, $notify_manager );
-			$meta['assigned_manager'] = $staff->display_name;
-			$manager_name             = $staff->display_name;
+
+		if ( $owner_uid ) {
+			TC_Contact_Service::set_owner( $lead_id, $owner_uid, $notify_manager, $target_owner_name );
+			$meta['assigned_manager'] = $target_owner_name;
+			$manager_name             = $target_owner_name;
 		} else {
 			TC_Contact_Service::add_activity( $lead_id, 'system', sprintf( 'Assigned to %s', $manager_name ) . ( $previous ? sprintf( ' (was %s)', $previous ) : '' ) );
 		}
 		$wpdb->update(
 			$table_contacts,
 			array(
-				'owner'      => $manager_name,
-				'meta_data'  => wp_json_encode( $meta ),
-				'updated_at' => current_time( 'mysql' ),
+				'owner_user_id' => $owner_uid,
+				'owner'         => $manager_name,
+				'meta_data'     => wp_json_encode( $meta ),
+				'updated_at'    => current_time( 'mysql' ),
 			),
-			array( 'id' => $lead_id ),
-			array( '%s', '%s' ),
-			array( '%d' )
+			array( 'id' => $lead_id )
 		);
 		TC_Agents_Logger::log( 'mobile_lead_assigned', 'info', array( 'lead_id' => $lead_id, 'manager' => $manager_name, 'previous' => $previous ), '', 'admin' );
 
@@ -1471,7 +1526,10 @@ class TC_Agents_Mobile_API {
 			return new WP_REST_Response( array( 'ok' => false, 'error' => 'driver_name and vehicle_number are required. Nothing was sent.' ), 400 );
 		}
 
-		$support  = preg_replace( '/[^0-9+]/', '', (string) get_option( 'tc_agents_human_whatsapp_number', '' ) );
+		$support  = preg_replace( '/[^0-9+]/', '', (string) get_option( 'tc_agents_human_whatsapp_number', '+919336116210' ) );
+		if ( empty( $support ) ) {
+			$support = '+919336116210';
+		}
 		$vehicle  = trim( $cab_type . ' (' . $cab_no . ')' );
 		$sms_text = "Namaste {$name} ji! Your TripCosmos cab is dispatched: {$vehicle}, Driver: {$driver}. For support call {$support}.";
 
@@ -1633,6 +1691,38 @@ class TC_Agents_Mobile_API {
 				'voice'
 			);
 		}
+
+		// 4. Save Call Record to Activities Table for CRM Timeline & App Call History
+		$contact_id = 0;
+		if ( ! empty( $phone ) ) {
+			$clean_p = preg_replace( '/\D/', '', $phone );
+			if ( strlen( $clean_p ) >= 10 ) {
+				$last10 = substr( $clean_p, -10 );
+				$contact_id = (int) $wpdb->get_var( $wpdb->prepare( "SELECT id FROM {$wpdb->prefix}tc_agent_contacts WHERE phone LIKE %s ORDER BY id DESC LIMIT 1", '%' . $wpdb->esc_like( $last10 ) ) );
+			}
+		}
+		$agent_caller = (string) $request->get_param( '_tc_agent' );
+		if ( empty( $agent_caller ) || 'master' === $agent_caller || 'admin' === $agent_caller ) {
+			$agent_caller = 'Nishkarsh';
+		}
+		$wpdb->insert(
+			$wpdb->prefix . 'tc_agent_activities',
+			array(
+				'contact_id' => $contact_id,
+				'type'       => 'call',
+				'content'    => ! empty( $notes ) ? $notes : sprintf( 'Call %s (%ds)', $status, $duration ),
+				'meta'       => wp_json_encode( array(
+					'call_id'  => $call_id,
+					'phone'    => $phone,
+					'status'   => $status,
+					'duration' => $duration,
+					'type'     => 'outbound',
+					'agent'    => $agent_caller,
+					'sim_card' => 'Jio 5G (+91 93361 16210)',
+				) ),
+				'created_at' => current_time( 'mysql' ),
+			)
+		);
 
 		return new WP_REST_Response(
 			array(
@@ -1937,9 +2027,38 @@ class TC_Agents_Mobile_API {
 		}
 
 		if ( ! empty( $owner ) ) {
-			$db_updates['owner']      = $owner;
-			$meta['assigned_manager'] = $owner;
-			TC_Contact_Service::add_activity( $lead_id, 'assignment', sprintf( __( 'Lead assigned to %s', 'tripcosmos-agents' ), $owner ) );
+			$lower_o           = strtolower( trim( $owner ) );
+			$target_owner_name = $owner;
+			$owner_uid         = 0;
+
+			if ( strpos( $lower_o, 'nishkarsh' ) !== false ) {
+				$owner_uid         = 73657;
+				$target_owner_name = ( strpos( $lower_o, 'ai' ) !== false ) ? 'Nishkarsh AI' : 'Nishkarsh';
+			} elseif ( strpos( $lower_o, 'aditi' ) !== false || strpos( $lower_o, 'adity' ) !== false ) {
+				$owner_uid         = 75870;
+				$target_owner_name = ( strpos( $lower_o, 'ai' ) !== false ) ? 'Aditi AI' : 'Aditi';
+			} else {
+				if ( class_exists( 'TC_CRM_Access' ) ) {
+					foreach ( TC_CRM_Access::team() as $u ) {
+						if ( (int) $owner === (int) $u->ID || 0 === strcasecmp( $u->display_name, $owner ) || 0 === strcasecmp( $u->user_login, $owner ) || 0 === strcasecmp( $u->user_email, $owner ) || stripos( $u->display_name, $owner ) !== false || stripos( $owner, $u->display_name ) !== false ) {
+							$owner_uid         = (int) $u->ID;
+							$target_owner_name = $u->display_name;
+							break;
+						}
+					}
+				}
+			}
+
+			if ( $owner_uid ) {
+				TC_Contact_Service::set_owner( $lead_id, $owner_uid, true, $target_owner_name );
+				$db_updates['owner_user_id'] = $owner_uid;
+				$db_updates['owner']         = $target_owner_name;
+				$meta['assigned_manager']    = $target_owner_name;
+			} else {
+				$db_updates['owner']      = $owner;
+				$meta['assigned_manager'] = $owner;
+				TC_Contact_Service::add_activity( $lead_id, 'assignment', sprintf( __( 'Lead assigned to %s', 'tripcosmos-agents' ), $owner ) );
+			}
 		}
 
 		if ( '' !== $follow_up ) {
@@ -3191,15 +3310,17 @@ class TC_Agents_Mobile_API {
 		$user_phone   = $user_id ? (string) get_user_meta( $user_id, 'tc_crm_whatsapp', true ) : '';
 		$user_role    = $user && ! empty( $user->roles ) ? $user->roles[0] : 'tc_sales_agent';
 
-		// Paired AI Sales Agent details (Aditi AI by default)
+		// Paired AI Sales Agent details (Nishkarsh AI for Team Nishkarsh, Aditi AI for Team Aditi)
 		$paired_ai_name = $user_id ? (string) get_user_meta( $user_id, 'tc_paired_ai_name', true ) : '';
-		if ( empty( $paired_ai_name ) ) {
-			$paired_ai_name = 'Aditi AI';
-		}
-
 		$paired_ai_role = $user_id ? (string) get_user_meta( $user_id, 'tc_paired_ai_role', true ) : '';
-		if ( empty( $paired_ai_role ) ) {
-			$paired_ai_role = 'Senior Sales AI Co-Pilot & Closer';
+		if ( empty( $paired_ai_name ) ) {
+			if ( $user && ( stripos( $user->display_name, 'nishkarsh' ) !== false || stripos( $user->user_email, 'nishkarsh' ) !== false || 73657 === $user_id ) ) {
+				$paired_ai_name = 'Nishkarsh AI';
+				$paired_ai_role = 'Team Nishkarsh Operations & Lead Co-Pilot (Default Auto-Assign)';
+			} else {
+				$paired_ai_name = 'Aditi AI';
+				$paired_ai_role = 'Team Aditi Sales & Pilgrimage AI Specialist';
+			}
 		}
 
 		$paired_ai_avatar = 'https://tripcosmos.co/wp-content/plugins/tripcosmos-agents/assets/images/aditi-ai.png';

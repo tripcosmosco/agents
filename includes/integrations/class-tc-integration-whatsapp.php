@@ -174,6 +174,14 @@ class TC_Integration_WhatsApp {
 			return new WP_REST_Response( array( 'status' => 'stored_for_agent', 'media' => $media ), 200 );
 		}
 
+		// Real-time Optimization: Mark read & trigger typing presence simulation while AI processes
+		if ( class_exists( 'TC_Integration_Evolution' ) ) {
+			if ( ! empty( $external_id ) ) {
+				TC_Integration_Evolution::mark_read( $sender_phone, $external_id );
+			}
+			TC_Integration_Evolution::send_presence( $sender_phone, 'composing', 1800 );
+		}
+
 		// Pass to Agent Orchestrator
 		$result = TC_Agent_Orchestrator::handle_message(
 			$message_text,
@@ -199,7 +207,7 @@ class TC_Integration_WhatsApp {
 
 		$reply_text = $result['reply'] ?? '';
 		if ( ! empty( $reply_text ) ) {
-			$sent_id = self::send_message_ex( $sender_phone, $reply_text );
+			$sent_id = self::send_message_ex( $sender_phone, $reply_text, 'inbound_reply' );
 			if ( $conversation && is_string( $sent_id ) ) {
 				TC_WhatsApp_Hub::tag_latest( (int) $conversation['id'], 'assistant', $sent_id, 'sent' );
 			}
@@ -213,18 +221,19 @@ class TC_Integration_WhatsApp {
 	 *
 	 * @param string $recipient_phone E.164 or digits.
 	 * @param string $message
+	 * @param string $context 'conversational' | 'inbound_reply' | 'staff_relay' | 'staff_alert' | 'broadcast'
 	 * @return bool
 	 */
-	public static function send_message( $recipient_phone, $message ) {
-		return false !== self::send_message_ex( $recipient_phone, $message );
+	public static function send_message( $recipient_phone, $message, $context = 'conversational' ) {
+		return false !== self::send_message_ex( $recipient_phone, $message, $context );
 	}
 
 	/**
 	 * Like send_message(), but returns WhatsApp's message id ('' when the gateway gives none) or false on failure.
 	 */
-	public static function send_message_ex( $recipient_phone, $message ) {
+	public static function send_message_ex( $recipient_phone, $message, $context = 'conversational' ) {
 		// Guardrails check before any outbound message
-		$guard = TC_Agents_Guardrails::check_permission( 'whatsapp', $recipient_phone );
+		$guard = TC_Agents_Guardrails::check_permission( 'whatsapp', $recipient_phone, $context );
 		if ( is_wp_error( $guard ) ) {
 			TC_Agents_Logger::log( 'whatsapp_outbound_blocked', 'warning', array( 'reason' => $guard->get_error_message() ), '', 'whatsapp' );
 			return false;
@@ -232,7 +241,7 @@ class TC_Integration_WhatsApp {
 
 		// Evolution API mode (preferred for new setups).
 		if ( 'evolution' === get_option( 'tc_agents_whatsapp_mode', 'legacy' ) && class_exists( 'TC_Integration_Evolution' ) ) {
-			$res = TC_Integration_Evolution::send_message( $recipient_phone, $message );
+			$res = TC_Integration_Evolution::send_message( $recipient_phone, $message, $context );
 			if ( is_wp_error( $res ) ) {
 				TC_Agents_Logger::log( 'whatsapp_send_error', 'error', array( 'error' => $res->get_error_message(), 'mode' => 'evolution' ), '', 'whatsapp' );
 				return false;

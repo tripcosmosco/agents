@@ -48,6 +48,9 @@ class TC_Agents_Public {
 		);
 
 		$clean_wa = preg_replace( '/[^0-9]/', '', get_option( 'tc_agents_human_whatsapp_number', '' ) );
+		if ( empty( $clean_wa ) ) {
+			$clean_wa = '919336116210';
+		}
 
 		$wa_attr_file = TC_AGENTS_PATH . 'public/js/tc-wa-attribution.js';
 		$wa_attr_ver  = file_exists( $wa_attr_file ) ? TC_AGENTS_VERSION . '.' . filemtime( $wa_attr_file ) : TC_AGENTS_VERSION;
@@ -124,6 +127,9 @@ class TC_Agents_Public {
 		$primary_color = get_option( 'tc_agents_widget_primary_color', '#ea580c' );
 		$second_color  = get_option( 'tc_agents_widget_secondary_color', '#9333ea' );
 		$wa_num        = preg_replace( '/[^0-9]/', '', get_option( 'tc_agents_human_whatsapp_number', '' ) );
+		if ( empty( $wa_num ) ) {
+			$wa_num = '919336116210';
+		}
 		$clean_phone   = '+' . $wa_num;
 		$direct_wa     = "https://wa.me/{$wa_num}?text=" . rawurlencode( 'Hi TripCosmos, I am browsing your site and would like help planning a Varanasi tour or outstation cab.' );
 
@@ -366,6 +372,18 @@ class TC_Agents_Public {
 
 				<!-- Footer: Chat Input + Bottom Nav + Branding -->
 				<div class="tc-widget-footer">
+					<!-- In-Widget WhatsApp Direct Handoff Strip -->
+					<div class="tc-widget-wa-bar" id="tc-widget-wa-bar">
+						<a href="<?php echo esc_url( $direct_wa ); ?>" target="_blank" rel="noopener" class="tc-wa-bar-link" id="tc-wa-bar-link">
+							<span class="tc-wa-bar-icon">
+								<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+									<path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.582 2.128 2.182-.573c.978.58 1.911.928 3.145.929 3.178 0 5.767-2.587 5.768-5.766 0-3.187-2.59-5.771-5.764-5.771zm3.392 8.244c-.144.405-.837.774-1.17.824-.312.045-.694.072-2.18-.545-1.898-.787-3.13-2.73-3.224-2.855-.094-.127-.775-1.03-.775-1.965 0-.934.489-1.393.663-1.583.175-.19.38-.238.508-.238.127 0 .254.002.365.008.117.006.273-.044.428.328.16.383.548 1.339.596 1.436.048.098.08.212.015.339-.064.127-.095.207-.19.317-.095.111-.2.248-.286.333-.095.096-.195.2-.084.391.111.19.493.813 1.056 1.314.726.645 1.338.845 1.53.94.19.096.302.08.413-.048.111-.127.476-.556.603-.746.127-.19.254-.159.429-.095.174.064 1.111.524 1.302.619.19.096.317.143.365.223.048.079.048.461-.096.866z"/>
+								</svg>
+							</span>
+							<span class="tc-wa-bar-text">Prefer WhatsApp? <strong>Chat on WhatsApp &rarr;</strong></span>
+							<span class="tc-wa-badge-live">Instant</span>
+						</a>
+					</div>
 					<!-- Input Bar (Only active on chat tab) -->
 					<div id="tc-widget-input-area" class="tc-widget-input-area">
 						<form id="tc-widget-form" autocomplete="off">

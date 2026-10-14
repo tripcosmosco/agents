@@ -70,6 +70,65 @@
 			sessionStorage.setItem('tc_agent_session_id', sessionId);
 		}
 
+		// 1c. Compliant Web-to-WhatsApp Attribution & Session Bridging
+		function getTcRef() {
+			let ref = sessionStorage.getItem('tc_wa_ref');
+			if (!ref) {
+				const ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+				let code = 'TC-';
+				const bytes = new Uint8Array(5);
+				(window.crypto || window.msCrypto).getRandomValues(bytes);
+				for (let i = 0; i < 5; i++) {
+					code += ALPHABET.charAt(bytes[i] % ALPHABET.length);
+				}
+				ref = code;
+				try { sessionStorage.setItem('tc_wa_ref', ref); } catch (e) {}
+			}
+			return ref;
+		}
+
+		function recordWaClick(ref, context) {
+			const clickUrl = (typeof tcChatWidget !== 'undefined' && tcChatWidget.leadCaptureUrl) ? tcChatWidget.leadCaptureUrl.replace('lead-capture', 'wa-click') : '/wp-json/tc-agents/v1/wa-click';
+			try {
+				fetch(clickUrl, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({
+						ref: ref,
+						session_id: sessionId,
+						page_url: window.location.href,
+						referrer: document.referrer || '',
+						context: context || 'widget_chat'
+					}),
+					keepalive: true
+				});
+			} catch (e) {}
+		}
+
+		// Update dynamic WhatsApp bar link with verified TC-XXXXX attribution
+		const waBarLink = document.getElementById('tc-wa-bar-link');
+		if (waBarLink) {
+			const waNum = (typeof tcChatWidget !== 'undefined' && tcChatWidget.whatsappNumber) ? tcChatWidget.whatsappNumber : '919336116210';
+			const ref = getTcRef();
+			const pageTitle = document.title ? document.title.split('-')[0].trim() : 'Trip';
+			const waText = encodeURIComponent('Hi TripCosmos (Ref ' + ref + '), I am browsing ' + pageTitle + ' and would like itinerary and quote details.');
+			waBarLink.href = 'https://wa.me/' + waNum + '?text=' + waText;
+			waBarLink.addEventListener('click', function() {
+				recordWaClick(ref, 'sticky_bar_click');
+			});
+		}
+
+		// Auto-populate quote panel inputs if user is logged in
+		if (typeof tcChatWidget !== 'undefined' && tcChatWidget.currentUser) {
+			const cu = tcChatWidget.currentUser;
+			const qName = document.getElementById('tc-q-name');
+			const qEmail = document.getElementById('tc-q-email');
+			const qPhone = document.getElementById('tc-q-phone');
+			if (qName && cu.name) qName.value = cu.name;
+			if (qEmail && cu.email) qEmail.value = cu.email;
+			if (qPhone && cu.phone) qPhone.value = cu.phone;
+		}
+
 		// 1b. Multilingual Pilgrim Language Management
 		const langPills = document.querySelectorAll('#tc-agent-widget-root .tc-lang-pill');
 		let currentLang = sessionStorage.getItem('tc_chat_lang') || 'en';
@@ -157,7 +216,11 @@
 					const trackUrl = (tcChatWidget.siteUrl ? tcChatWidget.siteUrl.replace(/\/$/, '') : '') + '/wp-json/tc-agents/v1/track-visitor';
 					fetch(trackUrl, {
 						method: 'POST',
-						headers: { 'Content-Type': 'application/json' },
+						credentials: 'same-origin',
+						headers: {
+							'Content-Type': 'application/json',
+							'X-WP-Nonce': (typeof tcChatWidget !== 'undefined' && tcChatWidget.nonce) ? tcChatWidget.nonce : ''
+						},
 						body: JSON.stringify({
 							action: eventName === 'tc_agent_chat_opened' ? 'chat_opened' : (eventName === 'tc_agent_heartbeat' ? 'heartbeat' : 'landed'),
 							page_url: window.location.href,
@@ -165,7 +228,8 @@
 							session_id: sessionId,
 							referrer: document.referrer || attr.referrer || '',
 							utm_source: attr.utm_source || '',
-							language: currentLang || 'en'
+							language: currentLang || 'en',
+							currentUser: (typeof tcChatWidget !== 'undefined' && tcChatWidget.currentUser) ? tcChatWidget.currentUser : null
 						})
 					}).catch(function() {});
 				} catch (e) {}
@@ -199,6 +263,16 @@
 			chatWindow.style.setProperty('display', isOpen ? 'flex' : 'none', 'important');
 			triggerBtn.classList.toggle('active', isOpen);
 			if (widgetRoot) widgetRoot.classList.toggle('tc-window-open', isOpen);
+			document.body.classList.toggle('tc-chat-open', isOpen);
+			const mobileSticky = document.getElementById('tc-mobile-sticky-bar');
+			if (mobileSticky) {
+				mobileSticky.classList.toggle('tc-hidden', isOpen);
+				if (isOpen) {
+					mobileSticky.style.setProperty('display', 'none', 'important');
+				} else {
+					mobileSticky.style.removeProperty('display');
+				}
+			}
 
 			const chatIcon = triggerBtn.querySelector('.tc-fab-icon-chat');
 			const closeIcon = triggerBtn.querySelector('.tc-fab-icon-close');
@@ -346,11 +420,18 @@
 				}
 			}, { passive: true });
 
-			// Desktop Exit-Intent Trigger: captures abandoning visitors before tab close
+			// Desktop Exit-Intent Trigger: captures abandoning visitors before tab close (with 24h cooldown)
 			document.addEventListener('mouseleave', function onMouseLeave(e) {
-				if (e.clientY <= 15 && !isOpen && !sessionStorage.getItem('tc_exit_intent_fired')) {
-					sessionStorage.setItem('tc_exit_intent_fired', '1');
-					sessionStorage.removeItem('tc_teaser_dismissed'); // Ensure exit intent can show even if earlier teaser was closed
+				let lastExit = 0;
+				try { lastExit = parseInt(localStorage.getItem('tc_exit_intent_ts') || '0', 10); } catch (err) {}
+				const now = Date.now();
+				const cooldown = 24 * 60 * 60 * 1000; // 24 hours
+
+				if (e.clientY <= 15 && !isOpen && (now - lastExit > cooldown) && !sessionStorage.getItem('tc_exit_intent_fired')) {
+					try {
+						localStorage.setItem('tc_exit_intent_ts', now.toString());
+						sessionStorage.setItem('tc_exit_intent_fired', '1');
+					} catch (err) {}
 					teaserShown = false;
 					const teaserBody = document.getElementById('tc-teaser-body');
 					if (teaserBody) {
@@ -615,7 +696,11 @@
 
 			fetch(tcChatWidget.restUrl, {
 				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
+				credentials: 'same-origin',
+				headers: {
+					'Content-Type': 'application/json',
+					'X-WP-Nonce': (typeof tcChatWidget !== 'undefined' && tcChatWidget.nonce) ? tcChatWidget.nonce : ''
+				},
 				body: JSON.stringify({
 					message: queryText,
 					session_id: sessionId,
@@ -624,7 +709,8 @@
 					stream: false,
 					page_url: window.location.href,
 					page_title: document.title,
-					language: currentLang
+					language: currentLang,
+					currentUser: (typeof tcChatWidget !== 'undefined' && tcChatWidget.currentUser) ? tcChatWidget.currentUser : null
 				})
 			})
 			.then(function(res) { return res.json(); })
@@ -1015,9 +1101,11 @@
 			// Fetch with Streaming & Context Awareness
 			fetch(tcChatWidget.restUrl, {
 				method: 'POST',
+				credentials: 'same-origin',
 				headers: {
 					'Content-Type': 'application/json',
-					'Accept': 'text/event-stream, application/json'
+					'Accept': 'text/event-stream, application/json',
+					'X-WP-Nonce': (window.tcChatWidget && tcChatWidget.nonce) ? tcChatWidget.nonce : ''
 				},
 				body: JSON.stringify({
 					message: text,
@@ -1027,7 +1115,8 @@
 					stream: true,
 					page_url: window.location.href,
 					page_title: document.title,
-					language: currentLang
+					language: currentLang,
+					currentUser: (window.tcChatWidget && tcChatWidget.currentUser) ? tcChatWidget.currentUser : null
 				})
 			})
 			.then(function(response) {
@@ -1258,7 +1347,7 @@
 				card.className = 'tc-trip-card';
 
 				const thumb = trip.thumbnail || 'https://images.unsplash.com/photo-1561361513-2d000a50f0dc?w=600&q=80';
-				const waNumber = tcChatWidget.whatsappNumber || '919876543210';
+				const waNumber = (typeof tcChatWidget !== 'undefined' && tcChatWidget.whatsappNumber) ? tcChatWidget.whatsappNumber : '919336116210';
 				const waUrl = 'https://wa.me/' + waNumber + '?text=' + encodeURIComponent('Hi TripCosmos! I am inquiring about the ' + trip.title + ' (' + (trip.price || 'package') + '). Could you share upcoming dates?');
 
 				card.innerHTML =
@@ -1284,7 +1373,8 @@
 		}
 
 		function renderHandoffCta(customUrl) {
-			const url = customUrl || ('https://wa.me/' + tcChatWidget.whatsappNumber + '?text=' + encodeURIComponent('Hi TripCosmos Team, I am looking for a custom Varanasi/Ayodhya tour package and cab quotation.'));
+			const waNum = (typeof tcChatWidget !== 'undefined' && tcChatWidget.whatsappNumber) ? tcChatWidget.whatsappNumber : '919336116210';
+			const url = customUrl || ('https://wa.me/' + waNum + '?text=' + encodeURIComponent('Hi TripCosmos Team, I am looking for a custom Varanasi/Ayodhya tour package and cab quotation.'));
 			const cta = document.createElement('div');
 			cta.className = 'tc-handoff-cta';
 			cta.innerHTML = '<p style="margin:0 0 6px 0; font-size:12px; color:#065f46; font-weight:600;">Want to connect with our Varanasi travel desk directly?</p>' +
@@ -1307,7 +1397,7 @@
 			const card = document.createElement('div');
 			card.className = 'tc-cab-fare-card';
 
-			const waNumber = tcChatWidget.whatsappNumber || '919876543210';
+			const waNumber = (typeof tcChatWidget !== 'undefined' && tcChatWidget.whatsappNumber) ? tcChatWidget.whatsappNumber : '919336116210';
 			const waMsg = 'Namaste TripCosmos! I would like to book a cab for ' + origin + ' to ' + dest + ' (' + vehicleName + ', ' + fare + '). Please confirm availability.';
 			const waUrl = 'https://wa.me/' + waNumber + '?text=' + encodeURIComponent(waMsg);
 
@@ -1339,7 +1429,7 @@
 			const card = document.createElement('div');
 			card.className = 'tc-itinerary-card';
 
-			const waNumber = tcChatWidget.whatsappNumber || '919876543210';
+			const waNumber = (typeof tcChatWidget !== 'undefined' && tcChatWidget.whatsappNumber) ? tcChatWidget.whatsappNumber : '919336116210';
 			const waMsg = 'Namaste TripCosmos! I have reviewed my tour itinerary (' + (data.itinerary_id || '') + ' - ' + (data.summary || '') + '). I would like to proceed with booking.';
 			const waUrl = 'https://wa.me/' + waNumber + '?text=' + encodeURIComponent(waMsg);
 
@@ -1424,6 +1514,21 @@
 
 			// Links: [text](url) - support http, https, relative (/), tel:, and mailto:
 			safe = safe.replace(/\[([^\]]+)\]\(((?:https?:\/\/|\/|tel:|mailto:)[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1 &nearr;</a>');
+
+			// WhatsApp 1-tap action button: [WHATSAPP_ACTION: Button Label] or [WHATSAPP: Button Label]
+			safe = safe.replace(/\[(?:WHATSAPP_ACTION|WHATSAPP):\s*([^\]]+)\]/gi, function(match, label) {
+				const waNum = (typeof tcChatWidget !== 'undefined' && tcChatWidget.whatsappNumber) ? tcChatWidget.whatsappNumber : '919336116210';
+				const ref = typeof getTcRef === 'function' ? getTcRef() : 'Ref: Web';
+				const waText = encodeURIComponent('Hi TripCosmos (Ref ' + ref + '), I would like to get details and quote for: ' + label.trim());
+				const waUrl = 'https://wa.me/' + waNum + '?text=' + waText;
+				return '<div class="tc-wa-action-card">' +
+					'<a href="' + waUrl + '" target="_blank" rel="noopener" class="tc-wa-action-btn" onclick="(typeof recordWaClick===\'function\')&&recordWaClick(\'' + ref + '\',\'in_chat_action\')">' +
+						'<svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.582 2.128 2.182-.573c.978.58 1.911.928 3.145.929 3.178 0 5.767-2.587 5.768-5.766 0-3.187-2.59-5.771-5.764-5.771zm3.392 8.244c-.144.405-.837.774-1.17.824-.312.045-.694.072-2.18-.545-1.898-.787-3.13-2.73-3.224-2.855-.094-.127-.775-1.03-.775-1.965 0-.934.489-1.393.663-1.583.175-.19.38-.238.508-.238.127 0 .254.002.365.008.117.006.273-.044.428.328.16.383.548 1.339.596 1.436.048.098.08.212.015.339-.064.127-.095.207-.19.317-.095.111-.2.248-.286.333-.095.096-.195.2-.084.391.111.19.493.813 1.056 1.314.726.645 1.338.845 1.53.94.19.096.302.08.413-.048.111-.127.476-.556.603-.746.127-.19.254-.159.429-.095.174.064 1.111.524 1.302.619.19.096.317.143.365.223.048.079.048.461-.096.866z"/></svg>' +
+						'<span>' + label.trim() + '</span>' +
+						'<span class="tc-wa-arrow">&rarr;</span>' +
+					'</a>' +
+				'</div>';
+			});
 
 			// Process lists and paragraphs line by line to prevent swallowing paragraphs
 			const lines = safe.split('\n');

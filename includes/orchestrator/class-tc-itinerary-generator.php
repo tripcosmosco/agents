@@ -95,6 +95,9 @@ class TC_Itinerary_Generator {
 		}
 
 		$clean_wa = preg_replace( '/[^0-9]/', '', get_option( 'tc_agents_human_whatsapp_number', '' ) );
+		if ( empty( $clean_wa ) ) {
+			$clean_wa = '919336116210';
+		}
 		$wa_link  = 'https://wa.me/' . $clean_wa . '?text=' . rawurlencode( 'Namaste TripCosmos, I am viewing my itinerary ' . $data['id'] . ' for ' . $data['destination'] . ' and would like to confirm the booking.' );
 
 		header( 'Content-Type: text/html; charset=utf-8' );

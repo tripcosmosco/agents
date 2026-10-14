@@ -98,6 +98,9 @@ class TC_Quote_Page {
 		$open     = TC_Quote_Service::is_open( $q );
 		$nonce    = wp_create_nonce( 'tc_quote_' . $q['id'] );
 		$wa       = preg_replace( '/\D/', '', (string) $s['phone'] );
+		if ( empty( $wa ) ) {
+			$wa = '919336116210';
+		}
 		$title    = $invoice ? ( $is_tax ? __( 'Tax Invoice', 'tripcosmos-agents' ) : __( 'Payment Receipt', 'tripcosmos-agents' ) ) : sprintf( __( 'Quotation %1$s · v%2$d', 'tripcosmos-agents' ), $b['ref'], $q['version'] );
 
 		ob_start();

@@ -751,8 +751,11 @@ class TC_Agent_Tools {
 		$reason  = sanitize_text_field( $args['reason'] ?? 'User requested human specialist' );
 		$contact = sanitize_text_field( $args['user_contact'] ?? '' );
 
-		$wa_number = get_option( 'tc_agents_human_whatsapp_number', '' );
+		$wa_number = get_option( 'tc_agents_human_whatsapp_number', '919336116210' );
 		$clean_num = preg_replace( '/[^0-9]/', '', $wa_number );
+		if ( empty( $clean_num ) ) {
+			$clean_num = '919336116210';
+		}
 
 		$handoff_text = rawurlencode( "Hi TripCosmos Team, I was chatting with your AI assistant on tripcosmos.co and would like to speak directly with an expedition specialist. (Reason: {$reason})" );
 		$wa_link      = "https://wa.me/{$clean_num}?text={$handoff_text}";

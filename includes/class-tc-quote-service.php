@@ -25,7 +25,7 @@ class TC_Quote_Service {
 			array(
 				'business_name'  => get_bloginfo( 'name' ),
 				'address'        => '',
-				'phone'          => (string) get_option( 'tc_agents_human_whatsapp_number', '' ),
+				'phone'          => (string) ( get_option( 'tc_agents_human_whatsapp_number', '919336116210' ) ?: '919336116210' ),
 				'email'          => (string) get_option( 'admin_email' ),
 				'gstin'          => '',
 				'state'          => 'Uttar Pradesh',

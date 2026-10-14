@@ -51,15 +51,43 @@ class TC_CRM_Notify {
 		if ( ! $u ) {
 			return;
 		}
+
+		// Security & Privacy Guard: NEVER send internal CRM staff notifications to customer or subscriber accounts!
+		$roles    = (array) ( $u->roles ?? array() );
+		$is_staff = in_array( 'administrator', $roles, true ) || in_array( 'tc_sales_manager', $roles, true ) || in_array( 'tc_sales_agent', $roles, true );
+		if ( ! $is_staff ) {
+			return;
+		}
+
 		$link = $contact_id ? admin_url( 'admin.php?page=tc-agents-contacts&contact=' . (int) $contact_id ) : admin_url( 'admin.php?page=tc-agents-contacts' );
 		$body = $text . "\n\n" . $link;
 
 		if ( '0' !== (string) get_user_meta( $u->ID, 'tc_crm_alert_email', true ) && is_email( $u->user_email ) ) {
 			wp_mail( $u->user_email, '[TripCosmos] ' . $subject, $body );
 		}
+
 		$wa = preg_replace( '/\D/', '', (string) get_user_meta( $u->ID, 'tc_crm_whatsapp', true ) );
+		// Ensure Nishkarsh receives alerts on his personal operational number (918433284773)
+		if ( empty( $wa ) && ( (int) $u->ID === 73657 || stripos( $u->user_email, 'nishkarsh' ) !== false ) ) {
+			$wa = '918433284773';
+		}
+
 		if ( $wa && ! TC_CRM_Access::is_away( $u->ID ) && class_exists( 'TC_Integration_WhatsApp' ) ) {
-			TC_Integration_WhatsApp::send_message( $wa, "🔔 *{$subject}*\n{$text}\n{$link}" );
+			// Security & Privacy Guard: NEVER send internal staff notifications to the customer's phone!
+			if ( $contact_id ) {
+				$contact = class_exists( 'TC_Contact_Service' ) ? TC_Contact_Service::get( (int) $contact_id ) : null;
+				if ( $contact && ! empty( $contact['phone'] ) ) {
+					$c_digits = preg_replace( '/\D/', '', (string) $contact['phone'] );
+					if ( substr( $c_digits, -10 ) === substr( $wa, -10 ) ) {
+						return;
+					}
+				}
+			}
+
+			// Strictly only send WhatsApp alerts to Nishkarsh (918433284773) or authorized staff members
+			if ( substr( $wa, -10 ) === '8433284773' || in_array( 'administrator', $roles, true ) || in_array( 'tc_sales_manager', $roles, true ) ) {
+				TC_Integration_WhatsApp::send_message_ex( $wa, "🔔 *{$subject}*\n{$text}\n{$link}", 'staff_alert' );
+			}
 		}
 	}
 
@@ -87,7 +115,11 @@ class TC_CRM_Notify {
 		}
 		$c = TC_Contact_Service::get( $contact_id );
 		if ( $c ) {
-			self::send( $user_id, __( 'New lead assigned to you', 'tripcosmos-agents' ), self::contact_line( $c ), $contact_id );
+			$assigned_to = ! empty( $c['owner'] ) ? $c['owner'] : 'you';
+			$title = ( 'Nishkarsh AI' === $assigned_to )
+				? __( 'New lead auto-assigned to Nishkarsh AI', 'tripcosmos-agents' )
+				: sprintf( __( 'New lead assigned to %s', 'tripcosmos-agents' ), $assigned_to );
+			self::send( $user_id, $title, self::contact_line( $c ), $contact_id );
 		}
 	}
 

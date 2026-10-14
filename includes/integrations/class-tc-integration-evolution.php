@@ -60,11 +60,14 @@ class TC_Integration_Evolution {
 	/**
 	 * Send a text message.
 	 *
+	 * @param string $to
+	 * @param string $message
+	 * @param string $context 'conversational' | 'inbound_reply' | 'staff_relay' | 'staff_alert' | 'broadcast'
 	 * @return array|WP_Error { success:true, id:string } — `id` is WhatsApp's message id, used for read receipts and to
 	 *                        recognise our own message when Evolution echoes it back as a fromMe webhook.
 	 */
-	public static function send_message( $to, $message ) {
-		$guard = class_exists( 'TC_Agents_Guardrails' ) ? TC_Agents_Guardrails::check_permission( 'whatsapp', $to ) : true;
+	public static function send_message( $to, $message, $context = 'conversational' ) {
+		$guard = class_exists( 'TC_Agents_Guardrails' ) ? TC_Agents_Guardrails::check_permission( 'whatsapp', $to, $context ) : true;
 		if ( is_wp_error( $guard ) ) { return $guard; }
 		$res = self::request( 'POST', self::instance_path( '/message/sendText' ), array( 'number' => preg_replace( '/[^0-9]/', '', (string) $to ), 'text' => (string) $message ) );
 		if ( is_wp_error( $res ) ) { return $res; }
@@ -78,6 +81,59 @@ class TC_Integration_Evolution {
 		}
 		$err = $res['body']['response']['message'] ?? $res['body']['message'] ?? '';
 		return new WP_Error( 'evolution_send_failed', sprintf( __( 'Evolution HTTP %1$d %2$s', 'tripcosmos-agents' ), $res['code'], is_array( $err ) ? wp_json_encode( $err ) : (string) $err ) );
+	}
+
+	/**
+	 * Simulate real-time human typing or recording presence on WhatsApp.
+	 *
+	 * @param string $to Phone number.
+	 * @param string $presence 'composing' | 'recording' | 'available' | 'paused'.
+	 * @param int $delay Milliseconds to simulate typing.
+	 * @return array|WP_Error
+	 */
+	public static function send_presence( $to, $presence = 'composing', $delay = 1200 ) {
+		$clean = preg_replace( '/[^0-9]/', '', (string) $to );
+		if ( empty( $clean ) ) {
+			return false;
+		}
+		return self::request(
+			'POST',
+			self::instance_path( '/chat/sendPresence' ),
+			array(
+				'number'   => $clean,
+				'presence' => $presence,
+				'delay'    => (int) $delay,
+			),
+			5
+		);
+	}
+
+	/**
+	 * Mark an inbound message as read (blue ticks) on customer's WhatsApp.
+	 *
+	 * @param string $to Phone number.
+	 * @param string $message_id WhatsApp message ID.
+	 * @return array|WP_Error
+	 */
+	public static function mark_read( $to, $message_id ) {
+		$clean = preg_replace( '/[^0-9]/', '', (string) $to );
+		if ( empty( $clean ) || empty( $message_id ) ) {
+			return false;
+		}
+		return self::request(
+			'POST',
+			self::instance_path( '/chat/markMessageAsRead' ),
+			array(
+				'readMessages' => array(
+					array(
+						'id'        => (string) $message_id,
+						'fromMe'    => false,
+						'remoteJid' => $clean . '@s.whatsapp.net',
+					),
+				),
+			),
+			5
+		);
 	}
 
 	/** Messages we sent come back as fromMe webhooks; remembering their ids lets us skip them. */
@@ -110,13 +166,23 @@ class TC_Integration_Evolution {
 			self::create_instance();
 		}
 
-		$res = self::request( 'GET', self::instance_path( '/instance/connect' ), null, 20 );
+		$business_phone = preg_replace( '/[^0-9]/', '', (string) get_option( 'tc_agents_human_whatsapp_number', '919336116210' ) );
+		$connect_path   = self::instance_path( '/instance/connect' );
+		if ( ! empty( $business_phone ) ) {
+			$connect_path .= '?number=' . rawurlencode( $business_phone );
+		}
+
+		$res = self::request( 'GET', $connect_path, null, 20 );
 		if ( is_wp_error( $res ) ) { return $res; }
 
-		// In Evolution v2, QR can be in body.base64, body.qrcode.base64, or body.code
-		$qr = (string) ( $res['body']['base64'] ?? $res['body']['qrcode']['base64'] ?? '' );
-		$pairing = (string) ( $res['body']['pairingCode'] ?? $res['body']['code'] ?? '' );
+		// In Evolution v2, QR is in body.base64 or body.qrcode.base64, pairing code is in body.pairingCode
+		$qr         = (string) ( $res['body']['base64'] ?? $res['body']['qrcode']['base64'] ?? '' );
+		$pairing    = (string) ( $res['body']['pairingCode'] ?? '' );
 		$state_name = (string) ( $res['body']['instance']['state'] ?? $res['body']['state'] ?? '' );
+
+		if ( ! empty( $pairing ) && strlen( $pairing ) === 8 ) {
+			$pairing = substr( $pairing, 0, 4 ) . '-' . substr( $pairing, 4 );
+		}
 
 		if ( ! empty( $qr ) ) {
 			if ( 0 !== strpos( $qr, 'data:image/' ) ) {

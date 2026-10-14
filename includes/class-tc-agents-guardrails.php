@@ -25,9 +25,10 @@ class TC_Agents_Guardrails {
 	 *
 	 * @param string $channel    Channel name: 'web', 'whatsapp', 'voice', 'admin'.
 	 * @param string $identifier IP address, session ID, or phone number.
+	 * @param string $context    Context of message: 'conversational' | 'inbound_reply' | 'staff_relay' | 'staff_alert' | 'broadcast'.
 	 * @return true|WP_Error True if allowed, WP_Error if blocked.
 	 */
-	public static function check_permission( $channel = 'web', $identifier = '' ) {
+	public static function check_permission( $channel = 'web', $identifier = '', $context = 'conversational' ) {
 		// 1. Check Global Kill Switch
 		if ( self::is_kill_switch_active() ) {
 			TC_Agents_Logger::log(
@@ -85,9 +86,10 @@ class TC_Agents_Guardrails {
 			}
 		}
 
-		// 3. Quiet Hours Check for Outbound Channels (WhatsApp & Voice)
-		// Strict TRAI & privacy compliance: No cold/automated outreach between 21:00 (9 PM) and 08:30 (8:30 AM) IST.
-		if ( in_array( $channel, array( 'whatsapp', 'voice' ), true ) ) {
+		// 3. Quiet Hours Check for Automated Cold Outbound / Marketing Broadcasts (WhatsApp & Voice)
+		// Strict TRAI & privacy compliance: No cold/unsolicited broadcast sequences between 21:00 (9 PM) and 08:30 (8:30 AM) IST.
+		// Note: Conversational replies to active inbound customer messages and staff relays are 24/7 responsive.
+		if ( in_array( $channel, array( 'whatsapp', 'voice' ), true ) && 'broadcast' === $context ) {
 			try {
 				$tz = new DateTimeZone( 'Asia/Kolkata' );
 				$now = new DateTime( 'now', $tz );

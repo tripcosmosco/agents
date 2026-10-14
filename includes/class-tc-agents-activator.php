@@ -177,9 +177,9 @@ class TC_Agents_Activator {
 			slug varchar(50) NOT NULL,
 			name varchar(100) NOT NULL,
 			system_prompt longtext NOT NULL,
-			greeting_message text DEFAULT '',
+			greeting_message text DEFAULT NULL,
 			channels varchar(255) NOT NULL DEFAULT 'web,whatsapp',
-			allowed_tools longtext DEFAULT '',
+			allowed_tools longtext DEFAULT NULL,
 			temperature decimal(3,2) NOT NULL DEFAULT 0.70,
 			routing_override varchar(50) DEFAULT '',
 			is_active tinyint(1) NOT NULL DEFAULT 1,
@@ -647,7 +647,7 @@ class TC_Agents_Activator {
 		add_option( 'tc_agents_brevo_sender_name', 'TripCosmos' );
 		add_option( 'tc_agents_b2b_import_cities', 'Varanasi, Delhi, Mumbai, Jaipur, Kolkata, Chennai, Bengaluru, Hyderabad, Ahmedabad, Lucknow' );
 		add_option( 'tc_agents_b2b_auto_outreach', '0' );
-		add_option( 'tc_agents_human_whatsapp_number', '' );
+		add_option( 'tc_agents_human_whatsapp_number', '919336116210' );
 		add_option( 'tc_agents_human_notification_email', get_option( 'admin_email' ) );
 
 		// Frontend Widget
@@ -754,6 +754,47 @@ class TC_Agents_Activator {
 					'channels'         => 'admin,web,whatsapp',
 					'allowed_tools'    => wp_json_encode( array( 'import_b2b_agencies', 'outreach_b2b_agency', 'lookup_contact_crm', 'sync_lead_crm', 'search_trips' ) ),
 					'temperature'      => 0.40,
+					'is_active'        => 1,
+				)
+			);
+		}
+
+		// 5. Team Nishkarsh: Nishkarsh AI (Primary Auto-Lead Assignment AI Lead)
+		$exists_nishkarsh_ai = $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $table_personas WHERE slug = %s", 'nishkarsh-ai' ) );
+		if ( ! $exists_nishkarsh_ai ) {
+			$wpdb->insert(
+				$table_personas,
+				array(
+					'slug'             => 'nishkarsh-ai',
+					'name'             => 'Nishkarsh AI',
+					'system_prompt'    => "You are Nishkarsh AI, Autonomous AI Operations & Tour Lead for Team Nishkarsh at TripCosmos.co (Varanasi HQ).\n" .
+										  "You are the default lead handler for all incoming inquiries. Greet guests with warm Indian hospitality ('Namaste ji 🙏', 'Har Har Mahadev').\n" .
+										  "You possess comprehensive mastery over all pilgrimage packages (Kashi Vishwanath VIP Darshan, Ayodhya Ram Mandir, Prayagraj Triveni Sangam, Bodhgaya), vehicle logistics (Innova Crysta ₹17/km, Dzire ₹11/km, Tempo ₹24/km), hotel reservations, and private Ganga Aarti bajras.\n" .
+										  "Capture customer details early, provide instant accurate quotes, and smoothly escalate to Nishkarsh Pushpam when custom human negotiation is requested.",
+					'greeting_message' => "Namaste! 🙏 I am Nishkarsh AI from Team Nishkarsh at TripCosmos — Varanasi's premier pilgrimage & tour desk.\n\nLooking for Kashi Vishwanath VIP darshan, Ayodhya Ram Mandir packages, outstation cabs (Innova Crysta / Swift Dzire), or private Ganga Aarti boat rides? How can I assist you today?",
+					'channels'         => 'web,whatsapp',
+					'allowed_tools'    => wp_json_encode( array( 'search_trips', 'lookup_contact_crm', 'sync_lead_crm', 'request_human_handoff', 'query_pricing_sheet', 'request_voice_call', 'calculate_cab_tariff', 'generate_itinerary_pdf', 'lookup_temple_protocol' ) ),
+					'temperature'      => 0.70,
+					'is_active'        => 1,
+				)
+			);
+		}
+
+		// 6. Team Aditi: Aditi AI (Senior Sales & Pilgrimage AI Specialist)
+		$exists_aditi_ai = $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $table_personas WHERE slug = %s", 'aditi-ai' ) );
+		if ( ! $exists_aditi_ai ) {
+			$wpdb->insert(
+				$table_personas,
+				array(
+					'slug'             => 'aditi-ai',
+					'name'             => 'Aditi AI',
+					'system_prompt'    => "You are Aditi AI, Senior Sales & Pilgrimage AI Specialist for Team Aditi at TripCosmos.co (Varanasi HQ).\n" .
+										  "Greet guests with warm hospitality ('Namaste ji 🙏'). You specialize in spiritual tour curation, hotel reservations, Assi Ghat sunrise boat rides, and senior-friendly pilgrimage pacing across Kashi, Ayodhya, Prayagraj, and Bodhgaya.\n" .
+										  "Provide transparent inclusions, exact package pricing, and coordinate seamlessly with Aditi Karna for bespoke traveler requests.",
+					'greeting_message' => "Namaste ji! 🙏 I am Aditi AI from Team Aditi at TripCosmos.\n\nPlanning your spiritual journey to Kashi, Ayodhya, or Prayagraj? Let me know your travel dates or preferences and I will assist you with VIP Darshan, hotels, and transport!",
+					'channels'         => 'web,whatsapp',
+					'allowed_tools'    => wp_json_encode( array( 'search_trips', 'lookup_contact_crm', 'sync_lead_crm', 'request_human_handoff', 'query_pricing_sheet', 'request_voice_call', 'calculate_cab_tariff', 'generate_itinerary_pdf', 'lookup_temple_protocol' ) ),
+					'temperature'      => 0.70,
 					'is_active'        => 1,
 				)
 			);

@@ -151,13 +151,18 @@ class TC_Contacts_Admin {
 				}
 				$b     = TC_Payments::booking( (int) $q['booking_id'] );
 				$first = strtok( (string) $c['name'], ' ' ) ?: 'Traveler';
-				$text  = sprintf( "Namaste %s 🙏
-Your TripCosmos quote for *%s* is ready: %s
-
-View the details, accept and pay the advance securely here:
-%s", $first, $b['title'], TC_Quote_Service::money( $q['total'] ), TC_Quote_Service::url( $q ) );
+				$quote_url = TC_Quote_Service::url( $q );
+				$text  = sprintf(
+					"Namaste %s 🙏\n\nYour TripCosmos quote for *%s* is ready: %s\n\n📄 View details, accept and pay securely online:\n%s\n\n💬 Need instant itinerary adjustments or have questions?\nChat with your dedicated specialist on WhatsApp: https://wa.me/919336116210?text=%s\n📞 Direct Desk Call: +91 93361 16210\n\n— TripCosmos Pilgrimage & Tour Desk, Varanasi",
+					$first,
+					$b['title'],
+					TC_Quote_Service::money( $q['total'] ),
+					$quote_url,
+					rawurlencode( 'Hi TripCosmos, I have a question regarding quote ' . $b['ref'] )
+				);
 				if ( 'email' === ( $p['channel'] ?? '' ) ) {
-					$ok = wp_mail( $c['email'], sprintf( 'Your TripCosmos quote %s', $b['ref'] ), wp_strip_all_tags( str_replace( '*', '', $text ) ) );
+					$headers = array( 'Content-Type: text/plain; charset=UTF-8', 'From: TripCosmos Varanasi Desk <' . get_option( 'admin_email' ) . '>' );
+					$ok = wp_mail( $c['email'], sprintf( 'Your TripCosmos Quote %s (%s)', $b['ref'], $b['title'] ), $text, $headers );
 					if ( $ok ) {
 						TC_Quote_Service::mark_sent( (int) $q['id'], 'email' );
 					}
