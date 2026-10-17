@@ -51,19 +51,19 @@ class TC_Agent_Memory {
 
 		$out = "\n--- TRAVELER PERSISTENT MEMORY ---";
 		if ( ! empty( $mem->summary ) ) {
-			$out .= "\nSummary: " . esc_html( $mem->summary );
+			$out .= "\nSummary: " . $mem->summary;
 		}
 		if ( ! empty( $facts ) ) {
-			$out .= "\nKnown Facts: " . esc_html( implode( '; ', $facts ) );
+			$out .= "\nKnown Facts: " . implode( '; ', $facts );
 		}
 		if ( ! empty( $preferences ) ) {
-			$out .= "\nPreferences: " . esc_html( implode( '; ', $preferences ) );
+			$out .= "\nPreferences: " . implode( '; ', $preferences );
 		}
 		if ( ! empty( $objections ) ) {
-			$out .= "\nConcerns/Objections: " . esc_html( implode( '; ', $objections ) );
+			$out .= "\nConcerns/Objections: " . implode( '; ', $objections );
 		}
 		if ( ! empty( $mem->next_best_action ) ) {
-			$out .= "\nNext Best Action: " . esc_html( $mem->next_best_action );
+			$out .= "\nNext Best Action: " . $mem->next_best_action;
 		}
 		$out .= "\n----------------------------------\n";
 

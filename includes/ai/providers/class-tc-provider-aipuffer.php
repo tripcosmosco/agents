@@ -78,6 +78,15 @@ class TC_Provider_AIPuffer implements TC_AI_Provider_Interface {
 		return (string) $bot;
 	}
 
+	public function get_model() {
+		$m = get_option( 'tc_agents_aipuffer_model', '' );
+		if ( ! empty( $m ) ) {
+			return $m;
+		}
+		$aipkit_opts = get_option( 'aipkit_options', array() );
+		return $aipkit_opts['providers']['OpenAI']['model'] ?? 'gpt-4o-mini';
+	}
+
 	/**
 	 * Retrieve cached bots list.
 	 *

@@ -6,7 +6,14 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
  */
 class TC_Integration_Brevo {
 	public static function get_api_key() {
-		return class_exists( 'TC_Agents_Vault' ) ? TC_Agents_Vault::get( 'brevo_api_key', '' ) : get_option( 'tc_agents_brevo_api_key', '' );
+		$key = class_exists( 'TC_Agents_Vault' ) ? TC_Agents_Vault::get( 'brevo_api_key', '' ) : '';
+		if ( empty( $key ) ) {
+			$key = get_option( 'tc_agents_brevo_api_key', '' );
+		}
+		if ( empty( $key ) ) {
+			$key = get_option( 'sib_api_key_v3', '' );
+		}
+		return $key;
 	}
 	public static function is_configured() { return ! empty( self::get_api_key() ); }
 	public static function get_sender() {

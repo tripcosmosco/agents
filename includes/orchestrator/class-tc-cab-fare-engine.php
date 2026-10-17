@@ -46,6 +46,7 @@ class TC_Cab_Fare_Engine {
 			'driver_da'  => 400.00,
 			'local_8h80k'=> 1800.00,
 			'airport_vns'=> 1100.00,
+			'ddu_vns'    => 1200.00,
 		),
 		'ertiga' => array(
 			'name'       => 'Maruti Ertiga / XL6 (Budget MUV)',
@@ -56,6 +57,7 @@ class TC_Cab_Fare_Engine {
 			'driver_da'  => 400.00,
 			'local_8h80k'=> 2400.00,
 			'airport_vns'=> 1500.00,
+			'ddu_vns'    => 1600.00,
 		),
 		'innova' => array(
 			'name'       => 'Toyota Innova Crysta (Luxury SUV)',
@@ -66,6 +68,7 @@ class TC_Cab_Fare_Engine {
 			'driver_da'  => 450.00,
 			'local_8h80k'=> 3000.00,
 			'airport_vns'=> 2000.00,
+			'ddu_vns'    => 2200.00,
 		),
 		'tempo_12' => array(
 			'name'       => 'Force Tempo Traveller (12 Seater)',
@@ -76,6 +79,7 @@ class TC_Cab_Fare_Engine {
 			'driver_da'  => 500.00,
 			'local_8h80k'=> 4500.00,
 			'airport_vns'=> 3000.00,
+			'ddu_vns'    => 3200.00,
 		),
 		'tempo_17' => array(
 			'name'       => 'Force Tempo Traveller (17 Seater / 20 Seater)',
@@ -86,6 +90,7 @@ class TC_Cab_Fare_Engine {
 			'driver_da'  => 600.00,
 			'local_8h80k'=> 5500.00,
 			'airport_vns'=> 3800.00,
+			'ddu_vns'    => 3800.00,
 		),
 		'tempo_26' => array(
 			'name'       => 'Mahindra / Force Luxury Mini-Bus (26 Seater)',
@@ -96,6 +101,7 @@ class TC_Cab_Fare_Engine {
 			'driver_da'  => 700.00,
 			'local_8h80k'=> 7000.00,
 			'airport_vns'=> 5000.00,
+			'ddu_vns'    => 5000.00,
 		),
 	);
 
@@ -139,6 +145,35 @@ class TC_Cab_Fare_Engine {
 				),
 				'inclusions'    => 'Chilled AC, Chauffeur with Name Placard at Arrival Terminal, Flight Monitoring, Tolls & Parking.',
 				'notes'         => 'Doorstep drop to your hotel or ghat in Varanasi.',
+			);
+		}
+
+		// 1b. Check for Mughalsarai / DDU Railway Station transfer
+		if ( false !== strpos( $dest_clean, 'mughalsarai' ) || false !== strpos( $origin_clean, 'mughalsarai' )
+			|| false !== strpos( $dest_clean, 'ddu' ) || false !== strpos( $origin_clean, 'ddu' )
+			|| false !== strpos( $dest_clean, 'deen dayal' ) || false !== strpos( $origin_clean, 'deen dayal' ) ) {
+			$ddu_fare = $fleet_info['ddu_vns'] ?? 1200.00;
+			return array(
+				'origin'            => ! empty( $origin ) ? ucwords( $origin ) : 'Pt. Deen Dayal Upadhyaya Jn (DDU)',
+				'destination'       => ! empty( $destination ) ? ucwords( $destination ) : 'Varanasi Hotel / Ghat',
+				'route'             => 'DDU / Mughalsarai Station Transfer',
+				'vehicle'           => $fleet_info['name'],
+				'vehicle_name'      => $fleet_info['name'],
+				'capacity'          => $fleet_info['capacity'],
+				'total_estimate'    => $ddu_fare,
+				'estimated_fare'    => '₹' . number_format( $ddu_fare ),
+				'total_billable_km' => 20,
+				'days'              => 1,
+				'is_round_trip'     => false,
+				'driver_allowance'  => 'Included',
+				'toll_tax_estimate' => 'Included',
+				'breakdown'         => array(
+					'base_fare'    => $ddu_fare,
+					'driver_da'    => 0,
+					'toll_parking' => 'Included',
+				),
+				'inclusions'        => 'Chilled AC Cab, Uniformed Chauffeur with Name Placard at Station Exit/Platform Gate, Train Delay Tracking, Fuel, Tolls & Parking.',
+				'notes'             => 'Doorstep pickup/drop between Pt. Deen Dayal Upadhyaya (Mughalsarai) and any Varanasi hotel or ghat.',
 			);
 		}
 

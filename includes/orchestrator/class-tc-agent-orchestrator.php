@@ -469,6 +469,14 @@ class TC_Agent_Orchestrator {
 		global $wpdb;
 		$table = $wpdb->prefix . 'tc_agent_messages';
 
+		$ext_id = substr( sanitize_text_field( (string) ( $data['external_id'] ?? '' ) ), 0, 100 );
+		if ( ! empty( $ext_id ) ) {
+			$existing_id = $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $table WHERE external_id = %s LIMIT 1", $ext_id ) );
+			if ( $existing_id ) {
+				return (int) $existing_id;
+			}
+		}
+
 		$wpdb->insert(
 			$table,
 			array(

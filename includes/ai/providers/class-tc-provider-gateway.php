@@ -18,7 +18,7 @@ class TC_Provider_Gateway implements TC_AI_Provider_Interface {
 	}
 	public function get_api_key() {
 		if ( class_exists( 'TC_Agents_Vault' ) ) {
-			foreach ( array( 'gateway_api_key', 'vmstudio_api_key', 'omniroute_api_key', 'aipuffer_api_key' ) as $k ) {
+			foreach ( array( 'gateway_api_key', 'vmstudio_api_key', 'omniroute_api_key' ) as $k ) {
 				$v = TC_Agents_Vault::get( $k, '' );
 				if ( ! empty( $v ) ) { return $v; }
 			}

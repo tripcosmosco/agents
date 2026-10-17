@@ -213,12 +213,30 @@ class TC_Agents_Vault {
 	 * @return string[]
 	 */
 	private static function keys() {
-		$salt = function_exists( 'wp_salt' ) ? wp_salt( 'auth' ) : ( defined( 'AUTH_KEY' ) ? AUTH_KEY : 'tc_agents_vault_salt_fallback' );
 		$keys = array();
 		if ( defined( 'TC_AGENTS_VAULT_KEY' ) && '' !== (string) TC_AGENTS_VAULT_KEY ) {
 			$keys[] = substr( hash( 'sha256', (string) TC_AGENTS_VAULT_KEY ), 0, 32 );
 		}
-		$keys[] = substr( hash( 'sha256', $salt ), 0, 32 );
+		if ( function_exists( 'wp_salt' ) ) {
+			foreach ( array( 'auth', 'secure_auth', 'logged_in', 'nonce' ) as $scheme ) {
+				$s = wp_salt( $scheme );
+				if ( ! empty( $s ) ) {
+					$h = substr( hash( 'sha256', $s ), 0, 32 );
+					if ( ! in_array( $h, $keys, true ) ) {
+						$keys[] = $h;
+					}
+				}
+			}
+		}
+		foreach ( array( 'AUTH_KEY', 'SECURE_AUTH_KEY', 'LOGGED_IN_KEY', 'NONCE_KEY' ) as $const ) {
+			if ( defined( $const ) && '' !== (string) constant( $const ) ) {
+				$h = substr( hash( 'sha256', (string) constant( $const ) ), 0, 32 );
+				if ( ! in_array( $h, $keys, true ) ) {
+					$keys[] = $h;
+				}
+			}
+		}
+		$keys[] = substr( hash( 'sha256', 'tc_agents_vault_salt_fallback' ), 0, 32 );
 		return $keys;
 	}
 
