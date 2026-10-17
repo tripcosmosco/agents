@@ -365,7 +365,8 @@ class TC_Integration_Google_Business {
 				$existing = (int) $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $table WHERE place_id = %s LIMIT 1", $place_id ) );
 			}
 			if ( ! $existing && ! empty( $phone_norm ) && strlen( preg_replace( '/\D/', '', $phone_norm ) ) >= 10 ) {
-				$existing = (int) $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $table WHERE phone = %s LIMIT 1", $phone_norm ) );
+				$digits10 = substr( preg_replace( '/\D/', '', $phone_norm ), -10 );
+				$existing = (int) $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $table WHERE phone = %s OR phone LIKE %s LIMIT 1", $phone_norm, '%' . $wpdb->esc_like( $digits10 ) ) );
 			}
 			if ( ! $existing ) {
 				$existing = (int) $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $table WHERE name = %s AND city = %s LIMIT 1", $name, $target_city ) );

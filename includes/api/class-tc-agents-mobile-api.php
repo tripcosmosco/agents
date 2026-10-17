@@ -2722,13 +2722,12 @@ class TC_Agents_Mobile_API {
 			return new WP_REST_Response( array( 'success' => false, 'error' => 'Agency not found' ), 404 );
 		}
 
-		$phone = preg_replace( '/[^0-9]/', '', $agency['phone'] );
+		$phone = class_exists( 'TC_Integration_Google_Business' )
+			? TC_Integration_Google_Business::normalize_phone( $agency['phone'] )
+			: ( class_exists( 'TC_Contact_Service' ) ? TC_Contact_Service::normalize_phone( $agency['phone'] ) : $agency['phone'] );
+
 		if ( empty( $phone ) ) {
 			return new WP_REST_Response( array( 'success' => false, 'error' => 'Agency phone number missing' ), 400 );
-		}
-
-		if ( strlen( $phone ) === 10 ) {
-			$phone = '91' . $phone;
 		}
 
 		$pitch_text = ! empty( $custom_message ) ? $custom_message : sprintf(
@@ -2738,14 +2737,14 @@ class TC_Agents_Mobile_API {
 
 		$sent = false;
 		if ( class_exists( 'TC_Integration_Evolution' ) && TC_Integration_Evolution::is_configured() ) {
-			$res = TC_Integration_Evolution::send_message( $phone, $pitch_text );
+			$res = TC_Integration_Evolution::send_message( $phone, $pitch_text, 'broadcast' );
 			$sent = ! is_wp_error( $res );
 		} elseif ( class_exists( 'TC_Integration_WhatsApp' ) && TC_Integration_WhatsApp::is_configured() ) {
-			$sent = TC_Integration_WhatsApp::send_message( $phone, $pitch_text );
+			$sent = TC_Integration_WhatsApp::send_message( $phone, $pitch_text, 'broadcast' );
 		}
 
 		if ( $sent ) {
-			$wpdb->update( $table, array( 'status' => 'contacted', 'updated_at' => current_time( 'mysql' ) ), array( 'id' => $agency_id ) );
+			$wpdb->update( $table, array( 'status' => 'contacted', 'last_outreach_at' => current_time( 'mysql' ), 'updated_at' => current_time( 'mysql' ) ), array( 'id' => $agency_id ) );
 		}
 
 		return new WP_REST_Response(

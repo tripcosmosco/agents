@@ -268,7 +268,7 @@ class TC_Agents_Queue {
 					global $wpdb;
 					$table = $wpdb->prefix . 'tc_agent_agencies';
 					$limit = min( 25, max( 1, (int) ( $payload['limit'] ?? 10 ) ) );
-					$rows = $wpdb->get_results( $wpdb->prepare( "SELECT id FROM $table WHERE status = 'new' ORDER BY rating DESC, id ASC LIMIT %d", $limit ), ARRAY_A );
+					$rows  = $wpdb->get_results( $wpdb->prepare( "SELECT id FROM $table WHERE status IN ('new', 'in_crm') AND (last_outreach_at IS NULL OR last_outreach_at = '0000-00-00 00:00:00') ORDER BY rating DESC, id ASC LIMIT %d", $limit ), ARRAY_A );
 					foreach ( (array) $rows as $r ) {
 						TC_Agent_Tools::execute( 'outreach_b2b_agency', array( 'agency_id' => (int) $r['id'], 'channel' => 'both' ) );
 					}

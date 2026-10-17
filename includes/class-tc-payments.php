@@ -171,8 +171,9 @@ class TC_Payments {
 			return $open;
 		}
 
-		$contact = TC_Contact_Service::get( (int) $booking['contact_id'] );
-		$phone10 = substr( preg_replace( '/\D/', '', (string) ( $contact['phone_e164'] ?? '' ) ), -10 );
+		$contact   = TC_Contact_Service::get( (int) $booking['contact_id'] );
+		$raw_phone = ! empty( $contact['phone_e164'] ) ? $contact['phone_e164'] : ( $contact['phone'] ?? '' );
+		$phone10   = substr( preg_replace( '/\D/', '', (string) $raw_phone ), -10 );
 		if ( 10 !== strlen( $phone10 ) ) {
 			return new WP_Error( 'no_phone', __( 'Cashfree needs a valid 10-digit mobile number on the contact.', 'tripcosmos-agents' ) );
 		}
@@ -408,7 +409,8 @@ class TC_Payments {
 
 		// Transactional receipt to the traveler (allowed even when marketing is opted out, but not for do-not-contact).
 		$q = $p['quote_id'] ? TC_Quote_Service::get( (int) $p['quote_id'] ) : TC_Quote_Service::current_for_booking( (int) $p['booking_id'] );
-		if ( $contact && empty( $contact['dnd'] ) && $contact['phone_e164'] && class_exists( 'TC_Integration_WhatsApp' ) && '0' !== (string) ( TC_Quote_Service::settings()['receipt_whatsapp'] ?? '1' ) ) {
+		$receipt_phone = ! empty( $contact['phone_e164'] ) ? $contact['phone_e164'] : ( $contact['phone'] ?? '' );
+		if ( $contact && empty( $contact['dnd'] ) && ! empty( $receipt_phone ) && class_exists( 'TC_Integration_WhatsApp' ) && '0' !== (string) ( TC_Quote_Service::settings()['receipt_whatsapp'] ?? '1' ) ) {
 			$msg = sprintf(
 				"Namaste %s 🙏\nWe have received %s for your TripCosmos booking %s. Thank you!\nPaid: %s · Balance: %s%s",
 				strtok( (string) $contact['name'], ' ' ) ?: 'Traveler',
@@ -418,7 +420,7 @@ class TC_Payments {
 				TC_Quote_Service::money( $amt['balance'] ),
 				$q ? "\nReceipt: " . TC_Quote_Service::url( $q, true ) : ''
 			);
-			TC_Integration_WhatsApp::send_message( ltrim( $contact['phone_e164'], '+' ), $msg );
+			TC_Integration_WhatsApp::send_message( ltrim( $receipt_phone, '+' ), $msg );
 		}
 		do_action( 'tc_agents_payment_received', $p, $b );
 	}

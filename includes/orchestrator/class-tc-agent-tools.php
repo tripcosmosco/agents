@@ -917,12 +917,16 @@ class TC_Agent_Tools {
 		$channel = sanitize_key( $args['channel'] ?? 'both' );
 		$results = array();
 		$msg = sprintf( 'Namaste %s team! TripCosmos (Varanasi) — B2B Kashi-Ayodhya-Prayagraj packages, cabs & Ganga Aarti boats at net rates. Shall we share commission slabs?', $agency['name'] );
-		if ( in_array( $channel, array( 'whatsapp', 'both' ), true ) && ! empty( $agency['phone'] ) ) {
+		$target_phone = class_exists( 'TC_Integration_Google_Business' )
+			? TC_Integration_Google_Business::normalize_phone( $agency['phone'] )
+			: ( class_exists( 'TC_Contact_Service' ) ? TC_Contact_Service::normalize_phone( $agency['phone'] ) : $agency['phone'] );
+
+		if ( in_array( $channel, array( 'whatsapp', 'both' ), true ) && ! empty( $target_phone ) ) {
 			if ( class_exists( 'TC_Integration_Evolution' ) && TC_Integration_Evolution::is_configured() ) {
-				$r = TC_Integration_Evolution::send_message( $agency['phone'], $msg );
+				$r = TC_Integration_Evolution::send_message( $target_phone, $msg, 'broadcast' );
 				$results['whatsapp'] = ! is_wp_error( $r );
 			} elseif ( class_exists( 'TC_Integration_WhatsApp' ) ) {
-				$results['whatsapp'] = (bool) TC_Integration_WhatsApp::send_message( $agency['phone'], $msg );
+				$results['whatsapp'] = (bool) TC_Integration_WhatsApp::send_message( $target_phone, $msg, 'broadcast' );
 			}
 		}
 		if ( in_array( $channel, array( 'email', 'both' ), true ) && ! empty( $agency['email'] ) && class_exists( 'TC_Integration_Brevo' ) ) {
