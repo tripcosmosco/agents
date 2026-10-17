@@ -61,6 +61,8 @@ class TC_Agents_Mobile_CRM_API {
 			array( '/mobile/dispatch-driver', 'POST', 'dispatch_driver' ),
 			array( '/mobile/caller-lookup', 'GET', 'caller_lookup' ),
 			array( '/mobile/caller-lookup', 'POST', 'caller_lookup' ),
+			array( '/mobile/caller-id', 'GET', 'caller_lookup' ),
+			array( '/mobile/caller-id', 'POST', 'caller_lookup' ),
 			array( '/mobile/voice-note-summary', 'POST', 'voice_note_summary' ),
 			array( '/mobile/payments/generate-link', 'POST', 'payment_generate_link' ),
 			array( '/mobile/conversations/' . $id, 'GET', 'conversation' ),

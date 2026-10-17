@@ -617,19 +617,23 @@ class TC_Agents_Mobile_API {
 		// Instead, dispatch an instant staff notification strictly to Nishkarsh (918433284773).
 		$auto_reply_sent = false;
 		if ( 'missed' === $call_type && ! empty( $phone ) ) {
-			$cooldown_key = 'tc_missed_staff_alert_' . substr( md5( $suffix ), 0, 20 );
-			if ( ! get_transient( $cooldown_key ) ) {
-				$name = ! empty( $contact['name'] ) ? $contact['name'] : 'Traveler';
-				$alert_msg = sprintf(
-					"📞 *Missed Call Alert*\nMissed call from: +%s (%s)\nTime: %s\nPlease open X-Agents app to call back or follow up.",
-					$phone,
-					$name,
-					current_time( 'h:i A, d M' )
-				);
-				if ( class_exists( 'TC_Integration_WhatsApp' ) ) {
-					TC_Integration_WhatsApp::send_message_ex( '918433284773', $alert_msg, 'staff_alert' );
+			$clean_p     = preg_replace( '/\D/', '', (string) $phone );
+			$desk_digits = preg_replace( '/\D/', '', (string) get_option( 'tc_agents_human_whatsapp_number', '919336116210' ) );
+			if ( substr( $clean_p, -10 ) !== '8433284773' && substr( $clean_p, -10 ) !== substr( $desk_digits, -10 ) ) {
+				$cooldown_key = 'tc_missed_staff_alert_' . substr( md5( $suffix ), 0, 20 );
+				if ( ! get_transient( $cooldown_key ) ) {
+					$name = ! empty( $contact['name'] ) ? $contact['name'] : 'Traveler';
+					$alert_msg = sprintf(
+						"📞 *Missed Call Alert*\nMissed call from: +%s (%s)\nTime: %s\nPlease open X-Agents app to call back or follow up.",
+						ltrim( $phone, '+' ),
+						$name,
+						current_time( 'h:i A, d M' )
+					);
+					if ( class_exists( 'TC_Integration_WhatsApp' ) ) {
+						TC_Integration_WhatsApp::send_message_ex( '918433284773', $alert_msg, 'staff_alert' );
+					}
+					set_transient( $cooldown_key, 1, 15 * MINUTE_IN_SECONDS );
 				}
-				set_transient( $cooldown_key, 1, 15 * MINUTE_IN_SECONDS );
 			}
 		}
 
@@ -818,7 +822,7 @@ class TC_Agents_Mobile_API {
 				'name'         => ! empty( $row['name'] ) ? $row['name'] : 'Traveler',
 				'email'        => (string) ( $row['email'] ?? '' ),
 				'phone'        => (string) ( $row['phone'] ?? '' ),
-				'stage'        => (string) ( $row['stage'] ?: 'inquiry' ),
+				'stage'        => (string) ( $meta['mobile_stage'] ?? ( 'proposal' === $row['stage'] ? 'quote_sent' : ( 'negotiation' === $row['stage'] ? 'follow_up' : ( 'inquiry' === $row['stage'] ? 'new' : ( $row['stage'] ?: 'new' ) ) ) ) ),
 				'score'        => (int) ( $row['score'] ?? 0 ),
 				'deal_value'   => (float) ( $row['deal_value'] ?? 0.0 ),
 				'destination'  => ! empty( $meta['destination'] ) ? $meta['destination'] : '',
@@ -904,11 +908,24 @@ class TC_Agents_Mobile_API {
 
 		$stage_map = array(
 			'new'                 => 'inquiry',
-			'contacted'           => 'contacted',
-			'requirement_pending' => 'requirement_pending',
+			'inquiry'             => 'inquiry',
+			'inquiries'           => 'inquiry',
+			'contacted'           => 'qualified',
+			'requirement_pending' => 'qualified',
+			'customer_interested' => 'qualified',
 			'qualified'           => 'qualified',
 			'quote_sent'          => 'proposal',
+			'quotation_sent'      => 'proposal',
+			'proposal'            => 'proposal',
+			'follow_up'           => 'negotiation',
+			'negotiation'         => 'negotiation',
+			'advance_received'    => 'won',
+			'booking_confirmed'   => 'won',
 			'won'                 => 'won',
+			'traveling'           => 'won',
+			'completed'           => 'completed',
+			'trip_completed'      => 'completed',
+			'lost'                => 'lost',
 		);
 		$crm_stage = $stage_map[ $stage ] ?? 'inquiry';
 
@@ -935,6 +952,7 @@ class TC_Agents_Mobile_API {
 					'requirements' => $note,
 					'captured_by'  => $agent ?: 'Mobile App',
 					'synced_at'    => current_time( 'mysql' ),
+					'mobile_stage' => $stage,
 				),
 			),
 			array(
@@ -2018,12 +2036,29 @@ class TC_Agents_Mobile_API {
 
 		if ( ! empty( $stage ) ) {
 			$stage_map = array(
-				'new'        => 'inquiry',
-				'contacted'  => 'qualified',
-				'quote_sent' => 'proposal',
+				'new'                 => 'inquiry',
+				'inquiry'             => 'inquiry',
+				'inquiries'           => 'inquiry',
+				'contacted'           => 'qualified',
+				'requirement_pending' => 'qualified',
+				'customer_interested' => 'qualified',
+				'qualified'           => 'qualified',
+				'quote_sent'          => 'proposal',
+				'quotation_sent'      => 'proposal',
+				'proposal'            => 'proposal',
+				'follow_up'           => 'negotiation',
+				'negotiation'         => 'negotiation',
+				'advance_received'    => 'won',
+				'booking_confirmed'   => 'won',
+				'won'                 => 'won',
+				'traveling'           => 'won',
+				'completed'           => 'completed',
+				'trip_completed'      => 'completed',
+				'lost'                => 'lost',
 			);
-			$crm_stage = $stage_map[ $stage ] ?? $stage;
+			$crm_stage = $stage_map[ $stage ] ?? 'inquiry';
 			TC_Contact_Service::set_stage( $lead_id, $crm_stage );
+			$meta['mobile_stage'] = $stage;
 		}
 
 		if ( ! empty( $owner ) ) {
