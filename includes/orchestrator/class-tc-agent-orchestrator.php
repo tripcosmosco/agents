@@ -565,13 +565,25 @@ class TC_Agent_Orchestrator {
 		);
 	}
 
-	/**
-	 * Load persona by slug.
-	 */
 	public static function get_persona( $slug ) {
 		global $wpdb;
 		$table = $wpdb->prefix . 'tc_agent_personas';
-		return $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $table WHERE slug = %s AND is_active = 1 LIMIT 1", $slug ), ARRAY_A );
+
+		$clean_slug = strtolower( trim( (string) $slug ) );
+		$clean_slug = preg_replace( '/^agent[_-]/', '', $clean_slug );
+		$clean_slug = str_replace( '_', '-', $clean_slug );
+
+		$persona = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $table WHERE (slug = %s OR slug = %s) AND is_active = 1 LIMIT 1", $slug, $clean_slug ), ARRAY_A );
+		if ( ! $persona ) {
+			// Try matching substring/name (e.g. 'nishkarsh' or 'aditi')
+			$like = '%' . $wpdb->esc_like( $clean_slug ) . '%';
+			$persona = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $table WHERE (slug LIKE %s OR name LIKE %s) AND is_active = 1 LIMIT 1", $like, $like ), ARRAY_A );
+		}
+		if ( ! $persona ) {
+			// Fallback to default tripcosmos-guide or first active persona
+			$persona = $wpdb->get_row( "SELECT * FROM $table WHERE is_active = 1 ORDER BY (slug = 'tripcosmos-guide') DESC, id ASC LIMIT 1", ARRAY_A );
+		}
+		return $persona;
 	}
 
 	/**

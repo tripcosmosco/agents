@@ -145,6 +145,17 @@ class TC_Agents_REST {
 			)
 		);
 
+		// 6b. Voice AI RAG Query (Companion App & Voice Playground)
+		register_rest_route(
+			self::NAMESPACE,
+			'/voice/query-rag',
+			array(
+				'methods'             => array( 'POST', 'OPTIONS' ),
+				'callback'            => array( __CLASS__, 'handle_voice_query_rag' ),
+				'permission_callback' => '__return_true',
+			)
+		);
+
 		// 7. Lead Stage Update Endpoint (Quick Kanban Stage Change & Webhook integration)
 		register_rest_route(
 			self::NAMESPACE,
@@ -269,7 +280,7 @@ class TC_Agents_REST {
 
 		// Support both JSON body and form-encoded data
 		$params  = array_merge( (array) $request->get_params(), (array) $request->get_json_params() );
-		$message = sanitize_text_field( $params['message'] ?? '' );
+		$message = sanitize_text_field( $params['message'] ?? $params['transcript'] ?? '' );
 		$session = sanitize_text_field( $params['session_id'] ?? '' );
 		$channel = sanitize_text_field( $params['channel'] ?? 'web' );
 		$agent   = sanitize_text_field( $params['agent_slug'] ?? 'tripcosmos-guide' );
@@ -356,6 +367,56 @@ class TC_Agents_REST {
 				'executed_tools' => $result['executed_tools'] ?? $result['tools_used'] ?? array(),
 				'provider_used'  => $result['provider_used'],
 				'latency_ms'     => $result['latency_ms'],
+			),
+			200
+		);
+	}
+
+	/**
+	 * Voice AI RAG query for voice calls and companion app playground
+	 */
+	public static function handle_voice_query_rag( WP_REST_Request $request ) {
+		$params  = array_merge( (array) $request->get_params(), (array) $request->get_json_params() );
+		$message = sanitize_text_field( $params['transcript'] ?? $params['message'] ?? '' );
+		$session = sanitize_text_field( $params['session_id'] ?? '' );
+		$agent   = sanitize_text_field( $params['agent_slug'] ?? $params['agent'] ?? 'nishkarsh-ai' );
+
+		if ( empty( $message ) ) {
+			return new WP_REST_Response( array( 'error' => __( 'Transcript or message cannot be empty.', 'tripcosmos-agents' ) ), 400 );
+		}
+
+		if ( empty( $session ) ) {
+			$session = 'voice_rag_' . wp_generate_uuid4();
+		}
+
+		$metadata = array(
+			'channel' => 'voice_playground',
+			'source'  => 'x_agents_app',
+		);
+
+		$result = TC_Agent_Orchestrator::handle_message( $message, $session, 'voice_playground', $agent, $metadata );
+
+		if ( is_wp_error( $result ) ) {
+			return new WP_REST_Response(
+				array(
+					'success' => false,
+					'reply'   => __( 'Namaste! Our travel specialist will connect with you on WhatsApp right away.', 'tripcosmos-agents' ),
+					'error'   => $result->get_error_message(),
+				),
+				200
+			);
+		}
+
+		return new WP_REST_Response(
+			array(
+				'success'        => true,
+				'ok'             => true,
+				'session_id'     => $result['session_id'] ?? $session,
+				'reply'          => $result['reply'] ?? '',
+				'handoff'        => $result['handoff'] ?? array(),
+				'executed_tools' => $result['executed_tools'] ?? $result['tools_used'] ?? array(),
+				'provider_used'  => $result['provider_used'] ?? '',
+				'latency_ms'     => $result['latency_ms'] ?? 0,
 			),
 			200
 		);

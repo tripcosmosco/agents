@@ -413,6 +413,11 @@ class TC_Agents_Mobile_API {
 	 * `_tc_agent` request param so handlers can trust it (it is never read from the request body).
 	 */
 	public static function verify_token( WP_REST_Request $request ) {
+		// Browser CORS preflight requests must not be rejected
+		if ( 'OPTIONS' === $request->get_method() ) {
+			return true;
+		}
+
 		$ip = TC_Agents_Security::client_ip();
 		$request->set_param( '_tc_agent', '' );
 
@@ -1758,9 +1763,10 @@ class TC_Agents_Mobile_API {
 	 */
 	public static function handle_voice_query_rag( WP_REST_Request $request ) {
 		$params     = $request->get_json_params() ?: $request->get_params();
-		$transcript = sanitize_text_field( $params['transcript'] ?? $params['query'] ?? '' );
+		$transcript = sanitize_text_field( $params['transcript'] ?? $params['message'] ?? $params['query'] ?? '' );
 		$session_id = sanitize_text_field( $params['session_id'] ?? '' );
 		$phone      = sanitize_text_field( $params['phone'] ?? '' );
+		$agent_slug = sanitize_text_field( $params['agent_slug'] ?? $params['agent'] ?? 'nishkarsh-ai' );
 
 		if ( empty( $transcript ) ) {
 			return new WP_REST_Response(
@@ -1781,7 +1787,7 @@ class TC_Agents_Mobile_API {
 		}
 
 		if ( class_exists( 'TC_Integration_Voice' ) ) {
-			$result = TC_Integration_Voice::query_voice_rag( $transcript, $session_id );
+			$result = TC_Integration_Voice::query_voice_rag( $transcript, $session_id, $agent_slug );
 			return new WP_REST_Response(
 				array(
 					'ok'       => true,
@@ -3253,17 +3259,27 @@ class TC_Agents_Mobile_API {
 			$params = $request->get_json_params() ?: $request->get_params();
 			if ( isset( $params['outbound_ai_active'] ) ) {
 				update_option( 'tc_agents_outbound_ai_active', ! empty( $params['outbound_ai_active'] ) ? '1' : '0' );
+			} elseif ( isset( $params['outbound_enabled'] ) ) {
+				update_option( 'tc_agents_outbound_ai_active', ! empty( $params['outbound_enabled'] ) ? '1' : '0' );
 			}
 			if ( isset( $params['receptionist_ai_active'] ) ) {
 				update_option( 'tc_agents_receptionist_ai_active', ! empty( $params['receptionist_ai_active'] ) ? '1' : '0' );
+			} elseif ( isset( $params['receptionist_enabled'] ) ) {
+				update_option( 'tc_agents_receptionist_ai_active', ! empty( $params['receptionist_enabled'] ) ? '1' : '0' );
 			}
 		}
+
+		$outbound_active     = '0' !== get_option( 'tc_agents_outbound_ai_active', '1' );
+		$receptionist_active = '0' !== get_option( 'tc_agents_receptionist_ai_active', '1' );
 
 		return new WP_REST_Response(
 			array(
 				'ok'                     => true,
-				'outbound_ai_active'     => '0' !== get_option( 'tc_agents_outbound_ai_active', '1' ),
-				'receptionist_ai_active' => '0' !== get_option( 'tc_agents_receptionist_ai_active', '1' ),
+				'success'                => true,
+				'outbound_ai_active'     => $outbound_active,
+				'outbound_enabled'       => $outbound_active,
+				'receptionist_ai_active' => $receptionist_active,
+				'receptionist_enabled'   => $receptionist_active,
 			),
 			200
 		);

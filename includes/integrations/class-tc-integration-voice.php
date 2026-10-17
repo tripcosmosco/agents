@@ -500,7 +500,7 @@ class TC_Integration_Voice {
 	 * @param string $session_id
 	 * @return array
 	 */
-	public static function query_voice_rag( $speech_text, $session_id = '' ) {
+	public static function query_voice_rag( $speech_text, $session_id = '', $agent_slug = 'tripcosmos-guide' ) {
 		$speech_text = sanitize_text_field( $speech_text );
 		if ( empty( $speech_text ) ) {
 			return array( 'success' => true, 'reply' => 'Namaste, could you please repeat that?' );
@@ -538,7 +538,7 @@ class TC_Integration_Voice {
 				$speech_text,
 				$session_id ?: ( 'voice_' . time() ),
 				'voice',
-				'tripcosmos-guide'
+				$agent_slug ?: 'tripcosmos-guide'
 			);
 			if ( ! is_wp_error( $res ) ) {
 				return array(
