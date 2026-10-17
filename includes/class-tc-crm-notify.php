@@ -72,6 +72,15 @@ class TC_CRM_Notify {
 			$wa = '918433284773';
 		}
 
+		// Desk number guard: Never send staff alert to the business desk itself (+91 93361 16210)
+		$desk_num = preg_replace( '/\D/', '', (string) get_option( 'tc_agents_human_whatsapp_number', '' ) );
+		if ( empty( $desk_num ) ) {
+			$desk_num = '919336116210';
+		}
+		if ( ! empty( $wa ) && substr( $wa, -10 ) === substr( $desk_num, -10 ) ) {
+			return;
+		}
+
 		if ( $wa && ! TC_CRM_Access::is_away( $u->ID ) && class_exists( 'TC_Integration_WhatsApp' ) ) {
 			// Security & Privacy Guard: NEVER send internal staff notifications to the customer's phone!
 			if ( $contact_id ) {
@@ -86,6 +95,12 @@ class TC_CRM_Notify {
 
 			// Strictly only send WhatsApp alerts to Nishkarsh (918433284773) or authorized staff members
 			if ( substr( $wa, -10 ) === '8433284773' || in_array( 'administrator', $roles, true ) || in_array( 'tc_sales_manager', $roles, true ) ) {
+				// Deduplication: Never send the exact same WhatsApp alert to the same recipient within 10 minutes
+				$alert_dedup_key = 'tc_crm_alert_dedup_' . md5( $wa . '_' . $subject . '_' . (int) $contact_id );
+				if ( get_transient( $alert_dedup_key ) ) {
+					return;
+				}
+				set_transient( $alert_dedup_key, 1, 10 * MINUTE_IN_SECONDS );
 				TC_Integration_WhatsApp::send_message_ex( $wa, "🔔 *{$subject}*\n{$text}\n{$link}", 'staff_alert' );
 			}
 		}
@@ -179,7 +194,7 @@ class TC_CRM_Notify {
 				$wpdb->prepare(
 					"SELECT c.* FROM $t_c c
 					 WHERE c.created_at <= %s AND c.created_at >= %s AND c.stage NOT IN ('won','completed','lost')
-					   AND c.meta_data NOT LIKE %s
+					   AND (c.meta_data IS NULL OR c.meta_data NOT LIKE %s)
 					   AND NOT EXISTS (SELECT 1 FROM $t_act a WHERE a.contact_id = c.id AND a.user_id > 0)
 					 LIMIT 20",
 					gmdate( 'Y-m-d H:i:s', strtotime( $now ) - $sla * MINUTE_IN_SECONDS ),
@@ -189,14 +204,18 @@ class TC_CRM_Notify {
 				ARRAY_A
 			) ?: array();
 			foreach ( $late as $c ) {
-				$meta                = json_decode( (string) $c['meta_data'], true ) ?: array();
+				$meta = json_decode( (string) $c['meta_data'], true ) ?: array();
+				if ( ! empty( $meta['sla_alerted'] ) ) {
+					continue;
+				}
 				$meta['sla_alerted'] = $now;
 				$wpdb->update( $t_c, array( 'meta_data' => wp_json_encode( $meta ) ), array( 'id' => (int) $c['id'] ) );
 				$subject = sprintf( __( 'Lead waiting %d+ minutes with no response', 'tripcosmos-agents' ), $sla );
 				if ( (int) $c['owner_user_id'] ) {
 					self::send( (int) $c['owner_user_id'], $subject, self::contact_line( $c ), (int) $c['id'] );
+				} else {
+					self::send_managers( $subject, self::contact_line( $c ) . ' · ' . __( 'Unassigned', 'tripcosmos-agents' ), (int) $c['id'] );
 				}
-				self::send_managers( $subject, self::contact_line( $c ) . ( (int) $c['owner_user_id'] ? ' · ' . sprintf( __( 'Owner: %s', 'tripcosmos-agents' ), $c['owner'] ) : ' · ' . __( 'Unassigned', 'tripcosmos-agents' ) ), (int) $c['id'], (int) $c['owner_user_id'] );
 			}
 		}
 	}

@@ -123,6 +123,23 @@ class TC_Integration_WhatsApp {
 		$sender_phone = preg_replace( '/[^0-9]/', '', $sender_phone );
 		$session_id   = 'wa_' . $sender_phone;
 
+		// Deduplication Guard: Discard duplicate webhooks (e.g. Evolution retries, upsert re-deliveries)
+		if ( ! empty( $external_id ) ) {
+			$dedup_key = 'tc_wa_msg_seen_' . md5( $external_id );
+			if ( get_transient( $dedup_key ) ) {
+				return new WP_REST_Response( array( 'status' => 'ignored', 'reason' => 'Duplicate WhatsApp message ID' ), 200 );
+			}
+			set_transient( $dedup_key, 1, 15 * MINUTE_IN_SECONDS );
+		}
+
+		// Secondary Content Deduplication Guard: Discard duplicate identical payloads from the same sender within 10 seconds
+		$content_hash   = md5( $sender_phone . '_' . trim( (string) $message_text ) );
+		$dedup_hash_key = 'tc_wa_hash_seen_' . $content_hash;
+		if ( get_transient( $dedup_hash_key ) ) {
+			return new WP_REST_Response( array( 'status' => 'ignored', 'reason' => 'Duplicate payload from sender within cooldown' ), 200 );
+		}
+		set_transient( $dedup_hash_key, 1, 10 );
+
 		// STOP / START keywords: record consent and confirm, without involving the AI.
 		$keyword = TC_Contact_Service::handle_whatsapp_keyword( $sender_phone, $message_text );
 		if ( $keyword ) {
@@ -302,7 +319,7 @@ class TC_Integration_WhatsApp {
 		$res = TC_Contact_Service::upsert(
 			array(
 				'phone'          => $phone,
-				'name'           => $name ?: 'WhatsApp Traveler',
+				'name'           => $name ?: 'Traveler',
 				'source_channel' => 'whatsapp',
 			),
 			// The WhatsApp hub assigns it and sends one alert that includes the customer's first message.

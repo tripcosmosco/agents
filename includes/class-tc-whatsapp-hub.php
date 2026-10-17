@@ -43,12 +43,18 @@ class TC_WhatsApp_Hub {
 		if ( null !== self::$staff_cache ) {
 			return self::$staff_cache;
 		}
+		$desk_num = preg_replace( '/\D/', '', (string) get_option( 'tc_agents_human_whatsapp_number', '919336116210' ) );
+		$desk_10  = strlen( $desk_num ) >= 10 ? substr( $desk_num, -10 ) : '9336116210';
+
 		$map = array();
 		if ( class_exists( 'TC_CRM_Access' ) ) {
 			foreach ( TC_CRM_Access::team() as $u ) {
 				$digits = preg_replace( '/\D/', '', (string) get_user_meta( $u->ID, 'tc_crm_whatsapp', true ) );
 				if ( strlen( $digits ) >= 10 ) {
-					$map[ substr( $digits, -10 ) ] = (int) $u->ID;
+					$last10 = substr( $digits, -10 );
+					if ( $last10 !== $desk_10 ) {
+						$map[ $last10 ] = (int) $u->ID;
+					}
 				}
 			}
 		}
@@ -62,7 +68,10 @@ class TC_WhatsApp_Hub {
 				$num   = isset( $parts[1] ) ? trim( $parts[1] ) : trim( $parts[0] );
 				$digits = preg_replace( '/\D/', '', $num );
 				if ( strlen( $digits ) >= 10 ) {
-					$map[ substr( $digits, -10 ) ] = 1; // Map to primary admin
+					$last10 = substr( $digits, -10 );
+					if ( $last10 !== $desk_10 ) {
+						$map[ $last10 ] = 1; // Map to primary admin
+					}
 				}
 			}
 		}
@@ -172,7 +181,7 @@ class TC_WhatsApp_Hub {
 			// Someone typed on the business phone: keep it in the CRM thread and step the AI back.
 			$contact = TC_Contact_Service::find( '', $n['from'] );
 			if ( ! $contact ) {
-				$res     = TC_Contact_Service::upsert( array( 'phone' => $n['from'], 'name' => 'WhatsApp contact', 'source_channel' => 'whatsapp' ), array( 'sync' => false ) );
+				$res     = TC_Contact_Service::upsert( array( 'phone' => $n['from'], 'name' => 'Traveler', 'source_channel' => 'whatsapp' ), array( 'sync' => false ) );
 				$contact = $res['contact'];
 			}
 			if ( $contact ) {
@@ -247,6 +256,13 @@ class TC_WhatsApp_Hub {
 		$phone = self::pretty_phone( (string) $contact['phone'] );
 
 		if ( $owner ) {
+			if ( $is_new ) {
+				$new_lead_key = 'tc_wa_new_lead_alert_' . $id;
+				if ( get_transient( $new_lead_key ) ) {
+					return;
+				}
+				set_transient( $new_lead_key, 1, 60 );
+			}
 			$head = $is_new ? "🟢 *New WhatsApp lead* · #{$id}" : "💬 *{$name}* · #{$id}";
 			$body = $is_new ? "{$head}\n*{$name}* · {$phone}\n{$quote}" : "{$head}\n{$quote}";
 			$body .= "\n\n↩️ Swipe-reply to answer from the TripCosmos number.";
@@ -277,6 +293,10 @@ class TC_WhatsApp_Hub {
 	/** Sends an alert to a staff member's own WhatsApp and remembers which lead it was about. */
 	public static function alert( $user_id, $text, $contact_id ) {
 		$wa = preg_replace( '/\D/', '', (string) get_user_meta( (int) $user_id, 'tc_crm_whatsapp', true ) );
+		// Ensure Nishkarsh receives alerts on his personal operational number (918433284773)
+		if ( empty( $wa ) && ( (int) $user_id === 73657 || ( ( $u = get_userdata( (int) $user_id ) ) && stripos( $u->user_email, 'nishkarsh' ) !== false ) ) ) {
+			$wa = '918433284773';
+		}
 		if ( strlen( $wa ) < 10 || ( class_exists( 'TC_CRM_Access' ) && TC_CRM_Access::is_away( (int) $user_id ) ) ) {
 			return false;
 		}
@@ -300,6 +320,14 @@ class TC_WhatsApp_Hub {
 				}
 			}
 		}
+
+		// Deduplication Guard: Never dispatch identical alert to the same staff WhatsApp within 15 seconds
+		$alert_hash = md5( $wa . '_' . trim( (string) $text ) );
+		$alert_key  = 'tc_wa_alert_dedup_' . $alert_hash;
+		if ( get_transient( $alert_key ) ) {
+			return true;
+		}
+		set_transient( $alert_key, 1, 15 );
 
 		$msg_id = TC_Integration_WhatsApp::send_message_ex( $wa, $text, 'staff_alert' );
 		if ( false === $msg_id ) {

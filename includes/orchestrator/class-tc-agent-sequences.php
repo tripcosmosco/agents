@@ -474,13 +474,24 @@ body { margin: 0; padding: 0; background-color: #f8fafc; font-family: -apple-sys
 	 * Personalize message placeholders.
 	 */
 	private static function personalize_message( $template, array $contact ) {
-		$name     = ! empty( $contact['name'] ) ? $contact['name'] : 'Traveler';
+		$raw_name   = ! empty( $contact['name'] ) ? trim( (string) $contact['name'] ) : '';
+		$is_generic = empty( $raw_name )
+			|| 0 === stripos( $raw_name, 'whatsapp' )
+			|| preg_match( '/^[0-9+ \-]+$/', $raw_name )
+			|| strtolower( $raw_name ) === 'traveler';
+
+		$name     = $is_generic ? 'Traveler' : $raw_name;
 		$deal_val = ! empty( $contact['deal_value'] ) ? '₹' . number_format( (float) $contact['deal_value'] ) : 'custom group package';
 		$phone    = ! empty( $contact['phone'] ) ? $contact['phone'] : '';
 		$email    = ! empty( $contact['email'] ) ? $contact['email'] : '';
 
 		$meta = json_decode( (string) ( $contact['meta_data'] ?? '' ), true ) ?: array();
 		$dest = ! empty( $meta['destination'] ) ? $meta['destination'] : 'Varanasi & Spiritual Circuit';
+
+		// Clean up awkward greetings like "Namaste Traveler!" or "Namaste WhatsApp contact!" -> "Namaste Ji!"
+		if ( $is_generic ) {
+			$template = preg_replace( '/Namaste\s+(\{name\}|\{\{name\}\}|WhatsApp contact|Traveler)(!)?/i', 'Namaste Ji$2 🙏', $template );
+		}
 
 		$replacements = array(
 			'{name}'         => $name,
