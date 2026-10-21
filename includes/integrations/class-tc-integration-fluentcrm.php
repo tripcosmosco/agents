@@ -392,6 +392,32 @@ class TC_Integration_FluentCRM {
 					if ( ! empty( $data['requirements'] ) ) {
 						$contact->updateOrCreateMeta( 'tc_requirements', sanitize_textarea_field( $data['requirements'] ) );
 					}
+
+				// B2B: Sync Agency to FluentCRM Companies & attach contact
+				if ( $is_b2b && function_exists( 'FluentCrmApi' ) ) {
+					try {
+						$comp_api = FluentCrmApi( 'companies' );
+						$company_name = ! empty( $data['company_name'] ) ? sanitize_text_field( $data['company_name'] ) : trim( $data['name'] ?? '' );
+						if ( ! empty( $company_name ) && stripos( $company_name, 'Traveler' ) === false ) {
+							$company_data = array(
+								'name'           => $company_name,
+								'email'          => $email,
+								'phone'          => $phone,
+								'city'           => sanitize_text_field( $data['destination'] ?: ( $data['city'] ?? 'Varanasi' ) ),
+								'address_line_1' => sanitize_text_field( $data['address'] ?? ( ( $data['city'] ?? 'Varanasi' ) . ', India' ) ),
+								'website'        => esc_url_raw( $data['website'] ?? '' ),
+								'industry'       => 'Travel & Tourism',
+								'type'           => 'B2B Travel Partner',
+							);
+							$company = $comp_api->createOrUpdate( $company_data );
+							if ( $company && ! empty( $company->id ) ) {
+								$comp_api->attachContactsByIds( array( $contact->id ), array( $company->id ) );
+							}
+						}
+					} catch ( Exception $ce ) {
+						// Fail gracefully
+					}
+				}
 				}
 
 				TC_Agents_Logger::log(
