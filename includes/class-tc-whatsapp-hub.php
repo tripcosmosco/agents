@@ -230,7 +230,10 @@ class TC_WhatsApp_Hub {
 	 * After the webhook has found/created the customer's contact. Assigns new leads and forwards the message to the
 	 * owner's WhatsApp (or to managers while unassigned).
 	 */
-	public static function on_customer_message( array $contact, $text, $is_new ) {
+public static function on_customer_message( array $contact, $text, $is_new ) {
+		if ( class_exists( 'TC_Feedback_Service' ) && ! empty( $contact['phone'] ) ) {
+			if ( TC_Feedback_Service::maybe_handle_feedback_response( $contact['phone'], $text ) ) { return; }
+		}
 		$id = (int) $contact['id'];
 		if ( $is_new && ! (int) $contact['owner_user_id'] ) {
 			TC_Contact_Service::auto_assign( $id, false );

@@ -393,6 +393,73 @@ class TC_Agents_Mobile_API {
 				'permission_callback' => array( __CLASS__, 'verify_token' ),
 			)
 		);
+
+		// 31. Real-time Inventory Status & Scarcity Ledger
+		register_rest_route(
+			self::NAMESPACE,
+			'/inventory/status',
+			array(
+				'methods'             => 'GET',
+				'callback'            => array( __CLASS__, 'handle_inventory_status' ),
+				'permission_callback' => array( __CLASS__, 'verify_token' ),
+			)
+		);
+
+		// 32. Inventory Hold (15-min countdown)
+		register_rest_route(
+			self::NAMESPACE,
+			'/inventory/hold',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( __CLASS__, 'handle_inventory_hold' ),
+				'permission_callback' => array( __CLASS__, 'verify_token' ),
+			)
+		);
+
+		// 33. Inventory Release / Convert
+		register_rest_route(
+			self::NAMESPACE,
+			'/inventory/release',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( __CLASS__, 'handle_inventory_release' ),
+				'permission_callback' => array( __CLASS__, 'verify_token' ),
+			)
+		);
+
+		// 34. 1-Click WhatsApp Itinerary & Quote Dispatch
+		register_rest_route(
+			self::NAMESPACE,
+			'/mobile/dispatch-quote',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( __CLASS__, 'handle_dispatch_quote' ),
+				'permission_callback' => array( __CLASS__, 'verify_token' ),
+			)
+		);
+
+		// 35. B2B Wholesale Batch Pitch Engine
+		register_rest_route(
+			self::NAMESPACE,
+			'/mobile/b2b-batch-pitch',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( __CLASS__, 'handle_b2b_batch_pitch' ),
+				'permission_callback' => array( __CLASS__, 'verify_token' ),
+			)
+		);
+
+		// 36. Google Business Profile Feedback Prompt
+		register_rest_route(
+			self::NAMESPACE,
+			'/mobile/feedback-prompt',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( __CLASS__, 'handle_feedback_prompt' ),
+				'permission_callback' => array( __CLASS__, 'verify_token' ),
+			)
+		);
+
 	}
 
 	/**
@@ -3510,4 +3577,269 @@ class TC_Agents_Mobile_API {
 		);
 	}
 }
+	/**
+	 * 31. Inventory Scarcity Ledger Status
+	 */
+	public static function handle_inventory_status( WP_REST_Request $request ) {
+		if ( ! class_exists( 'TC_Inventory_Service' ) ) {
+			return new WP_REST_Response( array( 'ok' => false, 'error' => 'Inventory service unavailable' ), 500 );
+		}
+		$feed = TC_Inventory_Service::get_scarcity_feed();
+		return new WP_REST_Response( array( 'ok' => true, 'feed' => $feed ), 200 );
+	}
+
+	/**
+	 * 32. Inventory Hold (15-min countdown)
+	 */
+	public static function handle_inventory_hold( WP_REST_Request $request ) {
+		if ( ! class_exists( 'TC_Inventory_Service' ) ) {
+			return new WP_REST_Response( array( 'ok' => false, 'error' => 'Inventory service unavailable' ), 500 );
+		}
+		$p = $request->get_json_params() ?: $request->get_params();
+		$inventory_id = (int) ( $p['inventory_id'] ?? 0 );
+		$contact_id   = (int) ( $p['contact_id'] ?? 0 );
+		$session_id   = sanitize_text_field( $p['session_id'] ?? '' );
+		$slots        = max( 1, (int) ( $p['slots'] ?? 1 ) );
+		$duration     = max( 5, min( 60, (int) ( $p['duration_minutes'] ?? 15 ) ) );
+
+		$res = TC_Inventory_Service::create_hold( $inventory_id, $contact_id, $session_id, $slots, $duration );
+		if ( is_wp_error( $res ) ) {
+			return new WP_REST_Response( array( 'ok' => false, 'error' => $res->get_error_message() ), 400 );
+		}
+		return new WP_REST_Response( array( 'ok' => true, 'hold' => $res ), 200 );
+	}
+
+	/**
+	 * 33. Inventory Release / Convert
+	 */
+	public static function handle_inventory_release( WP_REST_Request $request ) {
+		if ( ! class_exists( 'TC_Inventory_Service' ) ) {
+			return new WP_REST_Response( array( 'ok' => false, 'error' => 'Inventory service unavailable' ), 500 );
+		}
+		$p       = $request->get_json_params() ?: $request->get_params();
+		$hold_id = (int) ( $p['hold_id'] ?? 0 );
+		$action  = sanitize_key( $p['action'] ?? 'convert' );
+
+		if ( 'convert' === $action ) {
+			$ok = TC_Inventory_Service::convert_hold( $hold_id );
+			return new WP_REST_Response( array( 'ok' => $ok, 'status' => $ok ? 'converted' : 'failed' ), $ok ? 200 : 400 );
+		}
+
+		global $wpdb;
+		$wpdb->update( TC_Inventory_Service::table_holds(), array( 'status' => 'expired' ), array( 'id' => $hold_id ) );
+		TC_Inventory_Service::release_expired_holds();
+		return new WP_REST_Response( array( 'ok' => true, 'status' => 'released' ), 200 );
+	}
+
+	/**
+	 * 34. 1-Click WhatsApp Itinerary & Quote Dispatch
+	 */
+	public static function handle_dispatch_quote( WP_REST_Request $request ) {
+		$p = $request->get_json_params() ?: $request->get_params();
+		$contact_id  = (int) ( $p['contact_id'] ?? 0 );
+		$destination = sanitize_text_field( $p['destination'] ?? 'varanasi_3d2n' );
+		$tier        = sanitize_text_field( $p['tier'] ?? 'deluxe' );
+		$pax         = max( 1, (int) ( $p['pax'] ?? 2 ) );
+		$deal_value  = isset( $p['deal_value'] ) ? (float) $p['deal_value'] : 0.0;
+		$advance     = isset( $p['advance_amount'] ) ? (float) $p['advance_amount'] : 2500.0;
+		$custom_text = sanitize_textarea_field( $p['message'] ?? '' );
+
+		$contact = class_exists( 'TC_Contact_Service' ) ? TC_Contact_Service::get( $contact_id ) : null;
+		if ( ! $contact ) {
+			return new WP_REST_Response( array( 'ok' => false, 'error' => 'Lead not found' ), 404 );
+		}
+
+		$phone = $contact['phone_e164'] ?: $contact['phone'];
+		if ( empty( $phone ) ) {
+			return new WP_REST_Response( array( 'ok' => false, 'error' => 'Lead has no phone number' ), 400 );
+		}
+
+		if ( $deal_value <= 0 ) {
+			$deal_value = ( 'luxury' === $tier ) ? ( 18500 * max( 1, ceil( $pax / 2 ) ) ) : ( 12500 * max( 1, ceil( $pax / 2 ) ) );
+		}
+
+		global $wpdb;
+		$ref = 'TC-' . gmdate( 'ymd' ) . '-' . strtoupper( wp_generate_password( 4, false ) );
+		$t_bookings = $wpdb->prefix . 'tc_agent_bookings';
+		$wpdb->insert(
+			$t_bookings,
+			array(
+				'ref'          => $ref,
+				'contact_id'   => $contact_id,
+				'title'        => ucwords( str_replace( '_', ' ', $destination ) ) . " ({$pax} Pax)",
+				'quote_amount' => $deal_value,
+				'status'       => 'confirmed_quote',
+				'created_at'   => current_time( 'mysql' ),
+				'updated_at'   => current_time( 'mysql' ),
+			)
+		);
+		$booking_id = (int) $wpdb->insert_id;
+
+		$token = bin2hex( random_bytes( 16 ) );
+		$t_quotes = $wpdb->prefix . 'tc_agent_quotes';
+		$valid_until = date( 'Y-m-d', strtotime( current_time( 'Y-m-d' ) . ' +7 days' ) );
+
+		$items = array(
+			array(
+				'desc'   => "Tour Package: " . ucwords( str_replace( '_', ' ', $destination ) ) . " ({$tier} tier)",
+				'qty'    => 1,
+				'price'  => $deal_value,
+				'amount' => $deal_value,
+			),
+		);
+
+		$wpdb->insert(
+			$t_quotes,
+			array(
+				'booking_id'     => $booking_id,
+				'contact_id'     => $contact_id,
+				'version'        => 1,
+				'token'          => $token,
+				'items'          => wp_json_encode( $items ),
+				'subtotal'       => $deal_value,
+				'discount'       => 0,
+				'tax_rate'       => 5,
+				'tax_inclusive'  => 1,
+				'tax_amount'     => round( $deal_value * 5 / 105, 2 ),
+				'total'          => $deal_value,
+				'advance_amount' => $advance,
+				'valid_until'    => $valid_until,
+				'status'         => 'sent',
+				'created_by'     => get_current_user_id() ?: 73657,
+				'created_at'     => current_time( 'mysql' ),
+			)
+		);
+
+		$quote_url = home_url( '/?tc_quote=' . $token );
+		$name = ! empty( $contact['name'] ) && 'Traveler' !== $contact['name'] ? $contact['name'] : 'Guest';
+
+		if ( ! empty( $custom_text ) ) {
+			$wa_msg = $custom_text . "\n\nðŸ‘‰ *View & Confirm Formal Quotation:* {$quote_url}";
+		} else {
+			$wa_msg = "Namaste {$name} ji! ðŸ™\n\nGreetings from TripCosmos Varanasi.\n\nHere is your customized private pilgrimage quotation:\n\n" .
+				"â€¢ *Circuit:* " . ucwords( str_replace( '_', ' ', $destination ) ) . "\n" .
+				"â€¢ *Travelers:* {$pax} Pax ({$tier} Package)\n" .
+				"â€¢ *Inclusions:* Dedicated AC Cab, VIP Sugam Darshan Passes, Reserved Boat Seating, Verified Driver.\n" .
+				"â€¢ *Total Package Price:* â‚¹" . number_format( $deal_value ) . " All-Inclusive\n" .
+				"â€¢ *Token Advance to Confirm:* â‚¹" . number_format( $advance ) . "\n\n" .
+				"ðŸ‘‰ *View, Download PDF & Pay Token Advance:* {$quote_url}\n\n" .
+				"Please let us know if you would like any timing or vehicle customization!";
+		}
+
+		$sent = false;
+		if ( class_exists( 'TC_Integration_Evolution' ) && TC_Integration_Evolution::is_configured() ) {
+			$res = TC_Integration_Evolution::send_message( $phone, $wa_msg, 'conversational' );
+			$sent = ! is_wp_error( $res );
+		}
+
+		TC_Contact_Service::update( $contact_id, array( 'deal_value' => $deal_value ) );
+		TC_Contact_Service::set_stage( $contact_id, 'proposal' );
+		TC_Contact_Service::add_activity( $contact_id, 'booking', sprintf( 'Official Quote %s (â‚¹%s) generated & dispatched via WhatsApp.', $ref, number_format( $deal_value ) ) );
+
+		return new WP_REST_Response(
+			array(
+				'ok'        => true,
+				'sent'      => $sent,
+				'ref'       => $ref,
+				'quote_url' => $quote_url,
+				'total'     => $deal_value,
+				'advance'   => $advance,
+			),
+			200
+		);
+	}
+
+	/**
+	 * 35. B2B Wholesale Batch Pitch Engine
+	 */
+	public static function handle_b2b_batch_pitch( WP_REST_Request $request ) {
+		global $wpdb;
+		$p     = $request->get_json_params() ?: $request->get_params();
+		$limit = max( 1, min( 20, (int) ( $p['limit'] ?? 5 ) ) );
+		$city  = sanitize_text_field( $p['city'] ?? '' );
+
+		$table = $wpdb->prefix . 'tc_agent_agencies';
+		$where = "WHERE (last_outreach_at IS NULL OR last_outreach_at = '0000-00-00 00:00:00') AND phone <> ''";
+		if ( ! empty( $city ) ) {
+			$where .= $wpdb->prepare( " AND city = %s", $city );
+		}
+
+		$rows = $wpdb->get_results( "SELECT * FROM $table $where ORDER BY id ASC LIMIT $limit", ARRAY_A ) ?: array();
+		if ( empty( $rows ) ) {
+			return new WP_REST_Response( array( 'ok' => true, 'count' => 0, 'message' => 'No uncontacted B2B agencies found.' ), 200 );
+		}
+
+		$dispatched = 0;
+		$results    = array();
+
+		foreach ( $rows as $agency ) {
+			$phone = class_exists( 'TC_Contact_Service' ) ? TC_Contact_Service::normalize_phone( $agency['phone'] ) : $agency['phone'];
+			if ( empty( $phone ) ) {
+				continue;
+			}
+
+			$agency_name = ! empty( $agency['name'] ) ? $agency['name'] : 'Partner';
+			$pitch_text  = sprintf(
+				"Namaste %s team! ðŸ™\n\nGreetings from TripCosmos Varanasi. We are your trusted ground DMC execution partner across Varanasi, Ayodhya, Prayagraj & Bodhgaya.\n\nWith peak pilgrimage season approaching, we provide:\nâ€¢ Guaranteed Dev Deepawali 2026 Private Bajra Boat Decks\nâ€¢ Net Wholesale Cabs (Innova Crysta â‚¹19/km, Force Urbania â‚¹32/km)\nâ€¢ Kashi Vishwanath Sugam Darshan & Mangla Aarti passes\nâ€¢ 100%% White-Label Land Execution (Your Guest, Your Brand)\n\nMay we send our complete 2026-2027 DMC Wholesale Tariff Card to this WhatsApp?",
+				$agency_name
+			);
+
+			$sent = false;
+			if ( class_exists( 'TC_Integration_Evolution' ) && TC_Integration_Evolution::is_configured() ) {
+				$res = TC_Integration_Evolution::send_message( $phone, $pitch_text, 'broadcast' );
+				$sent = ! is_wp_error( $res );
+			}
+
+			if ( $sent ) {
+				$wpdb->update(
+					$table,
+					array(
+						'status'           => 'contacted',
+						'last_outreach_at' => current_time( 'mysql' ),
+						'updated_at'       => current_time( 'mysql' ),
+					),
+					array( 'id' => (int) $agency['id'] )
+				);
+				$dispatched++;
+			}
+
+			$results[] = array(
+				'id'     => (int) $agency['id'],
+				'agency' => $agency_name,
+				'city'   => $agency['city'],
+				'phone'  => $phone,
+				'sent'   => $sent,
+			);
+		}
+
+		return new WP_REST_Response(
+			array(
+				'ok'         => true,
+				'dispatched' => $dispatched,
+				'total_read' => count( $rows ),
+				'results'    => $results,
+			),
+			200
+		);
+	}
+
+	/**
+	 * 36. Google Business Profile Feedback Prompt
+	 */
+	public static function handle_feedback_prompt( WP_REST_Request $request ) {
+		$p          = $request->get_json_params() ?: $request->get_params();
+		$contact_id = (int) ( $p['contact_id'] ?? 0 );
+
+		if ( ! class_exists( 'TC_Feedback_Service' ) ) {
+			return new WP_REST_Response( array( 'ok' => false, 'error' => 'Feedback service unavailable' ), 500 );
+		}
+
+		$res = TC_Feedback_Service::trigger_request( $contact_id );
+		if ( is_wp_error( $res ) ) {
+			return new WP_REST_Response( array( 'ok' => false, 'error' => $res->get_error_message() ), 400 );
+		}
+
+		return new WP_REST_Response( array( 'ok' => true, 'message' => 'Feedback request dispatched to traveler.' ), 200 );
+	}
+
 

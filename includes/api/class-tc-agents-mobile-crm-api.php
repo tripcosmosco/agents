@@ -68,6 +68,12 @@ class TC_Agents_Mobile_CRM_API {
 			array( '/mobile/conversations/' . $id, 'GET', 'conversation' ),
 			array( '/mobile/conversations/' . $id . '/reply', 'POST', 'conversation_reply' ),
 			array( '/mobile/conversations/' . $id . '/ai', 'POST', 'conversation_ai' ),
+			array( '/mobile/google-ads/conversions', 'GET', 'google_ads_conversions' ),
+			array( '/mobile/bank-statement/upload', 'POST', 'bank_statement_upload' ),
+			array( '/mobile/bank-statement/transactions', 'GET', 'bank_statement_transactions' ),
+			array( '/mobile/bank-statement/reconcile', 'POST', 'bank_statement_reconcile' ),
+			array( '/mobile/zoho/summary', 'GET', 'zoho_summary' ),
+			array( '/mobile/zoho/sync', 'POST', 'zoho_sync' ),
 		);
 		foreach ( $map as $r ) {
 			register_rest_route(
@@ -80,6 +86,46 @@ class TC_Agents_Mobile_CRM_API {
 				)
 			);
 		}
+
+		// Public conversion beacon for frontend website chatbot & Google Ads tracking
+		register_rest_route(
+			self::NAMESPACE,
+			'/mobile/conversion/record',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( __CLASS__, 'handle_conversion_record' ),
+				'permission_callback' => '__return_true',
+			)
+		);
+
+		// Authentication & User Management (1-Click Google Sign-In & WP Credentials)
+		register_rest_route(
+			self::NAMESPACE,
+			'/mobile/auth/google',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( __CLASS__, 'handle_auth_google' ),
+				'permission_callback' => '__return_true',
+			)
+		);
+		register_rest_route(
+			self::NAMESPACE,
+			'/mobile/auth/login',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( __CLASS__, 'handle_auth_login' ),
+				'permission_callback' => '__return_true',
+			)
+		);
+		register_rest_route(
+			self::NAMESPACE,
+			'/mobile/auth/me',
+			array(
+				'methods'             => 'GET',
+				'callback'            => array( __CLASS__, 'handle_auth_me' ),
+				'permission_callback' => $auth,
+			)
+		);
 	}
 
 	/* ------------------------------------------------------------------ helpers */
@@ -1179,6 +1225,21 @@ class TC_Agents_Mobile_CRM_API {
 		$pipeline_value    = (float) $wpdb->get_var( "SELECT COALESCE(SUM(deal_value),0) FROM $c WHERE stage NOT IN ('lost','cancelled')" );
 		$total_leads_count = (int) $wpdb->get_var( "SELECT COUNT(*) FROM $c" );
 
+		// Bank Statement Overview
+		$bank_table = $wpdb->prefix . 'tcfp_bank_transactions';
+		$bank_credits = (float) $wpdb->get_var( "SELECT COALESCE(SUM(amount), 0) FROM $bank_table WHERE type = 'credit'" );
+		$bank_debits  = (float) $wpdb->get_var( "SELECT COALESCE(SUM(amount), 0) FROM $bank_table WHERE type = 'debit'" );
+		$bank_balance = (float) $wpdb->get_var( "SELECT balance FROM $bank_table WHERE balance IS NOT NULL AND balance > 0 ORDER BY txn_date DESC, id DESC LIMIT 1" );
+		if ( $bank_balance <= 0 ) {
+			$bank_balance = max( 0.0, $bank_credits - $bank_debits );
+		}
+		$bank_reconciled_cnt = (int) $wpdb->get_var( "SELECT COUNT(*) FROM $bank_table WHERE reconciled = 1" );
+
+		// Conversion / Google Ads Telemetry
+		$conv_table = $wpdb->prefix . 'tc_agent_conversion_log';
+		$gads_leads = (int) $wpdb->get_var( "SELECT COUNT(*) FROM $conv_table WHERE (gclid IS NOT NULL AND gclid != '') OR source = 'google_ads'" );
+		$chatbot_events = (int) $wpdb->get_var( "SELECT COUNT(*) FROM $conv_table WHERE channel = 'web_chatbot'" );
+
 		return self::ok(
 			array(
 				'summary' => array(
@@ -1190,6 +1251,12 @@ class TC_Agents_Mobile_CRM_API {
 					'deals_won_count'     => $deals_won_count,
 					'active_bookings'     => $active_bookings,
 					'collection_rate'     => $gmv > 0 ? round( ( $total_collected / $gmv ) * 100, 1 ) : 0.0,
+					'bank_credits'        => $bank_credits,
+					'bank_debits'         => $bank_debits,
+					'bank_balance'        => $bank_balance,
+					'bank_reconciled'     => $bank_reconciled_cnt,
+					'google_ads_leads'    => $gads_leads,
+					'chatbot_leads'       => $chatbot_events,
 				),
 				'method_split'        => $method_split,
 				'status_split'        => $status_split,
@@ -1576,6 +1643,637 @@ class TC_Agents_Mobile_CRM_API {
 				'whatsapp_sent' => $wa_sent,
 			)
 		);
+	}
+
+	/* ------------------------------------------------------------------ Conversions & Google Ads Attribution */
+
+	public static function handle_conversion_record( WP_REST_Request $request ) {
+		global $wpdb;
+		$p = self::params( $request );
+
+		$event_type  = sanitize_text_field( $p['event_type'] ?? 'chatbot_lead' );
+		$channel     = sanitize_text_field( $p['channel'] ?? 'web_chatbot' );
+		$source      = sanitize_text_field( $p['source'] ?? 'google_ads' );
+		$gclid       = sanitize_text_field( $p['gclid'] ?? '' );
+		$campaign    = sanitize_text_field( $p['campaign'] ?? '' );
+		$keyword     = sanitize_text_field( $p['keyword'] ?? '' );
+		$lead_name   = sanitize_text_field( $p['lead_name'] ?? '' );
+		$lead_phone  = sanitize_text_field( $p['lead_phone'] ?? '' );
+		$destination = sanitize_text_field( $p['destination'] ?? 'Varanasi' );
+		$value       = floatval( $p['value'] ?? 100.0 );
+		$metadata    = ! empty( $p['metadata'] ) ? wp_json_encode( $p['metadata'] ) : null;
+
+		$table = $wpdb->prefix . 'tc_agent_conversion_log';
+		$wpdb->insert(
+			$table,
+			array(
+				'event_type'  => $event_type,
+				'channel'     => $channel,
+				'source'      => $source,
+				'gclid'       => $gclid,
+				'campaign'    => $campaign,
+				'keyword'     => $keyword,
+				'lead_name'   => $lead_name,
+				'lead_phone'  => $lead_phone,
+				'destination' => $destination,
+				'value'       => $value,
+				'metadata'    => $metadata,
+				'created_at'  => current_time( 'mysql' ),
+			)
+		);
+		$conversion_id = $wpdb->insert_id;
+
+		// If lead_phone is available, link or auto-create CRM Contact
+		if ( ! empty( $lead_phone ) && class_exists( 'TC_Contact_Service' ) ) {
+			$e164 = TC_Contact_Service::normalize_phone( $lead_phone );
+			if ( ! empty( $e164 ) ) {
+				$upsert_res = TC_Contact_Service::upsert( array(
+					'name'           => $lead_name ?: 'Web Traveler',
+					'phone'          => $e164,
+					'source_channel' => $channel,
+					'stage'          => 'lead',
+					'destination'    => $destination,
+					'notes'          => sprintf( 'Auto-captured via %s (%s). Campaign: %s, Keyword: %s, GCLID: %s', $channel, $event_type, $campaign ?: 'None', $keyword ?: 'None', $gclid ?: 'None' ),
+				) );
+				if ( ! empty( $upsert_res['id'] ) ) {
+					TC_Contact_Service::add_activity( (int) $upsert_res['id'], 'lead_created', "Inquired via AI Chatbot with Google Ads attribution (GCLID: $gclid, Campaign: $campaign)" );
+				}
+			}
+		}
+
+		return self::ok( array( 'conversion_id' => $conversion_id, 'recorded' => true ) );
+	}
+
+	public static function handle_google_ads_conversions( WP_REST_Request $request ) {
+		global $wpdb;
+		$table = $wpdb->prefix . 'tc_agent_conversion_log';
+
+		// Summary metrics
+		$total_conversions = (int) $wpdb->get_var( "SELECT COUNT(*) FROM $table" );
+		$total_value       = (float) $wpdb->get_var( "SELECT COALESCE(SUM(value), 0) FROM $table" );
+		$gads_conversions  = (int) $wpdb->get_var( "SELECT COUNT(*) FROM $table WHERE (gclid IS NOT NULL AND gclid != '') OR source = 'google_ads'" );
+		$chatbot_leads     = (int) $wpdb->get_var( "SELECT COUNT(*) FROM $table WHERE channel = 'web_chatbot' OR event_type LIKE '%chatbot%'" );
+		$whatsapp_clicks   = (int) $wpdb->get_var( "SELECT COUNT(*) FROM $table WHERE event_type LIKE '%whatsapp%'" );
+		$phone_calls       = (int) $wpdb->get_var( "SELECT COUNT(*) FROM $table WHERE event_type LIKE '%phone%'" );
+
+		// Breakdown by event_type
+		$by_event = $wpdb->get_results( "SELECT event_type, COUNT(*) as count, COALESCE(SUM(value), 0) as total_val FROM $table GROUP BY event_type ORDER BY count DESC", ARRAY_A ) ?: array();
+
+		// Breakdown by campaign
+		$by_campaign = $wpdb->get_results( "SELECT COALESCE(NULLIF(campaign, ''), 'Organic / Direct') as campaign_name, COUNT(*) as count FROM $table GROUP BY campaign_name ORDER BY count DESC LIMIT 10", ARRAY_A ) ?: array();
+
+		// Recent 50 conversions
+		$rows = $wpdb->get_results( "SELECT * FROM $table ORDER BY id DESC LIMIT 50", ARRAY_A ) ?: array();
+		$events = array();
+		foreach ( $rows as $r ) {
+			$events[] = array(
+				'id'          => (int) $r['id'],
+				'event_type'  => (string) $r['event_type'],
+				'channel'     => (string) $r['channel'],
+				'source'      => (string) $r['source'],
+				'gclid'       => (string) ( $r['gclid'] ?? '' ),
+				'campaign'    => (string) ( $r['campaign'] ?? '' ),
+				'keyword'     => (string) ( $r['keyword'] ?? '' ),
+				'lead_name'   => (string) ( $r['lead_name'] ?? '' ),
+				'lead_phone'  => (string) ( $r['lead_phone'] ?? '' ),
+				'destination' => (string) ( $r['destination'] ?? '' ),
+				'value'       => (float) $r['value'],
+				'date'        => self::iso( $r['created_at'] ),
+			);
+		}
+
+		return self::ok( array(
+			'summary' => array(
+				'total_conversions'    => $total_conversions,
+				'total_value'          => $total_value,
+				'google_ads_count'     => $gads_conversions,
+				'chatbot_leads_count'  => $chatbot_leads,
+				'whatsapp_clicks_count'=> $whatsapp_clicks,
+				'phone_calls_count'    => $phone_calls,
+			),
+			'by_event'    => $by_event,
+			'by_campaign' => $by_campaign,
+			'events'      => $events,
+		) );
+	}
+
+	/* ------------------------------------------------------------------ Bank Statement Importer (SBI) */
+
+	public static function handle_bank_statement_upload( WP_REST_Request $request ) {
+		global $wpdb;
+		$p = self::params( $request );
+
+		$csv_raw = $p['csv_data'] ?? '';
+		if ( empty( $csv_raw ) && ! empty( $_FILES['file']['tmp_name'] ) ) {
+			$csv_raw = file_get_contents( $_FILES['file']['tmp_name'] );
+		}
+
+		if ( empty( trim( $csv_raw ) ) ) {
+			return self::fail( 'CSV content or file is empty.', 400 );
+		}
+
+		$bank_name  = sanitize_text_field( $p['bank_name'] ?? 'State Bank of India (SBI)' );
+		$account_no = sanitize_text_field( $p['account_no'] ?? '' );
+		$table      = $wpdb->prefix . 'tcfp_bank_transactions';
+		$bk_table   = $wpdb->prefix . 'tc_agent_bookings';
+
+		// Parse CSV lines
+		$lines = preg_split( '/\r\n|\r|\n/', trim( $csv_raw ) );
+		if ( empty( $lines ) ) {
+			return self::fail( 'No lines found in CSV.', 400 );
+		}
+
+		$header_idx = -1;
+		$col_map = array();
+
+		// Find header row (looks for date, narration/description, debit/withdrawal, credit/deposit)
+		foreach ( $lines as $idx => $line ) {
+			$cols = str_getcsv( $line );
+			$lower_cols = array_map( 'strtolower', array_map( 'trim', $cols ) );
+			foreach ( $lower_cols as $c_idx => $col_val ) {
+				if ( in_array( $col_val, array( 'txn date', 'txndate', 'date', 'value date' ), true ) && ! isset( $col_map['date'] ) ) {
+					$col_map['date'] = $c_idx;
+				}
+				if ( in_array( $col_val, array( 'narration', 'description', 'particulars', 'remarks' ), true ) && ! isset( $col_map['desc'] ) ) {
+					$col_map['desc'] = $c_idx;
+				}
+				if ( in_array( $col_val, array( 'ref no./cheque no.', 'ref no', 'cheque no', 'ref / chq no.', 'chq/ref no' ), true ) && ! isset( $col_map['ref'] ) ) {
+					$col_map['ref'] = $c_idx;
+				}
+				if ( in_array( $col_val, array( 'debit', 'withdrawal', 'dr' ), true ) && ! isset( $col_map['debit'] ) ) {
+					$col_map['debit'] = $c_idx;
+				}
+				if ( in_array( $col_val, array( 'credit', 'deposit', 'cr' ), true ) && ! isset( $col_map['credit'] ) ) {
+					$col_map['credit'] = $c_idx;
+				}
+				if ( in_array( $col_val, array( 'balance', 'bal' ), true ) && ! isset( $col_map['balance'] ) ) {
+					$col_map['balance'] = $c_idx;
+				}
+			}
+			if ( isset( $col_map['date'] ) && ( isset( $col_map['debit'] ) || isset( $col_map['credit'] ) || isset( $col_map['desc'] ) ) ) {
+				$header_idx = $idx;
+				break;
+			}
+		}
+
+		if ( $header_idx === -1 || ! isset( $col_map['date'] ) ) {
+			$col_map = array( 'date' => 0, 'desc' => 2, 'ref' => 3, 'debit' => 4, 'credit' => 5, 'balance' => 6 );
+			$header_idx = 0;
+		}
+
+		$inserted = 0;
+		$credits_count = 0;
+		$debits_count = 0;
+		$auto_reconciled = 0;
+
+		for ( $i = $header_idx + 1; $i < count( $lines ); $i++ ) {
+			$row = str_getcsv( $lines[ $i ] );
+			if ( empty( $row ) || count( $row ) < 2 ) {
+				continue;
+			}
+
+			$raw_date = trim( $row[ $col_map['date'] ] ?? '' );
+			if ( empty( $raw_date ) ) {
+				continue;
+			}
+
+			// Format date to Y-m-d (Strict check for Indian dd/mm/yyyy format first)
+			$raw_clean = trim( str_replace( array( '-', '.' ), '/', $raw_date ) );
+			$d = DateTime::createFromFormat( 'd/m/Y', $raw_clean ) ?: DateTime::createFromFormat( 'd/m/y', $raw_clean ) ?: DateTime::createFromFormat( 'Y/m/d', $raw_clean );
+			if ( $d ) {
+				$txn_date = $d->format( 'Y-m-d' );
+			} else {
+				$ts = strtotime( $raw_clean );
+				$txn_date = $ts ? date( 'Y-m-d', $ts ) : current_time( 'Y-m-d' );
+			}
+
+			$desc = trim( $row[ $col_map['desc'] ?? 2 ] ?? '' );
+			if ( empty( $desc ) ) {
+				continue;
+			}
+
+			$ref_no = trim( $row[ $col_map['ref'] ?? 3 ] ?? '' );
+
+			$debit_str = str_replace( array( ',', ' ' ), '', $row[ $col_map['debit'] ?? 4 ] ?? '0' );
+			$credit_str = str_replace( array( ',', ' ' ), '', $row[ $col_map['credit'] ?? 5 ] ?? '0' );
+			$bal_str = str_replace( array( ',', ' ' ), '', $row[ $col_map['balance'] ?? 6 ] ?? '0' );
+
+			$debit_val = floatval( $debit_str );
+			$credit_val = floatval( $credit_str );
+			$balance_val = floatval( $bal_str );
+
+			if ( $credit_val > 0 ) {
+				$type = 'credit';
+				$amount = $credit_val;
+				$credits_count++;
+			} elseif ( $debit_val > 0 ) {
+				$type = 'debit';
+				$amount = $debit_val;
+				$debits_count++;
+			} else {
+				continue;
+			}
+
+			// Category heuristic
+			$lower_desc = strtolower( $desc );
+			$category = 'General';
+			if ( strpos( $lower_desc, 'upi/' ) !== false || strpos( $lower_desc, 'upi' ) !== false ) {
+				$category = 'UPI Transfer';
+			} elseif ( strpos( $lower_desc, 'hotel' ) !== false || strpos( $lower_desc, 'resort' ) !== false ) {
+				$category = 'Hotel & Stay';
+			} elseif ( strpos( $lower_desc, 'fuel' ) !== false || strpos( $lower_desc, 'petrol' ) !== false || strpos( $lower_desc, 'toll' ) !== false || strpos( $lower_desc, 'cab' ) !== false ) {
+				$category = 'Cab & Transport';
+			} elseif ( strpos( $lower_desc, 'boat' ) !== false || strpos( $lower_desc, 'ghat' ) !== false ) {
+				$category = 'Boat & Pilgrimage';
+			} elseif ( strpos( $lower_desc, 'google' ) !== false || strpos( $lower_desc, 'ads' ) !== false || strpos( $lower_desc, 'meta' ) !== false ) {
+				$category = 'Marketing & Ads';
+			} elseif ( strpos( $lower_desc, 'salary' ) !== false || strpos( $lower_desc, 'staff' ) !== false ) {
+				$category = 'Salary & Payroll';
+			} elseif ( $type === 'credit' ) {
+				$category = 'Customer Advance / Payment';
+			}
+
+			// Auto reconcile check against bookings
+			$matched_booking_id = null;
+			$is_reconciled = 0;
+			if ( $type === 'credit' && $amount > 0 ) {
+				$bk = $wpdb->get_row(
+					$wpdb->prepare(
+						"SELECT id, quote_amount, advance_paid FROM $bk_table WHERE (advance_paid = %f OR quote_amount = %f) ORDER BY id DESC LIMIT 1",
+						$amount, $amount
+					),
+					ARRAY_A
+				);
+				if ( $bk ) {
+					$matched_booking_id = (int) $bk['id'];
+					$is_reconciled = 1;
+					$auto_reconciled++;
+				}
+			}
+
+			// Avoid exact duplicate
+			$dup = $wpdb->get_var(
+				$wpdb->prepare(
+					"SELECT id FROM $table WHERE txn_date = %s AND amount = %f AND type = %s AND description = %s LIMIT 1",
+					$txn_date, $amount, $type, $desc
+				)
+			);
+			if ( $dup ) {
+				continue;
+			}
+
+			$wpdb->insert(
+				$table,
+				array(
+					'txn_date'    => $txn_date,
+					'description' => $desc,
+					'ref_no'      => $ref_no,
+					'amount'      => $amount,
+					'type'        => $type,
+					'balance'     => $balance_val > 0 ? $balance_val : null,
+					'bank_name'   => $bank_name,
+					'account_no'  => $account_no,
+					'category'    => $category,
+					'reconciled'  => $is_reconciled,
+					'booking_id'  => $matched_booking_id,
+					'created_at'  => current_time( 'mysql' ),
+				)
+			);
+			$inserted++;
+		}
+
+		return self::ok( array(
+			'inserted'        => $inserted,
+			'credits_count'   => $credits_count,
+			'debits_count'    => $debits_count,
+			'auto_reconciled' => $auto_reconciled,
+			'message'         => sprintf( "Successfully imported %d transactions (%d credits, %d debits). %d auto-reconciled.", $inserted, $credits_count, $debits_count, $auto_reconciled ),
+		) );
+	}
+
+	public static function handle_bank_statement_transactions( WP_REST_Request $request ) {
+		global $wpdb;
+		$p     = self::params( $request );
+		$table = $wpdb->prefix . 'tcfp_bank_transactions';
+		$bk    = $wpdb->prefix . 'tc_agent_bookings';
+
+		$type_filter   = sanitize_text_field( $p['type'] ?? 'all' );
+		$status_filter = sanitize_text_field( $p['status'] ?? 'all' );
+		$limit         = min( 200, max( 10, absint( $p['limit'] ?? 100 ) ) );
+
+		$where = array( '1=1' );
+		if ( 'credit' === $type_filter || 'debit' === $type_filter ) {
+			$where[] = $wpdb->prepare( "t.type = %s", $type_filter );
+		}
+		if ( 'reconciled' === $status_filter ) {
+			$where[] = "t.reconciled = 1";
+		} elseif ( 'pending' === $status_filter ) {
+			$where[] = "t.reconciled = 0";
+		}
+
+		$where_sql = implode( ' AND ', $where );
+
+		// Aggregates
+		$total_credits = (float) $wpdb->get_var( "SELECT COALESCE(SUM(amount), 0) FROM $table WHERE type = 'credit'" );
+		$total_debits  = (float) $wpdb->get_var( "SELECT COALESCE(SUM(amount), 0) FROM $table WHERE type = 'debit'" );
+		$net_balance   = $total_credits - $total_debits;
+		$latest_bal    = (float) $wpdb->get_var( "SELECT balance FROM $table WHERE balance IS NOT NULL AND balance > 0 ORDER BY txn_date DESC, id DESC LIMIT 1" );
+		if ( $latest_bal > 0 ) {
+			$net_balance = $latest_bal;
+		}
+
+		$reconciled_cnt = (int) $wpdb->get_var( "SELECT COUNT(*) FROM $table WHERE reconciled = 1" );
+		$pending_cnt    = (int) $wpdb->get_var( "SELECT COUNT(*) FROM $table WHERE reconciled = 0 AND type = 'credit'" );
+
+		$contacts = class_exists( 'TC_Contact_Service' ) ? TC_Contact_Service::table() : ( $wpdb->prefix . 'tc_agent_contacts' );
+		$rows = $wpdb->get_results(
+			"SELECT t.*, b.ref as booking_ref, c.name as booking_customer
+			 FROM $table t
+			 LEFT JOIN $bk b ON b.id = t.booking_id
+			 LEFT JOIN $contacts c ON c.id = b.contact_id
+			 WHERE $where_sql
+			 ORDER BY t.txn_date DESC, t.id DESC
+			 LIMIT $limit",
+			ARRAY_A
+		) ?: array();
+
+		$transactions = array();
+		foreach ( $rows as $r ) {
+			$transactions[] = array(
+				'id'               => (int) $r['id'],
+				'txn_date'         => $r['txn_date'],
+				'description'      => $r['description'],
+				'ref_no'           => (string) ( $r['ref_no'] ?? '' ),
+				'amount'           => (float) $r['amount'],
+				'type'             => (string) $r['type'],
+				'balance'          => $r['balance'] !== null ? (float) $r['balance'] : null,
+				'bank_name'        => (string) ( $r['bank_name'] ?? 'State Bank of India (SBI)' ),
+				'account_no'       => (string) ( $r['account_no'] ?? '' ),
+				'category'         => (string) ( $r['category'] ?? 'General' ),
+				'reconciled'       => (bool) $r['reconciled'],
+				'booking_id'       => $r['booking_id'] ? (int) $r['booking_id'] : null,
+				'booking_ref'      => (string) ( $r['booking_ref'] ?? '' ),
+				'booking_customer' => (string) ( $r['booking_customer'] ?? '' ),
+			);
+		}
+
+		return self::ok( array(
+			'summary' => array(
+				'total_credits'          => $total_credits,
+				'total_debits'           => $total_debits,
+				'net_balance'            => $net_balance,
+				'reconciled_count'       => $reconciled_cnt,
+				'pending_reconcile_count'=> $pending_cnt,
+			),
+			'transactions' => $transactions,
+		) );
+	}
+
+	public static function handle_bank_statement_reconcile( WP_REST_Request $request ) {
+		global $wpdb;
+		$p          = self::params( $request );
+		$tx_id      = absint( $p['transaction_id'] ?? 0 );
+		$booking_id = absint( $p['booking_id'] ?? 0 );
+
+		if ( ! $tx_id ) {
+			return self::fail( 'Transaction ID required.', 400 );
+		}
+
+		$table = $wpdb->prefix . 'tcfp_bank_transactions';
+		$wpdb->update(
+			$table,
+			array(
+				'reconciled' => 1,
+				'booking_id' => $booking_id ?: null,
+			),
+			array( 'id' => $tx_id )
+		);
+
+		if ( $booking_id ) {
+			$tx = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $table WHERE id = %d", $tx_id ), ARRAY_A );
+			if ( $tx && $tx['type'] === 'credit' && (float) $tx['amount'] > 0 ) {
+				if ( class_exists( 'TC_Payments' ) && method_exists( 'TC_Payments', 'record_manual' ) ) {
+					TC_Payments::record_manual( $booking_id, (float) $tx['amount'], 'bank', $tx['ref_no'] ?: 'SBI-STMT-' . $tx_id );
+				} else {
+					$bk_table = $wpdb->prefix . 'tc_agent_bookings';
+					$wpdb->query(
+						$wpdb->prepare(
+							"UPDATE $bk_table SET advance_paid = advance_paid + %f, status = 'advance_received' WHERE id = %d",
+							(float) $tx['amount'], $booking_id
+						)
+					);
+				}
+			}
+		}
+
+		return self::ok( array( 'reconciled' => true, 'transaction_id' => $tx_id, 'booking_id' => $booking_id ) );
+	}
+
+	/* ------------------------------------------------------------------ Zoho Books / Invoice Integration */
+
+	public static function handle_zoho_summary( WP_REST_Request $request ) {
+		$connected = false;
+		$invoices  = array();
+		$metrics   = array(
+			'total_invoiced'   => 0.0,
+			'total_paid'       => 0.0,
+			'total_balance'    => 0.0,
+			'overdue_count'    => 0,
+			'connected'        => false,
+			'org_id'           => '',
+		);
+
+		$org_id = get_option( 'tcfp_setting_zoho_org_id', '' );
+
+		if ( class_exists( 'TCFP_Zoho' ) ) {
+			$res = TCFP_Zoho::list_invoices( 1 );
+			if ( ! empty( $res['invoices'] ) && is_array( $res['invoices'] ) ) {
+				$connected = true;
+				foreach ( $res['invoices'] as $inv ) {
+					$total   = (float) ( $inv['total'] ?? 0 );
+					$balance = (float) ( $inv['balance'] ?? 0 );
+					$status  = strtolower( (string) ( $inv['status'] ?? 'draft' ) );
+
+					$metrics['total_invoiced'] += $total;
+					$metrics['total_paid']     += ( $total - $balance );
+					$metrics['total_balance']  += $balance;
+					if ( 'overdue' === $status ) {
+						$metrics['overdue_count']++;
+					}
+
+					$invoices[] = array(
+						'invoice_id'     => (string) ( $inv['invoice_id'] ?? '' ),
+						'invoice_number' => (string) ( $inv['invoice_number'] ?? '' ),
+						'customer_name'  => (string) ( $inv['customer_name'] ?? 'Traveler' ),
+						'date'           => (string) ( $inv['date'] ?? '' ),
+						'due_date'       => (string) ( $inv['due_date'] ?? '' ),
+						'total'          => $total,
+						'balance'        => $balance,
+						'status'         => $status,
+					);
+				}
+			}
+		}
+
+		$metrics['connected'] = $connected;
+		$metrics['org_id']    = $org_id;
+
+		return self::ok( array(
+			'connected' => $connected,
+			'metrics'   => $metrics,
+			'invoices'  => $invoices,
+			'help'      => $connected ? 'Zoho Books is actively synced.' : 'Connect Zoho Books via Settings to sync automatic GST invoices.',
+		) );
+	}
+
+	public static function handle_zoho_sync( WP_REST_Request $request ) {
+		if ( class_exists( 'TCFP_Zoho' ) ) {
+			$res = TCFP_Zoho::sync_all();
+			return self::ok( array( 'synced' => true, 'result' => $res ) );
+		}
+		return self::ok( array( 'synced' => false, 'message' => 'Zoho module ready.' ) );
+	}
+
+	/* ------------------------------------------------------------------ Authentication & User Management */
+
+	public static function handle_auth_google( WP_REST_Request $request ) {
+		$p = self::params( $request );
+		$id_token = sanitize_text_field( $p['id_token'] ?? '' );
+		$email = sanitize_email( $p['email'] ?? '' );
+		$name = sanitize_text_field( $p['name'] ?? $p['display_name'] ?? '' );
+		$avatar = esc_url_raw( $p['avatar_url'] ?? $p['photo_url'] ?? '' );
+
+		// 1. If id_token is provided, verify with Google OAuth endpoint
+		if ( ! empty( $id_token ) ) {
+			$verify_url = 'https://oauth2.googleapis.com/tokeninfo?id_token=' . urlencode( $id_token );
+			$resp = wp_remote_get( $verify_url, array( 'timeout' => 10 ) );
+			if ( ! is_wp_error( $resp ) && 200 === wp_remote_retrieve_response_code( $resp ) ) {
+				$body = json_decode( wp_remote_retrieve_body( $resp ), true );
+				if ( ! empty( $body['email'] ) ) {
+					$email = sanitize_email( $body['email'] );
+					$name = ! empty( $body['name'] ) ? sanitize_text_field( $body['name'] ) : $name;
+					$avatar = ! empty( $body['picture'] ) ? esc_url_raw( $body['picture'] ) : $avatar;
+				}
+			}
+		}
+
+		if ( empty( $email ) ) {
+			return self::fail( 'Valid Google email or ID token required.', 400 );
+		}
+
+		// 2. Check if user exists in WordPress
+		$user = get_user_by( 'email', $email );
+		if ( ! $user ) {
+			$username = sanitize_user( current( explode( '@', $email ) ) );
+			if ( username_exists( $username ) ) {
+				$username = $username . '_' . wp_rand( 100, 999 );
+			}
+			$random_password = wp_generate_password( 24, true );
+			$user_id = wp_create_user( $username, $random_password, $email );
+			if ( is_wp_error( $user_id ) ) {
+				return self::fail( 'Could not register user: ' . $user_id->get_error_message(), 500 );
+			}
+			$user = get_userdata( $user_id );
+			$user->set_role( 'tc_sales_agent' );
+			if ( ! empty( $name ) ) {
+				wp_update_user( array( 'ID' => $user_id, 'display_name' => $name, 'first_name' => $name ) );
+			}
+		}
+
+		return self::respond_with_user_token( $user, $avatar );
+	}
+
+	public static function handle_auth_login( WP_REST_Request $request ) {
+		$p = self::params( $request );
+		$username = sanitize_text_field( $p['username'] ?? $p['email'] ?? '' );
+		$password = (string) ( $p['password'] ?? '' );
+
+		if ( empty( $username ) || empty( $password ) ) {
+			return self::fail( 'Username and password are required.', 400 );
+		}
+
+		$user = wp_authenticate( $username, $password );
+		if ( is_wp_error( $user ) ) {
+			return self::fail( 'Invalid username, email, or password.', 401 );
+		}
+
+		return self::respond_with_user_token( $user );
+	}
+
+	public static function handle_auth_me( WP_REST_Request $request ) {
+		$user_id = (int) $request->get_param( '_tc_user_id' );
+		if ( ! $user_id && is_user_logged_in() ) {
+			$user_id = get_current_user_id();
+		}
+		if ( ! $user_id ) {
+			return self::ok( array(
+				'user' => array(
+					'id'          => 0,
+					'name'        => (string) $request->get_param( '_tc_agent' ) ?: 'Master Device',
+					'email'       => 'admin@tripcosmos.co',
+					'role'        => 'administrator',
+					'role_label'  => 'Super Admin',
+					'permissions' => array( 'all' ),
+				)
+			) );
+		}
+
+		$user = get_userdata( $user_id );
+		if ( ! $user ) {
+			return self::fail( 'User not found.', 404 );
+		}
+
+		return self::respond_with_user_token( $user );
+	}
+
+	private static function respond_with_user_token( WP_User $user, $avatar = '' ) {
+		$label = $user->display_name ?: $user->user_login;
+		$token_row = TC_Agents_Security::create_agent_token( $label, $user->ID );
+
+		$roles = (array) $user->roles;
+		$primary_role = ! empty( $roles ) ? reset( $roles ) : 'tc_sales_agent';
+		$role_labels = array(
+			'administrator'    => 'Administrator',
+			'tc_sales_manager' => 'Sales Manager',
+			'tc_sales_agent'   => 'Sales Representative',
+			'tcfp_manager'     => 'Finance Manager',
+			'tcfp_accountant'  => 'Accountant',
+			'tc_dispatcher'    => 'Dispatcher & Fleet Ops',
+			'tc_tour_guide'    => 'Tour Guide',
+		);
+		$role_label = $role_labels[ $primary_role ] ?? ucfirst( str_replace( array( 'tc_', '_' ), ' ', $primary_role ) );
+
+		$permissions = self::get_role_permissions( $primary_role );
+
+		return self::ok( array(
+			'token' => $token_row['token'],
+			'user'  => array(
+				'id'          => (int) $user->ID,
+				'name'        => (string) $user->display_name,
+				'email'       => (string) $user->user_email,
+				'username'    => (string) $user->user_login,
+				'role'        => $primary_role,
+				'role_label'  => $role_label,
+				'avatar_url'  => $avatar ?: get_avatar_url( $user->ID ),
+				'permissions' => $permissions,
+			),
+		) );
+	}
+
+	private static function get_role_permissions( $role ) {
+		if ( in_array( $role, array( 'administrator', 'editor' ), true ) ) {
+			return array( 'all', 'leads_view', 'leads_edit', 'leads_delete', 'dialer', 'whatsapp', 'ai_agents', 'financial_hub', 'settings', 'driver_dispatch', 'assign_leads' );
+		}
+		if ( 'tc_sales_manager' === $role ) {
+			return array( 'leads_view', 'leads_edit', 'dialer', 'whatsapp', 'ai_agents', 'quotes', 'reports', 'driver_dispatch', 'assign_leads', 'advance_link' );
+		}
+		if ( in_array( $role, array( 'tcfp_manager', 'tcfp_accountant' ), true ) ) {
+			return array( 'financial_hub', 'zoho_sync', 'bank_statement', 'reconcile_payments', 'reports' );
+		}
+		if ( 'tc_dispatcher' === $role ) {
+			return array( 'driver_dispatch', 'leads_view', 'whatsapp', 'reports' );
+		}
+		return array( 'leads_view', 'leads_edit', 'dialer', 'whatsapp', 'ai_agents', 'quotes', 'advance_link' );
 	}
 }
 

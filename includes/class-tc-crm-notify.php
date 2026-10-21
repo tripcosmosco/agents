@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 /**
  * Staff alerts: lead assigned, follow-up due, new lead not answered in time (SLA), customer replied,
  * and a morning digest. Delivered by email and, when the staff member has a WhatsApp number, WhatsApp.
@@ -197,8 +197,8 @@ class TC_CRM_Notify {
 					   AND (c.meta_data IS NULL OR c.meta_data NOT LIKE %s)
 					   AND NOT EXISTS (SELECT 1 FROM $t_act a WHERE a.contact_id = c.id AND a.user_id > 0)
 					 LIMIT 20",
-					gmdate( 'Y-m-d H:i:s', strtotime( $now ) - $sla * MINUTE_IN_SECONDS ),
-					gmdate( 'Y-m-d H:i:s', strtotime( $now ) - DAY_IN_SECONDS ),
+					date( 'Y-m-d H:i:s', strtotime( $now ) - $sla * MINUTE_IN_SECONDS ),
+					date( 'Y-m-d H:i:s', strtotime( $now ) - DAY_IN_SECONDS ),
 					'%"sla_alerted"%'
 				),
 				ARRAY_A
@@ -209,7 +209,9 @@ class TC_CRM_Notify {
 					continue;
 				}
 				$meta['sla_alerted'] = $now;
-				$wpdb->update( $t_c, array( 'meta_data' => wp_json_encode( $meta ) ), array( 'id' => (int) $c['id'] ) );
+				$next_follow_up = date( 'Y-m-d H:i:s', strtotime( $now ) + 3600 );
+				$wpdb->update( $t_c, array( 'meta_data' => wp_json_encode( $meta ), 'next_follow_up_at' => ( empty( $c['next_follow_up_at'] ) ? $next_follow_up : $c['next_follow_up_at'] ), 'updated_at' => $now ), array( 'id' => (int) $c['id'] ) );
+				if ( class_exists( 'TC_Contact_Service' ) ) { TC_Contact_Service::add_activity( (int) $c['id'], 'system', sprintf( __( 'âš¡ SLA Alert: Lead unattended for %d+ minutes. Auto-scheduled urgent follow-up.', 'tripcosmos-agents' ), $sla ) ); }
 				$subject = sprintf( __( 'Lead waiting %d+ minutes with no response', 'tripcosmos-agents' ), $sla );
 				if ( (int) $c['owner_user_id'] ) {
 					self::send( (int) $c['owner_user_id'], $subject, self::contact_line( $c ), (int) $c['id'] );

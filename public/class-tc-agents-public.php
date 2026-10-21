@@ -99,6 +99,7 @@ class TC_Agents_Public {
 				'voiceEnabled'   => '1' === (string) get_option( 'tc_agents_voice_enabled', '0' ),
 				'agentSlug'      => 'tripcosmos-guide',
 				'siteUrl'        => home_url(),
+				'scarcityFeed'   => class_exists( 'TC_Inventory_Service' ) ? TC_Inventory_Service::get_scarcity_feed() : array(),
 				'currentUser'    => $current_user_data,
 			)
 		);
@@ -476,7 +477,12 @@ class TC_Agents_Public {
 		$wa_url = "https://wa.me/{$wa_num}?text=" . rawurlencode( $wa_msg );
 		?>
 		<!-- TripCosmos High-Converting Sticky Mobile Bottom Bar -->
+		<!-- TripCosmos High-Converting Sticky Mobile Bottom Bar -->
 		<div id="tc-mobile-sticky-bar" class="tc-mobile-sticky-bar" role="region" aria-label="Quick Booking & Inquiry">
+			<div class="tc-sticky-scarcity-ribbon">
+				<span class="tc-scarcity-dot"></span>
+				<span class="tc-scarcity-text">ðŸª” Dev Deepawali & Magh Mela: Only 1 Bajra Boat & 2 Tents Remaining!</span>
+			</div>
 			<div class="tc-sticky-inner">
 				<!-- 1. Instant WhatsApp Button -->
 				<a href="<?php echo esc_url( $wa_url ); ?>" class="tc-sticky-btn tc-sticky-btn-wa" target="_blank" rel="noopener" data-channel="whatsapp" aria-label="Chat on WhatsApp">
