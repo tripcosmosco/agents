@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 /**
  * Staff alerts: lead assigned, follow-up due, new lead not answered in time (SLA), customer replied,
  * and a morning digest. Delivered by email and, when the staff member has a WhatsApp number, WhatsApp.

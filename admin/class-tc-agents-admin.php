@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 /**
  * Admin Control Center and Menu Manager.
  *

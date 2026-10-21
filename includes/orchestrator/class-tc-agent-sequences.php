@@ -157,7 +157,7 @@ class TC_Agent_Sequences {
 				array(
 					'delay_hours' => 1,
 					'subject'     => 'B2B Ground Handling & White-Label DMC Partnership - TripCosmos Varanasi',
-					'message'     => "Namaste {name} team! Greetings from TripCosmos (Varanasi).\n\nDo your clients travel to Varanasi, Ayodhya, Prayagraj, and Bodh Gaya? We operate as the premier on-ground DMC handling:\n✅ Verified Commercial AC Cabs (Innova Crysta, Dzire, Ertiga, Tempo Travellers)\n✅ Reserved Ganga Aarti Private Bajra Boats & VIP Sugam Darshan Escorts\n✅ Net B2B Commission Rates & White-Label Placards with your agency branding.\n\nWould you like our 2026 B2B Net Rate Sheet?",
+					'message'     => "Namaste {name} team! Greetings from TripCosmos (Varanasi).\n\nDo your clients travel to Varanasi, Ayodhya, Prayagraj, and Bodh Gaya? We operate as the premier on-ground DMC handling:\nâœ… Verified Commercial AC Cabs (Innova Crysta, Dzire, Ertiga, Tempo Travellers)\nâœ… Reserved Ganga Aarti Private Bajra Boats & VIP Sugam Darshan Escorts\nâœ… Net B2B Commission Rates & White-Label Placards with your agency branding.\n\nWould you like our 2026 B2B Net Rate Sheet?",
 				),
 				array(
 					'delay_hours' => 48,
@@ -178,16 +178,7 @@ class TC_Agent_Sequences {
 				)
 			);
 		}
-	}
 
-	/**
-	 * Enroll a contact into an automated follow-up sequence.
-	 *
-	 * @param int    $contact_id
-	 * @param string $trigger_event e.g. 'inquiry_abandoned', 'fluentform_submitted', 'pre_arrival', 'b2b_outreach'
-	 * @param int    $sequence_id   Optional explicit sequence ID.
-	 * @return bool
-	 */
 		// 6. Dev Deepawali 2026 B2B Festival Campaign Drip
 		$exists_dd = $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $table_seq WHERE trigger_event = %s LIMIT 1", 'dev_deepawali_b2b' ) );
 		if ( ! $exists_dd ) {
@@ -216,7 +207,16 @@ class TC_Agent_Sequences {
 				)
 			);
 		}
+	}
 
+	/**
+	 * Enroll a contact into an automated follow-up sequence.
+	 *
+	 * @param int    $contact_id
+	 * @param string $trigger_event e.g. 'inquiry_abandoned', 'fluentform_submitted', 'pre_arrival', 'b2b_outreach'
+	 * @param int    $sequence_id   Optional explicit sequence ID.
+	 * @return bool
+	 */
 	public static function enroll_contact( $contact_id, $trigger_event = 'inquiry_abandoned', $sequence_id = 0 ) {
 		global $wpdb;
 		$table_seq    = $wpdb->prefix . 'tc_agent_sequences';

@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 /**
  * Admin Executive Dashboard View.
  * Upgraded with Self-Contained High-Res Theme, Live Visitor Radar, & Mobile App QR Pairing.
