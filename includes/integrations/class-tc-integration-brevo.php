@@ -194,7 +194,7 @@ img { border:0; outline:none; text-decoration:none; }
       </tr>
       <tr>
         <td class="col-title">🪔 Dev Deepawali 2026</td>
-        <td class="col-desc">Exclusive pre-allotted Bajra boats and prime Ganga-facing rooftop hospitality for November 24, 2026.</td>
+        <td class="col-desc">Exclusive pre-allotted Bajra boats and prime Dashashwamedh Ghat Aarti viewing decks for Kartik Poornima. <a href="https://tripcosmos.co/tour-packages/dev-deepawali-varanasi/" target="_blank" style="color:#d97706;font-weight:700;">View 2N3D Package &rarr;</a></td>
       </tr>
       <tr>
         <td class="col-title">⛺ Magh Mela 2027</td>

@@ -916,7 +916,10 @@ class TC_Agent_Tools {
 		if ( ! $agency ) { return array( 'error' => 'Agency not found.' ); }
 		$channel = sanitize_key( $args['channel'] ?? 'both' );
 		$results = array();
-		$msg = sprintf( 'Namaste %s team! TripCosmos (Varanasi) — B2B Kashi-Ayodhya-Prayagraj packages, cabs & Ganga Aarti boats at net rates. Shall we share commission slabs?', $agency['name'] );
+		$msg = sprintf(
+			"Namaste %s Team! ðŸ™ Greetings from TripCosmos Varanasi.\n\nAre your clients inquiring about *Dev Deepawali 2026 in Varanasi (Kartik Poornima)*?\n\nAs your verified on-ground Destination Management Company (DMC), we have pre-allocated ground inventory exclusively for our B2B travel partners:\nâ€¢ *Reserved Private Bajra Boats:* Prime Dashashwamedh Ghat Maha Aarti viewing decks\nâ€¢ *VIP Sugam Darshan Passes:* Gate 4 priority Kashi Vishwanath entry\nâ€¢ *Dedicated AC Fleet:* Innova Crysta & Tempo Travellers\nâ€¢ *100%% White-Label Execution:* Executed seamlessly under your agency brand\n\nðŸ‘‰ *View 2N3D Dev Deepawali Itinerary:* https://tripcosmos.co/tour-packages/dev-deepawali-varanasi/\n\nMay we share our 2026 B2B Net Wholesale Tariff Sheet and Bajra Allotments on this chat?",
+			$agency['name']
+		);
 		$target_phone = class_exists( 'TC_Integration_Google_Business' )
 			? TC_Integration_Google_Business::normalize_phone( $agency['phone'] )
 			: ( class_exists( 'TC_Contact_Service' ) ? TC_Contact_Service::normalize_phone( $agency['phone'] ) : $agency['phone'] );

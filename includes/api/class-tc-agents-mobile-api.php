@@ -2839,9 +2839,12 @@ class TC_Agents_Mobile_API {
 		}
 
 		$pitch_text = ! empty( $custom_message ) ? $custom_message : sprintf(
-			"Namaste %s ji! 🙏\n\nGreetings from TripCosmos Varanasi. We are your dedicated ground DMC partner for Varanasi, Ayodhya, Prayagraj & Bodhgaya.\n\nWe provide verified B2B net rates, 100%% white-label vouchers (your branding), luxury fleet (Innova Crysta, Tempo Travellers), and pre-allocated Ganga Aarti boat slots for Dev Deepawali 2026.\n\nWould love to share our DMC B2B Tariff Sheet with you. Can I send the PDF brochure here?",
+			"Namaste %s Team! ðŸ™ Greetings from TripCosmos Varanasi.\n\nAre your clients inquiring about *Dev Deepawali 2026 in Varanasi (Kartik Poornima)*?\n\nAs your verified on-ground Destination Management Company (DMC), we have pre-allocated ground inventory exclusively for our B2B travel partners:\nâ€¢ *Reserved Private Bajra Boats:* Prime Dashashwamedh Ghat Maha Aarti viewing decks (Zero line waiting)\nâ€¢ *VIP Sugam Darshan Passes:* Priority Kashi Vishwanath Temple entry via Gate 4\nâ€¢ *Dedicated AC Fleet:* Innova Crysta, Force Urbania & Tempo Travellers (Varanasi, Ayodhya & Prayagraj)\nâ€¢ *100%% White-Label Execution:* Executed seamlessly under *your agency brand* with your client welcome placards\n\nðŸ‘‰ *View 2N3D Dev Deepawali Itinerary:* https://tripcosmos.co/tour-packages/dev-deepawali-varanasi/\n\nMay we share our complete 2026 B2B Net Wholesale Tariff Sheet and Bajra Allotment slabs on this chat?",
 			! empty( $agency['name'] ) ? $agency['name'] : 'Partner'
 		);
+
+
+
 
 		$sent = false;
 		if ( class_exists( 'TC_Integration_Evolution' ) && TC_Integration_Evolution::is_configured() ) {
@@ -3778,11 +3781,14 @@ class TC_Agents_Mobile_API {
 				continue;
 			}
 
-			$agency_name = ! empty( $agency['name'] ) ? $agency['name'] : 'Partner';
 			$pitch_text  = sprintf(
-				"Namaste %s team! ðŸ™\n\nGreetings from TripCosmos Varanasi. We are your trusted ground DMC execution partner across Varanasi, Ayodhya, Prayagraj & Bodhgaya.\n\nWith peak pilgrimage season approaching, we provide:\nâ€¢ Guaranteed Dev Deepawali 2026 Private Bajra Boat Decks\nâ€¢ Net Wholesale Cabs (Innova Crysta â‚¹19/km, Force Urbania â‚¹32/km)\nâ€¢ Kashi Vishwanath Sugam Darshan & Mangla Aarti passes\nâ€¢ 100%% White-Label Land Execution (Your Guest, Your Brand)\n\nMay we send our complete 2026-2027 DMC Wholesale Tariff Card to this WhatsApp?",
+				"Namaste %s Team! ðŸ™ Greetings from TripCosmos Varanasi.\n\nAre your clients inquiring about *Dev Deepawali 2026 in Varanasi (Kartik Poornima)*?\n\nAs your verified on-ground Destination Management Company (DMC), we have pre-allocated ground inventory exclusively for our B2B travel partners:\nâ€¢ *Reserved Private Bajra Boats:* Prime Dashashwamedh Ghat Maha Aarti viewing decks (Zero line waiting)\nâ€¢ *VIP Sugam Darshan Passes:* Priority Kashi Vishwanath Temple entry via Gate 4\nâ€¢ *Dedicated AC Fleet:* Innova Crysta, Force Urbania & Tempo Travellers (Varanasi, Ayodhya & Prayagraj)\nâ€¢ *100%% White-Label Execution:* Executed seamlessly under *your agency brand* with your client welcome placards\n\nðŸ‘‰ *View 2N3D Dev Deepawali Itinerary:* https://tripcosmos.co/tour-packages/dev-deepawali-varanasi/\n\nMay we share our complete 2026 B2B Net Wholesale Tariff Sheet and Bajra Allotment slabs on this chat?",
 				$agency_name
 			);
+
+
+
+
 
 			$sent = false;
 			if ( class_exists( 'TC_Integration_Evolution' ) && TC_Integration_Evolution::is_configured() ) {
