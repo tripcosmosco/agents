@@ -2846,12 +2846,13 @@ class TC_Agents_Mobile_API {
 
 
 
+		$context = ! empty( $request->get_param( 'ignore_quiet_hours' ) ) ? 'conversational' : 'broadcast';
 		$sent = false;
 		if ( class_exists( 'TC_Integration_Evolution' ) && TC_Integration_Evolution::is_configured() ) {
-			$res = TC_Integration_Evolution::send_message( $phone, $pitch_text, 'broadcast' );
+			$res = TC_Integration_Evolution::send_message( $phone, $pitch_text, $context );
 			$sent = ! is_wp_error( $res );
 		} elseif ( class_exists( 'TC_Integration_WhatsApp' ) && TC_Integration_WhatsApp::is_configured() ) {
-			$sent = TC_Integration_WhatsApp::send_message( $phone, $pitch_text, 'broadcast' );
+			$sent = TC_Integration_WhatsApp::send_message( $phone, $pitch_text, $context );
 		}
 
 		if ( $sent ) {
@@ -3600,7 +3601,6 @@ class TC_Agents_Mobile_API {
 			200
 		);
 	}
-}
 	/**
 	 * 31. Inventory Scarcity Ledger Status
 	 */
@@ -3810,9 +3810,11 @@ class TC_Agents_Mobile_API {
 				$agency_name
 			);
 
+			$ignore_quiet_hours = ! empty( $p['ignore_quiet_hours'] );
+			$context = $ignore_quiet_hours ? 'conversational' : 'broadcast';
 			$sent = false;
 			if ( class_exists( 'TC_Integration_Evolution' ) && TC_Integration_Evolution::is_configured() ) {
-				$res  = TC_Integration_Evolution::send_message( $phone, $pitch_text, 'broadcast' );
+				$res  = TC_Integration_Evolution::send_message( $phone, $pitch_text, $context );
 				$sent = ! is_wp_error( $res );
 			}
 
@@ -3890,3 +3892,4 @@ class TC_Agents_Mobile_API {
 	}
 
 
+}
