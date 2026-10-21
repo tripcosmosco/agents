@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 /**
  * Admin Executive Dashboard View.
  * Upgraded with Self-Contained High-Res Theme, Live Visitor Radar, & Mobile App QR Pairing.
@@ -37,11 +37,54 @@ $voice_count = (int) $wpdb->get_var( "SELECT COUNT(*) FROM $table_convo WHERE ch
 // Recent activity feed
 $recent_convos = $wpdb->get_results( "SELECT * FROM $table_convo ORDER BY last_message_at DESC LIMIT 6", ARRAY_A ) ?: array();
 
-// Live visitor telemetry events from audit log
-$recent_visitors = $wpdb->get_results(
-	"SELECT details, created_at FROM {$table_audit} WHERE event_type = 'visitor_landing' ORDER BY id DESC LIMIT 5",
-	ARRAY_A
-) ?: array();
+// Live active visitors (from transient map + audit log fallback)
+$active_transient = get_transient( 'tc_live_active_visitors' );
+$radar_visitors   = array();
+$seen_sessions    = array();
+
+if ( is_array( $active_transient ) && ! empty( $active_transient ) ) {
+	$now_ts = time();
+	foreach ( $active_transient as $vkey => $vdata ) {
+		$seen_ts = isset( $vdata['last_seen_ts'] ) ? (int) $vdata['last_seen_ts'] : 0;
+		if ( ( $now_ts - $seen_ts ) <= 900 ) {
+			$radar_visitors[] = array(
+				'is_online'  => true,
+				'details'    => $vdata,
+				'created_at' => isset( $vdata['last_seen_at'] ) ? $vdata['last_seen_at'] : current_time( 'mysql' ),
+			);
+			if ( ! empty( $vdata['session_id'] ) ) {
+				$seen_sessions[ $vdata['session_id'] ] = true;
+			}
+		}
+	}
+}
+
+if ( count( $radar_visitors ) < 6 ) {
+	$recent_logs = $wpdb->get_results(
+		"SELECT details, created_at FROM {$table_audit} WHERE event_type = 'visitor_landing' ORDER BY id DESC LIMIT 8",
+		ARRAY_A
+	) ?: array();
+
+	foreach ( $recent_logs as $rl ) {
+		$d = json_decode( (string) $rl['details'], true ) ?: array();
+		$sess = ! empty( $d['session_id'] ) ? $d['session_id'] : '';
+		if ( ! empty( $sess ) && ! empty( $seen_sessions[ $sess ] ) ) {
+			continue;
+		}
+		if ( ! empty( $sess ) ) {
+			$seen_sessions[ $sess ] = true;
+		}
+		$radar_visitors[] = array(
+			'is_online'  => false,
+			'details'    => $d,
+			'created_at' => $rl['created_at'],
+		);
+		if ( count( $radar_visitors ) >= 6 ) {
+			break;
+		}
+	}
+}
+$recent_visitors = $radar_visitors;
 
 // Mobile Companion pairing token
 $mobile_token = class_exists( 'TC_Agents_Mobile_API' ) ? TC_Agents_Mobile_API::get_api_token() : get_option( 'tc_agents_mobile_api_token', 'a9P3cHjoyDq5Fkm0ucODllxnuuy35rXJ' );
@@ -169,7 +212,7 @@ $widget_enabled = '1' === (string) get_option( 'tc_agents_widget_enabled', '1' )
 	border: 1px solid #edf2f7;
 }
 .tc-visitor-icon {
-	width: 32px;
+									<?php echo ! empty( $visitor_name ) ? "&#128100;" : ( $is_online ? "&#128994;" : "&#128065;" ); ?>
 	height: 32px;
 	border-radius: 8px;
 	background: #e0f2fe;
@@ -277,21 +320,64 @@ $widget_enabled = '1' === (string) get_option( 'tc_agents_widget_enabled', '1' )
 				<?php else : ?>
 					<div class="tc-visitor-feed">
 						<?php foreach ( $recent_visitors as $rv ) :
-							$d = json_decode( (string) $rv['details'], true ) ?: array();
+							$d = is_array( $rv['details'] ) ? $rv['details'] : ( json_decode( (string) $rv['details'], true ) ?: array() );
 							$title = ! empty( $d['page_title'] ) ? $d['page_title'] : 'TripCosmos Pilgrimage Tour';
+							$page_url = ! empty( $d['page_url'] ) ? $d['page_url'] : '';
+							$visitor_name = ! empty( $d['visitor_name'] ) ? sanitize_text_field( $d['visitor_name'] ) : ( ! empty( $d['name'] ) ? sanitize_text_field( $d['name'] ) : '' );
+							$visitor_phone = ! empty( $d['visitor_phone'] ) ? sanitize_text_field( $d['visitor_phone'] ) : ( ! empty( $d['phone'] ) ? sanitize_text_field( $d['phone'] ) : '' );
+							$city = ! empty( $d['city'] ) ? sanitize_text_field( $d['city'] ) : '';
+							$country = ! empty( $d['country'] ) ? sanitize_text_field( $d['country'] ) : '';
+							$device = ! empty( $d['device'] ) ? sanitize_text_field( $d['device'] ) : '';
+							$is_online = ! empty( $rv['is_online'] );
 							$time = human_time_diff( strtotime( $rv['created_at'] ) ) . ' ago';
+							$geo_parts = array_filter( array( $city, $country ) );
+							$geo_str = ! empty( $geo_parts ) ? implode( ', ', $geo_parts ) : 'Web';
 						?>
-							<div class="tc-visitor-row">
-								<div class="tc-visitor-icon">👁️</div>
-								<div style="flex: 1; min-width: 0;">
-									<div style="font-weight: 600; font-size: 13px; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-										<?php echo esc_html( $title ); ?>
-									</div>
-									<div style="font-size: 11px; color: #64748b;">
-										Browsing via Web • <?php echo esc_html( $time ); ?>
-									</div>
+							<div class="tc-visitor-row" style="display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-bottom: 1px solid #f1f5f9; background: <?php echo $is_online ? '#f0fdf4' : 'transparent'; ?>;">
+								<div class="tc-visitor-icon" style="font-size: 18px; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; background: <?php echo $is_online ? '#dcfce7' : '#f1f5f9'; ?>; border-radius: 50%;">
+									<?php echo ! empty( $visitor_name ) ? '&#128100;' : ( $is_online ? '&#128994;' : '&#128065;' ); ?>
 								</div>
-								<a href="<?php echo esc_url( admin_url( 'admin.php?page=tc-agents-leads' ) ); ?>" class="button button-small" style="font-size: 11px;">View In CRM</a>
+								<div style="flex: 1; min-width: 0;">
+									<div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+										<?php if ( ! empty( $visitor_name ) ) : ?>
+											<strong style="font-size: 13.5px; color: #0f172a;">&#128100; <?php echo esc_html( $visitor_name ); ?></strong>
+											<span style="font-size: 10px; font-weight: 700; background: #dbeafe; color: #1e40af; padding: 2px 7px; border-radius: 999px;">
+												WP User Aware
+											</span>
+										<?php else : ?>
+											<span style="font-size: 13px; font-weight: 600; color: #334155;">Anonymous Visitor</span>
+										<?php endif; ?>
+
+										<?php if ( $is_online ) : ?>
+											<span style="font-size: 10px; font-weight: 800; background: #bbf7d0; color: #15803d; padding: 2px 6px; border-radius: 6px;">&#9679; ONLINE NOW</span>
+										<?php endif; ?>
+
+										<?php if ( ! empty( $visitor_phone ) ) : ?>
+											<a href="tel:<?php echo esc_attr( $visitor_phone ); ?>" style="font-size: 11.5px; font-weight: 600; color: #ea580c; text-decoration: none;">
+												&#128222; <?php echo esc_html( $visitor_phone ); ?>
+											</a>
+										<?php endif; ?>
+									</div>
+
+									<div style="font-size: 12.5px; color: #475569; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+										<?php if ( ! empty( $page_url ) ) : ?>
+											<a href="<?php echo esc_url( $page_url ); ?>" target="_blank" style="color: #0284c7; text-decoration: none;" title="<?php echo esc_attr( $title ); ?>">
+												&#128196; <?php echo esc_html( $title ); ?> &nearr;
+											</a>
+										<?php else : ?>
+											<span>&#128196; <?php echo esc_html( $title ); ?></span>
+										<?php endif; ?>
+									</div>
+
+									<div style="font-size: 11px; color: #94a3b8; margin-top: 2px;">&#128205; <?php echo esc_html( $geo_str ); ?> <?php if ( $device ) : ?>&bull; <?php echo esc_html( $device ); ?><?php endif; ?> &bull; <?php echo esc_html( $time ); ?></div>
+								</div>
+
+								<div style="display: flex; gap: 6px;">
+									<?php if ( ! empty( $visitor_phone ) ) : ?>
+										<a href="https://wa.me/<?php echo esc_attr( preg_replace( '/[^0-9]/', '', $visitor_phone ) ); ?>" target="_blank" class="button button-small" style="background: #25D366; color: #fff; border: 0; font-weight: 600; font-size: 11px;">WhatsApp</a>
+									<?php endif; ?>
+									<a href="<?php echo esc_url( admin_url( 'admin.php?page=tc-agents-leads' ) ); ?>" class="button button-small" style="font-size: 11px;">CRM</a>
+								</div>
 							</div>
 						<?php endforeach; ?>
 					</div>

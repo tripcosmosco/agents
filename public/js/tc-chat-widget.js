@@ -191,6 +191,32 @@
 			setChatLanguage(currentLang);
 		}
 
+		// Helper: build standardized user data for Google Ads Enhanced Conversions
+		function getUserDataForGtm(extraParams) {
+			extraParams = extraParams || {};
+			const u = (typeof tcChatWidget !== 'undefined' && tcChatWidget.currentUser) ? tcChatWidget.currentUser : {};
+			const email = extraParams.email || u.email || '';
+			const phone = extraParams.phone || u.phone || '';
+			const name = extraParams.name || u.firstName || u.name || '';
+			return {
+				email: email,
+				phone_number: phone,
+				address: {
+					first_name: name
+				}
+			};
+		}
+
+		// Push initial authenticated user identity to dataLayer if logged in
+		if (typeof tcChatWidget !== 'undefined' && tcChatWidget.currentUser) {
+			window.dataLayer = window.dataLayer || [];
+			window.dataLayer.push({
+				event: 'tc_user_identified',
+				user_id: tcChatWidget.currentUser.id || '',
+				user_data: getUserDataForGtm()
+			});
+		}
+
 		// 2. Omni-Channel Analytics & DataLayer Tracker
 		function trackEvent(eventName, params) {
 			params = params || {};
@@ -208,6 +234,31 @@
 			// Google Tag Manager / DataLayer Integration
 			window.dataLayer = window.dataLayer || [];
 			window.dataLayer.push(payload);
+
+			// Standard GA4 / Google Ads conversion events for Tag Manager
+			const isLeadEvent = (
+				eventName === 'tc_agent_quote_submitted' ||
+				eventName === 'tc_agent_phone_detected' ||
+				eventName === 'tc_agent_whatsapp_click' ||
+				eventName === 'tc_agent_mobile_call_dispatched'
+			);
+
+			if (isLeadEvent) {
+				const leadVal = (typeof tcChatWidget !== 'undefined' && tcChatWidget.leadValue) ? Number(tcChatWidget.leadValue) : 1500;
+				const convPayload = {
+					event: 'generate_lead',
+					event_category: 'Lead',
+					event_action: eventName,
+					value: params.value || (eventName === 'tc_agent_whatsapp_click' ? 500 : leadVal),
+					currency: 'INR',
+					lead_id: sessionId,
+					destination: params.destination || '',
+					conversion_channel: eventName === 'tc_agent_whatsapp_click' ? 'whatsapp' : (eventName === 'tc_agent_mobile_call_dispatched' ? 'phone_call' : 'web_chat'),
+					user_data: getUserDataForGtm(params)
+				};
+				window.dataLayer.push(convPayload);
+				document.dispatchEvent(new CustomEvent('tc_agent_conversion', { detail: convPayload }));
+			}
 
 			// Ping backend for Android app companion live alerts on visitor actions
 			if (eventName === 'tc_agent_chat_opened' || eventName === 'tc_agent_visitor_landed' || eventName === 'tc_agent_heartbeat') {
@@ -236,6 +287,19 @@
 			}
 		}
 
+		// Click tracking for WhatsApp, Phone, and Checkout links
+		document.addEventListener('click', function(e) {
+			const link = e.target.closest('a');
+			if (!link || !link.href) return;
+			const href = link.href;
+			if (href.indexOf('wa.me') !== -1 || href.indexOf('api.whatsapp.com') !== -1) {
+				trackEvent('tc_agent_whatsapp_click', { url: href });
+			} else if (href.indexOf('tel:') === 0) {
+				trackEvent('tc_agent_mobile_call_requested', { phone: href.replace('tel:', '') });
+			} else if (href.indexOf('/checkout') !== -1 || href.indexOf('pay') !== -1 || href.indexOf('booking-token') !== -1) {
+				trackEvent('begin_checkout', { url: href, currency: 'INR' });
+			}
+		}, true);
 		// Send visitor page-view telemetry on every new page navigation + 45s live heartbeat
 		const lastTrackedUrl = sessionStorage.getItem('tc_last_tracked_url');
 		if (lastTrackedUrl !== window.location.href) {
@@ -918,6 +982,14 @@
 				.then(function(res) { return res.json(); })
 				.then(function(data) {
 					if (quoteSuccess) quoteSuccess.style.display = 'block';
+					trackEvent('tc_agent_quote_submitted', {
+						name: name,
+						phone: phone,
+						email: email,
+						destination: destination,
+						travel_month: travelMonth,
+						group_size: groupReq
+					});
 					quoteForm.style.display = 'none';
 
 					// Auto-switch back to Guide chat after 1.2s and ask AI to deliver the full customized itinerary

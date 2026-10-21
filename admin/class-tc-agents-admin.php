@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 /**
  * Admin Control Center and Menu Manager.
  *
@@ -174,8 +174,18 @@ class TC_Agents_Admin {
 			'tc-agents-settings',
 			array( __CLASS__, 'render_settings_page' )
 		);
-	}
 
+
+		// 13. Google Tag Manager & Conversions
+		add_submenu_page(
+			'tripcosmos-agents',
+			__( 'Google Tag Manager & Lead Conversions', 'tripcosmos-agents' ),
+			__( 'Google Ads & GTM', 'tripcosmos-agents' ),
+			'manage_options',
+			'tc-agents-gtm',
+			array( __CLASS__, 'render_gtm_page' )
+		);
+	}
 	/**
 	 * Enqueue admin CSS and JS on plugin screens.
 	 */
@@ -305,6 +315,13 @@ class TC_Agents_Admin {
 	 */
 	public static function render_settings_page() {
 		require_once TC_AGENTS_PATH . 'admin/views/settings.php';
+	}
+
+	/**
+	 * Render Google Tag Manager & Conversion Tracking View.
+	 */
+	public static function render_gtm_page() {
+		require_once TC_AGENTS_PATH . 'admin/views/gtm.php';
 	}
 
 	/**
@@ -949,6 +966,9 @@ class TC_Agents_Admin {
 			update_option( 'tc_agents_starter_prompts', sanitize_textarea_field( wp_unslash( $_POST['starter_prompts'] ?? '' ) ) );
 			$wa_num = sanitize_text_field( wp_unslash( $_POST['human_whatsapp_number'] ?? '' ) );
 			update_option( 'tc_agents_human_whatsapp_number', $wa_num );
+			update_option( 'tc_agents_gtm_enabled', ! empty( $_POST['gtm_enabled'] ) ? '1' : '0' );
+			update_option( 'tc_agents_gtm_container_id', sanitize_text_field( trim( wp_unslash( $_POST['gtm_container_id'] ?? '' ) ) ) );
+			update_option( 'tc_agents_lead_conversion_value', (float) ( $_POST['lead_conversion_value'] ?? 1500 ) );
 			$retention = absint( $_POST['retention_days'] ?? 0 );
 			update_option( 'tc_agents_retention_days', ( $retention > 0 && $retention < 30 ) ? 30 : $retention );
 			update_option( 'tc_agents_human_notification_email', sanitize_email( $_POST['human_notification_email'] ?? '' ) );
@@ -969,7 +989,8 @@ class TC_Agents_Admin {
 				update_option( 'tc_agents_github_token', $gh_token );
 			}
 
-			wp_safe_redirect( add_query_arg( array( 'page' => 'tc-agents-settings', 'saved' => '1' ), admin_url( 'admin.php' ) ) );
+			$target_page = ! empty( $_POST['redirect_to_gtm'] ) ? 'tc-agents-gtm' : 'tc-agents-settings';
+			wp_safe_redirect( add_query_arg( array( 'page' => $target_page, 'saved' => '1' ), admin_url( 'admin.php' ) ) );
 			exit;
 		}
 

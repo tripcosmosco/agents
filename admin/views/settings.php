@@ -556,7 +556,65 @@ $qr_image_url = 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin
 			</table>
 		</div>
 
-		<!-- 5. GITHUB AUTO-SYNC & UPDATES -->
+		<!-- 5. GOOGLE TAG MANAGER & CONVERSION TRACKING -->
+		<div class="tc-card-lux" id="tc-gtm-settings-card">
+			<div class="tc-card-title">
+				<span>📊</span>
+				Google Tag Manager (GTM) &amp; Lead Conversion Tracking
+			</div>
+			<p class="tc-card-desc">
+				Track high-intent pilgrimage leads and ad conversions across Google Ads, Meta Ads, and GA4 directly from the AI Concierge, WhatsApp CTAs, and instant quote submissions.
+			</p>
+			<table class="form-table">
+				<tr>
+					<th scope="row">GTM Lead Tracing</th>
+					<td>
+						<label style="display: flex; align-items: center; gap: 8px; font-weight: 600;">
+							<input type="checkbox" name="gtm_enabled" value="1" <?php checked( '1', (string) get_option( 'tc_agents_gtm_enabled', '1' ) ); ?> />
+							Enable DataLayer Event Tracing (Google Ads &amp; GA4 Conversions)
+						</label>
+						<p class="description">Automatically pushes <code>generate_lead</code>, <code>contact</code>, <code>begin_checkout</code>, and <code>tc_agent_*</code> events into <code>window.dataLayer</code>.</p>
+					</td>
+				</tr>
+				<tr>
+					<th scope="row"><label for="gtm_container_id">GTM Container ID</label></th>
+					<td>
+						<input type="text" name="gtm_container_id" id="gtm_container_id" class="tc-input-lux" placeholder="GTM-XXXXXXX" value="<?php echo esc_attr( get_option( 'tc_agents_gtm_container_id', '' ) ); ?>" />
+						<p class="description">Optional. If entered, the plugin automatically injects the Google Tag Manager container snippet in <code>&lt;head&gt;</code> and <code>&lt;body&gt;</code>. If your theme already includes GTM, leave this blank.</p>
+					</td>
+				</tr>
+				<tr>
+					<th scope="row"><label for="lead_conversion_value">Default Lead Value (INR)</label></th>
+					<td>
+						<div style="display: flex; align-items: center; gap: 8px;">
+							<span style="font-weight: 700; color: #64748b;">₹</span>
+							<input type="number" min="0" step="50" name="lead_conversion_value" id="lead_conversion_value" class="tc-input-lux" style="max-width: 180px;" value="<?php echo esc_attr( (float) get_option( 'tc_agents_lead_conversion_value', 1500 ) ); ?>" />
+							<span style="font-size: 12px; color: #64748b;">Estimated value sent to Google Ads conversion tag</span>
+						</div>
+					</td>
+				</tr>
+			</table>
+
+			<!-- Interactive GTM Setup Guide Box -->
+			<div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px 20px; margin-top: 14px;">
+				<h4 style="margin: 0 0 10px 0; font-size: 13.5px; color: #1e293b; display: flex; align-items: center; gap: 8px;">
+					<span>🎯</span> <strong>Recommended Google Tag Manager Setup for Google Ads:</strong>
+				</h4>
+				<ul style="margin: 0; padding-left: 20px; font-size: 12.5px; color: #475569; line-height: 1.6;">
+					<li><strong>Trigger:</strong> Create a Trigger of type <code>Custom Event</code> with Event Name: <code>generate_lead</code>.</li>
+					<li><strong>DataLayer Variables:</strong>
+						<code>dlv - value</code> (Maps to <code>value</code>),
+						<code>dlv - currency</code> (Maps to <code>currency</code>),
+						<code>dlv - destination</code> (Maps to <code>destination</code>),
+						<code>dlv - conversion_method</code> (Maps to <code>conversion_method</code>).
+					</li>
+					<li><strong>Google Ads Enhanced Conversions:</strong> When a WordPress user or lead is identified, <code>user_data</code> (email, phone, first name) is automatically provided to Google Tag Manager for 1st-party enhanced conversion accuracy.</li>
+					<li><strong>Tag:</strong> Connect to your <strong>Google Ads Conversion Tracking</strong> tag with Conversion ID &amp; Conversion Label from Google Ads.</li>
+				</ul>
+			</div>
+		</div>
+
+		<!-- 6. GITHUB AUTO-SYNC & UPDATES -->
 		<div class="tc-card-lux" id="tc-github-updater-card">
 			<div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 16px;">
 				<div>

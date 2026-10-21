@@ -16,6 +16,14 @@ class TC_Agents_Public {
 		add_action( 'wp_footer', array( __CLASS__, 'render_widget_markup' ) );
 		add_action( 'wp_footer', array( __CLASS__, 'render_mobile_sticky_bar' ), 20 );
 		add_shortcode( 'tripcosmos_chat', array( __CLASS__, 'render_shortcode' ) );
+
+		if ( '1' === (string) get_option( 'tc_agents_gtm_enabled', '1' ) ) {
+			$gtm_id = trim( (string) get_option( 'tc_agents_gtm_container_id', '' ) );
+			if ( ! empty( $gtm_id ) ) {
+				add_action( 'wp_head', array( __CLASS__, 'render_gtm_head' ), 1 );
+				add_action( 'wp_body_open', array( __CLASS__, 'render_gtm_body' ), 1 );
+			}
+		}
 	}
 
 	/**
@@ -101,6 +109,8 @@ class TC_Agents_Public {
 				'siteUrl'        => home_url(),
 				'scarcityFeed'   => class_exists( 'TC_Inventory_Service' ) ? TC_Inventory_Service::get_scarcity_feed() : array(),
 				'currentUser'    => $current_user_data,
+				'gtmEnabled'     => '1' === (string) get_option( 'tc_agents_gtm_enabled', '1' ),
+				'leadValue'      => (float) get_option( 'tc_agents_lead_conversion_value', 1500 ),
 			)
 		);
 	}
@@ -552,5 +562,40 @@ class TC_Agents_Public {
 		</div>
 		<?php
 		return ob_get_clean();
+	}
+
+	/**
+	 * Output GTM container snippet in <head>.
+	 */
+	public static function render_gtm_head() {
+		$gtm_id = esc_attr( trim( (string) get_option( 'tc_agents_gtm_container_id', '' ) ) );
+		if ( empty( $gtm_id ) ) {
+			return;
+		}
+		?>
+<!-- Google Tag Manager (TripCosmos Agents) -->
+<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+})(window,document,'script','dataLayer','<?php echo $gtm_id; ?>');</script>
+<!-- End Google Tag Manager -->
+		<?php
+	}
+
+	/**
+	 * Output GTM noscript container snippet immediately after <body>.
+	 */
+	public static function render_gtm_body() {
+		$gtm_id = esc_attr( trim( (string) get_option( 'tc_agents_gtm_container_id', '' ) ) );
+		if ( empty( $gtm_id ) ) {
+			return;
+		}
+		?>
+<!-- Google Tag Manager (noscript) (TripCosmos Agents) -->
+<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=<?php echo $gtm_id; ?>"
+height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+<!-- End Google Tag Manager -->
+		<?php
 	}
 }
