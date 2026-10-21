@@ -3777,101 +3777,13 @@ class TC_Agents_Mobile_API {
 	 * 35. B2B Wholesale Batch Pitch Engine
 	 */
 	public static function handle_b2b_batch_pitch( WP_REST_Request $request ) {
-		global $wpdb;
-		$p     = $request->get_json_params() ?: $request->get_params();
-		$limit = max( 1, min( 50, (int) ( $p['limit'] ?? 10 ) ) );
-		$city  = sanitize_text_field( $p['city'] ?? '' );
-		$force = ! empty( $p['force'] );
-
-		$table = $wpdb->prefix . 'tc_agent_agencies';
-		$where = $force ? "WHERE phone <> ''" : "WHERE (last_outreach_at IS NULL OR last_outreach_at = '0000-00-00 00:00:00') AND phone <> ''";
-		if ( ! empty( $city ) ) {
-			$where .= $wpdb->prepare( " AND city = %s", $city );
+		$p = $request->get_json_params() ?: $request->get_params();
+		if ( class_exists( "TC_Agent_B2B_Campaign" ) ) {
+			$res = TC_Agent_B2B_Campaign::run_scheduled_campaign( (array) $p );
+			return new WP_REST_Response( $res, 200 );
 		}
-
-		$rows = $wpdb->get_results( "SELECT * FROM $table $where ORDER BY id ASC LIMIT $limit", ARRAY_A ) ?: array();
-		if ( empty( $rows ) ) {
-			return new WP_REST_Response( array( 'ok' => true, 'count' => 0, 'message' => 'No matching B2B agencies found for pitch.' ), 200 );
-		}
-
-		$dispatched = 0;
-		$results    = array();
-
-		foreach ( $rows as $agency ) {
-			$phone = class_exists( 'TC_Contact_Service' ) ? TC_Contact_Service::normalize_phone( $agency['phone'] ) : $agency['phone'];
-			if ( empty( $phone ) ) {
-				continue;
-			}
-
-			$agency_name = ! empty( $agency['name'] ) ? $agency['name'] : 'Partner';
-
-			$pitch_text = sprintf(
-				"Namaste %s Team! ðŸ™ Greetings from TripCosmos Varanasi.\n\nAre your clients inquiring about *Dev Deepawali 2026 in Varanasi (Kartik Poornima)*?\n\nAs your verified on-ground Destination Management Company (DMC), we have pre-allocated ground inventory exclusively for our B2B travel partners:\nâ€¢ *Reserved Private Bajra Boats:* Prime Dashashwamedh Ghat Maha Aarti viewing decks (Zero line waiting)\nâ€¢ *VIP Sugam Darshan Passes:* Priority Kashi Vishwanath Temple entry via Gate 4\nâ€¢ *Dedicated AC Fleet:* Innova Crysta, Force Urbania & Tempo Travellers (Varanasi, Ayodhya & Prayagraj)\nâ€¢ *100%% White-Label Execution:* Executed seamlessly under *your agency brand* with your client welcome placards\n\nðŸ‘‰ *View 2N3D Dev Deepawali Itinerary:* https://tripcosmos.co/tour-packages/dev-deepawali-varanasi/\n\nMay we share our complete 2026 B2B Net Wholesale Tariff Sheet and Bajra Allotment slabs on this chat?",
-				$agency_name
-			);
-
-			$ignore_quiet_hours = ! empty( $p['ignore_quiet_hours'] );
-			$context = $ignore_quiet_hours ? 'conversational' : 'broadcast';
-			$sent = false;
-			if ( class_exists( 'TC_Integration_Evolution' ) && TC_Integration_Evolution::is_configured() ) {
-				$res  = TC_Integration_Evolution::send_message( $phone, $pitch_text, $context );
-				$sent = ! is_wp_error( $res );
-			}
-
-			if ( $sent ) {
-				$wpdb->update(
-					$table,
-					array(
-						'status'           => 'contacted',
-						'last_outreach_at' => current_time( 'mysql' ),
-						'updated_at'       => current_time( 'mysql' ),
-					),
-					array( 'id' => (int) $agency['id'] )
-				);
-				$dispatched++;
-
-				// Auto-enroll into Dev Deepawali B2B Drip Sequence (+48h Net Rate Card & +96h Scarcity alarm)
-				if ( class_exists( 'TC_Contact_Service' ) && class_exists( 'TC_Agent_Sequences' ) ) {
-					$existing = TC_Contact_Service::find( $agency['email'] ?? '', $phone );
-					$cid = $existing ? (int) $existing['id'] : 0;
-					if ( ! $cid ) {
-						$res_c = TC_Contact_Service::upsert( array(
-							'name'           => $agency_name,
-							'phone'          => $phone,
-							'email'          => ! empty( $agency['email'] ) ? $agency['email'] : ( 'agency-' . $agency['id'] . '@b2b.tripcosmos.co' ),
-							'destination'    => 'Dev Deepawali Varanasi 2026',
-							'source_channel' => 'b2b_agency',
-							'stage'          => 'b2b_partner',
-							'score'          => 85,
-						), array( 'sync' => false ) );
-						$cid = isset( $res_c['id'] ) ? (int) $res_c['id'] : 0;
-					}
-					if ( $cid > 0 ) {
-						TC_Agent_Sequences::enroll_contact( $cid, 'dev_deepawali_b2b' );
-					}
-				}
-			}
-
-			$results[] = array(
-				'id'     => (int) $agency['id'],
-				'agency' => $agency_name,
-				'city'   => $agency['city'],
-				'phone'  => $phone,
-				'sent'   => $sent,
-			);
-		}
-
-		return new WP_REST_Response(
-			array(
-				'ok'         => true,
-				'dispatched' => $dispatched,
-				'total_read' => count( $rows ),
-				'results'    => $results,
-			),
-			200
-		);
+		return new WP_REST_Response( array( "ok" => false, "error" => "Campaign engine unavailable" ), 500 );
 	}
-
 	/**
 	 * 36. Google Business Profile Feedback Prompt
 	 */

@@ -944,6 +944,27 @@ class TC_Agent_Tools {
 		if ( class_exists( 'TC_Integration_TwentyCRM' ) ) {
 			TC_Integration_TwentyCRM::push_lead( array( 'name' => $agency['name'], 'email' => $agency['email'], 'phone' => $agency['phone'], 'destination' => 'B2B Partnership ' . $agency['city'] ) );
 		}
+
+		// Auto-enroll into Dev Deepawali B2B Drip Sequence (+48h Net Rate Card & +96h Scarcity alarm)
+		if ( ( ! empty( $results['whatsapp'] ) || ! empty( $results['email'] ) ) && class_exists( 'TC_Contact_Service' ) && class_exists( 'TC_Agent_Sequences' ) ) {
+			$existing = TC_Contact_Service::find( $agency['email'] ?? '', $target_phone );
+			$cid = $existing ? (int) $existing['id'] : 0;
+			if ( ! $cid ) {
+				$res_c = TC_Contact_Service::upsert( array(
+					'name'           => ! empty( $agency['name'] ) ? $agency['name'] : 'B2B Partner',
+					'phone'          => $target_phone,
+					'email'          => ! empty( $agency['email'] ) ? $agency['email'] : ( 'agency-' . $id . '@b2b.tripcosmos.co' ),
+					'destination'    => 'Dev Deepawali Varanasi 2026',
+					'source_channel' => 'b2b_agency',
+					'stage'          => 'b2b_partner',
+					'score'          => 85,
+				), array( 'sync' => false ) );
+				$cid = isset( $res_c['id'] ) ? (int) $res_c['id'] : 0;
+			}
+			if ( $cid > 0 ) {
+				TC_Agent_Sequences::enroll_contact( $cid, 'dev_deepawali_b2b' );
+			}
+		}
 		return array( 'success' => true, 'agency' => $agency['name'], 'results' => $results );
 	}
 

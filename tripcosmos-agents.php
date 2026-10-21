@@ -70,6 +70,7 @@ require_once TC_AGENTS_PATH . 'includes/orchestrator/class-tc-cab-fare-engine.ph
 require_once TC_AGENTS_PATH . 'includes/orchestrator/class-tc-itinerary-generator.php';
 require_once TC_AGENTS_PATH . 'includes/orchestrator/class-tc-agent-tools.php';
 require_once TC_AGENTS_PATH . 'includes/orchestrator/class-tc-agent-orchestrator.php';
+require_once TC_AGENTS_PATH . 'includes/orchestrator/class-tc-agent-b2b-campaign.php';
 
 // 5. Integrations Includes
 require_once TC_AGENTS_PATH . 'includes/integrations/class-tc-integration-fluentcrm.php';
@@ -132,6 +133,8 @@ TC_Agents_Instant_Indexing::init();
 
 	// Initialize Follow-up Sequences Cron Service
 	TC_Agent_Sequences::init();
+	// Initialize Automated B2B Festival Campaign Engine
+	TC_Agent_B2B_Campaign::init();
 
 	// Live model sync (2x daily) + B2B Google import (daily) via queue.
 	if ( ! wp_next_scheduled( 'tc_agents_sync_models' ) ) {
