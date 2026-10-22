@@ -47,7 +47,7 @@ class TC_Agent_Tools {
 				'type'     => 'function',
 				'function' => array(
 					'name'        => 'lookup_contact_crm',
-					'description' => 'Check if a traveler contact already exists in Fluent CRM or Twenty CRM by email or phone.',
+					'description' => 'Check if a traveler contact already exists in Fluent CRM by email or phone.',
 					'parameters'  => array(
 						'type'       => 'object',
 						'properties' => array(
@@ -68,7 +68,7 @@ class TC_Agent_Tools {
 				'type'     => 'function',
 				'function' => array(
 					'name'        => 'sync_lead_crm',
-					'description' => 'Save or update a prospective traveler lead in Fluent CRM and Twenty CRM with contact details and interest tags.',
+					'description' => 'Save or update a prospective traveler lead in Fluent CRM with contact details and interest tags.',
 					'parameters'  => array(
 						'type'       => 'object',
 						'properties' => array(
@@ -125,7 +125,7 @@ class TC_Agent_Tools {
 				'type'     => 'function',
 				'function' => array(
 					'name'        => 'outreach_b2b_agency',
-					'description' => 'Send B2B partnership outreach (WhatsApp via Evolution/legacy + Brevo email) to an imported agency and log to FluentCRM/TwentyCRM.',
+					'description' => 'Send B2B partnership outreach (WhatsApp via Evolution/legacy + Brevo email) to an imported agency and log to FluentCRM.',
 					'parameters'  => array(
 						'type'       => 'object',
 						'properties' => array(
@@ -531,7 +531,7 @@ class TC_Agent_Tools {
 	}
 
 	/**
-	 * Tool: Lookup contact in Fluent CRM & Twenty CRM.
+	 * Tool: Lookup contact in Fluent CRM.
 	 */
 	private static function tool_lookup_contact_crm( array $args ) {
 		$email = sanitize_email( $args['email'] ?? '' );
@@ -563,7 +563,7 @@ class TC_Agent_Tools {
 	}
 
 	/**
-	 * Tool: Sync lead into Fluent CRM, Twenty CRM, Google Sheets, and local database pipeline.
+	 * Tool: Sync lead into Fluent CRM, Google Sheets, and local database pipeline.
 	 */
 	private static function tool_sync_lead_crm( array $args, array $context ) {
 		global $wpdb;
@@ -581,7 +581,6 @@ class TC_Agent_Tools {
 		$results = array(
 			'local_crm'  => 'skipped',
 			'fluent_crm' => 'skipped',
-			'twenty_crm' => 'skipped',
 			'sheets'     => 'skipped',
 		);
 
@@ -692,29 +691,7 @@ class TC_Agent_Tools {
 			$results['fluent_crm'] = 'inactive';
 		}
 
-		// 3. Twenty CRM sync (new leads only; avoids a duplicate person per chat)
-		if ( 'created' === $results['local_crm'] && class_exists( 'TC_Integration_TwentyCRM' ) ) {
-			$t_res = TC_Integration_TwentyCRM::push_lead(
-				array(
-					'name'        => $name,
-					'email'       => $email,
-					'phone'       => $phone,
-					'destination' => $destination,
-					'group_size'  => $group_size,
-					'month'       => $month,
-				)
-			);
-			if ( $t_res ) {
-				$wpdb->update( TC_Contact_Service::table(), array( 'twentycrm_id' => (string) $t_res ), array( 'id' => $contact_id ) );
-				$results['twenty_crm'] = 'synced (ID: ' . $t_res . ')';
-			} else {
-				$results['twenty_crm'] = 'skipped/failed';
-			}
-		} else {
-			$results['twenty_crm'] = 'inactive';
-		}
-
-		// 4. Google Sheets sync
+		// 3. Google Sheets sync
 		if ( class_exists( 'TC_Integration_Sheets' ) ) {
 			$s_res = TC_Integration_Sheets::append_lead(
 				array(
@@ -940,9 +917,6 @@ class TC_Agent_Tools {
 		$wpdb->update( $table, array( 'status' => 'contacted', 'last_outreach_at' => current_time( 'mysql' ), 'updated_at' => current_time( 'mysql' ) ), array( 'id' => $id ) );
 		if ( class_exists( 'TC_Integration_FluentCRM' ) && ! empty( $agency['email'] ) ) {
 			TC_Integration_FluentCRM::sync_lead( array( 'name' => $agency['name'], 'email' => $agency['email'], 'phone' => $agency['phone'], 'destination' => 'B2B:' . $agency['city'], 'channel' => 'b2b', 'stage' => 'inquiry', 'score' => 65 ) );
-		}
-		if ( class_exists( 'TC_Integration_TwentyCRM' ) ) {
-			TC_Integration_TwentyCRM::push_lead( array( 'name' => $agency['name'], 'email' => $agency['email'], 'phone' => $agency['phone'], 'destination' => 'B2B Partnership ' . $agency['city'] ) );
 		}
 
 		// Auto-enroll into Dev Deepawali B2B Drip Sequence (+48h Net Rate Card & +96h Scarcity alarm)

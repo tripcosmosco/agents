@@ -222,10 +222,6 @@ class TC_Agents_Queue {
 					if ( class_exists( 'TC_Integration_FluentCRM' ) ) {
 						TC_Integration_FluentCRM::sync_lead( $contact );
 					}
-					// TwentyCRM
-					if ( class_exists( 'TC_Integration_TwentyCRM' ) ) {
-						TC_Integration_TwentyCRM::push_lead( $contact );
-					}
 					// Google Sheets
 					if ( class_exists( 'TC_Integration_Sheets' ) ) {
 						TC_Integration_Sheets::append_lead( $contact );

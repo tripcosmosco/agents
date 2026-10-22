@@ -298,9 +298,6 @@ $conversion_rate = $total_leads > 0 ? round( ( $won_count / $total_leads ) * 100
 									<?php if ( ! empty( $l['fluentcrm_id'] ) ) : ?>
 										<span class="tc-tag" title="FluentCRM ID">CRM #<?php echo esc_html( $l['fluentcrm_id'] ); ?></span>
 									<?php endif; ?>
-									<?php if ( ! empty( $l['twentycrm_id'] ) ) : ?>
-										<span class="tc-tag" title="Twenty CRM">Twenty</span>
-									<?php endif; ?>
 								</td>
 								<td><small style="color: #64748b;"><?php echo esc_html( human_time_diff( strtotime( $l['updated_at'] ), current_time( 'timestamp' ) ) . ' ago' ); ?></small></td>
 								<td>

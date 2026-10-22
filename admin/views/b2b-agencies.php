@@ -39,7 +39,7 @@ $fluent_list_url   = admin_url( 'admin.php?page=fluentcrm-admin#/subscribers?lis
 			</h1>
 			<p class="description" style="font-size:13px;max-width:780px;line-height:1.5;">
 				Promoting <strong>Dev Deepawali 2026 Varanasi</strong> &amp; <strong>Varanasi-Ayodhya-Prayagraj Spiritual Circuits</strong> to verified Indian travel agencies.
-				Automated across FluentCRM email drip, WhatsApp sequences, and TwentyCRM.
+				Automated across FluentCRM email drip and WhatsApp sequences.
 			</p>
 		</div>
 		<div class="tc-header-actions" style="display:flex;gap:8px;flex-wrap:wrap;">
@@ -207,7 +207,7 @@ $fluent_list_url   = admin_url( 'admin.php?page=fluentcrm-admin#/subscribers?lis
 									<button class="button button-small button-primary tc-b2b-outreach-one" data-id="<?php echo esc_attr( $r['id'] ); ?>" title="Send WhatsApp B2B Pitch & Brevo Email" style="display:inline-flex;align-items:center;gap:3px;">
 										<span class="dashicons dashicons-format-chat" style="font-size:13px;"></span> Pitch
 									</button>
-									<button class="button button-small button-secondary tc-b2b-crm-one" data-id="<?php echo esc_attr( $r['id'] ); ?>" title="Sync to FluentCRM (List 8) & Twenty CRM" style="display:inline-flex;align-items:center;gap:3px;">
+									<button class="button button-small button-secondary tc-b2b-crm-one" data-id="<?php echo esc_attr( $r['id'] ); ?>" title="Sync to FluentCRM (List 8)" style="display:inline-flex;align-items:center;gap:3px;">
 										<span class="dashicons dashicons-cloud" style="font-size:13px;color:#10b981;"></span> CRM
 									</button>
 								</div>
@@ -287,7 +287,7 @@ $fluent_list_url   = admin_url( 'admin.php?page=fluentcrm-admin#/subscribers?lis
 	});
 
 	$('.tc-b2b-crm-one').on('click', function(){
-		call(tcAgentsAdmin.restUrl + 'b2b/sync-crm', {agency_id: $(this).data('id')}, this, 'Agency synced to FluentCRM & Twenty CRM!');
+		call(tcAgentsAdmin.restUrl + 'b2b/sync-crm', {agency_id: $(this).data('id')}, this, 'Agency synced to FluentCRM!');
 	});
 })(jQuery);
 </script>

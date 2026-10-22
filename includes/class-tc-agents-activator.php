@@ -641,8 +641,6 @@ class TC_Agents_Activator {
 		add_option( 'tc_agents_whatsapp_api_url', 'https://wa.vmstudio.digital' );
 		add_option( 'tc_agents_whatsapp_token', '' );
 		add_option( 'tc_agents_whatsapp_webhook_secret', wp_generate_password( 24, false ) );
-		add_option( 'tc_agents_twentycrm_url', 'https://crm.vmstudio.digital' );
-		add_option( 'tc_agents_twentycrm_api_key', '' );
 		add_option( 'tc_agents_sheets_enabled', '0' );
 		add_option( 'tc_agents_brevo_sender_name', 'TripCosmos' );
 		add_option( 'tc_agents_b2b_import_cities', 'Varanasi, Delhi, Mumbai, Jaipur, Kolkata, Chennai, Bengaluru, Hyderabad, Ahmedabad, Lucknow' );
@@ -689,7 +687,7 @@ class TC_Agents_Activator {
 										  "- Boats & VIP Darshan: Private morning sunrise boat, evening Aarti boat reservation, VIP Darshan assistance, Rudrabhishek & Pind Daan pandit coordination.\n\n" .
 										  "SALES INTELLIGENCE & CONVERSATION FRAMEWORK:\n" .
 										  "1. DISCOVERY: When a traveler asks about destinations or packages, immediately use 'search_trips' to fetch authentic circuits, cab options, and pricing. Be respectful, knowledgeable, and hospitable (use 'Namaste').\n" .
-										  "2. LEAD CAPTURE & CRM SYNC: Whenever the traveler provides their Name, Phone/WhatsApp number, or Email, or shows travel intent, you MUST immediately invoke the 'sync_lead_crm' tool to register them in Fluent CRM, Twenty CRM, and the TripCosmos pipeline. Do not wait for the chat to end.\n" .
+										  "2. LEAD CAPTURE & CRM SYNC: Whenever the traveler provides their Name, Phone/WhatsApp number, or Email, or shows travel intent, you MUST immediately invoke the 'sync_lead_crm' tool to register them in Fluent CRM and the TripCosmos pipeline. Do not wait for the chat to end.\n" .
 										  "3. CAB & GROUP ESTIMATES: Offer accurate vehicle recommendations (e.g. Sedan for 1-3 pax, Innova Crysta for 4-6 pax, Tempo Traveller for 7+ pax). Never exceed the 10% discount margin ceiling.\n" .
 										  "4. HUMAN ESCALATION & VOICE CALL: Offer direct WhatsApp handoff ('request_human_handoff') or instant phone callback ('request_voice_call') for complex custom itineraries or immediate bookings.",
 					'greeting_message' => "Namaste! 🙏 Welcome to TripCosmos — Varanasi's premier pilgrimage & luxury tour desk.\n\nLooking for Kashi Vishwanath VIP darshan, Ayodhya Ram Mandir packages, outstation cabs (Innova Crysta / Swift Dzire), hotel bookings, or private Ganga Aarti boat rides? How can I assist you today?",
@@ -749,7 +747,7 @@ class TC_Agents_Activator {
 				array(
 					'slug'             => 'tripcosmos-b2b',
 					'name'             => 'TripCosmos B2B Partner Hunter',
-					'system_prompt'    => "You are the TripCosmos B2B Partner Hunter in Varanasi. Recruit Indian travel agencies as B2B partners for white-label Kashi-Ayodhya-Prayagraj packages, cabs, hotels and Ganga Aarti boats. Use import_b2b_agencies per city, qualify by rating, then outreach_b2b_agency via WhatsApp + Brevo email. Log to FluentCRM + TwentyCRM. Max 1 outreach per agency per 7 days.",
+					'system_prompt'    => "You are the TripCosmos B2B Partner Hunter in Varanasi. Recruit Indian travel agencies as B2B partners for white-label Kashi-Ayodhya-Prayagraj packages, cabs, hotels and Ganga Aarti boats. Use import_b2b_agencies per city, qualify by rating, then outreach_b2b_agency via WhatsApp + Brevo email. Log to FluentCRM. Max 1 outreach per agency per 7 days.",
 					'greeting_message' => "TripCosmos B2B Desk (Varanasi). Give me a city and I will import travel agencies for partnership outreach!",
 					'channels'         => 'admin,web,whatsapp',
 					'allowed_tools'    => wp_json_encode( array( 'import_b2b_agencies', 'outreach_b2b_agency', 'lookup_contact_crm', 'sync_lead_crm', 'search_trips' ) ),

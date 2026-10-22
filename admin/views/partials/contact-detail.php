@@ -797,7 +797,6 @@ Day 3: Morning darshan at Sankat Mochan Hanuman Temple, Durga Kund, and Tulsi Ma
 					</dd>
 					<?php if ( $c['email_status'] ) : ?><dt><?php esc_html_e( 'Email status', 'tripcosmos-agents' ); ?></dt><dd><?php echo esc_html( $c['email_status'] ); ?></dd><?php endif; ?>
 					<?php if ( $c['last_synced_at'] ) : ?><dt><?php esc_html_e( 'Last sync', 'tripcosmos-agents' ); ?></dt><dd><?php echo esc_html( $ago( $c['last_synced_at'] ) ); ?></dd><?php endif; ?>
-					<?php if ( $c['twentycrm_id'] ) : ?><dt>TwentyCRM</dt><dd><?php echo esc_html( $c['twentycrm_id'] ); ?></dd><?php endif; ?>
 				</dl>
 				<?php if ( $fluent_on && TC_Contact_Service::is_real_email( $c['email'] ) ) : ?>
 					<form method="post">

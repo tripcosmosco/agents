@@ -10,7 +10,6 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 $fluent_active      = class_exists( 'TC_Integration_FluentCRM' ) && TC_Integration_FluentCRM::is_active();
-$twenty_configured  = class_exists( 'TC_Integration_TwentyCRM' ) && TC_Integration_TwentyCRM::is_configured();
 $webhook_url        = rest_url( 'tc-agents/v1/whatsapp-webhook' );
 $secret_token       = get_option( 'tc_agents_whatsapp_webhook_secret', '' );
 $voice_enabled      = '1' === (string) get_option( 'tc_agents_voice_enabled', '0' );
@@ -232,7 +231,7 @@ $wa_mode            = get_option( 'tc_agents_whatsapp_mode', 'evolution' );
 				Integrations &amp; Multi-Channel Routing
 				<span class="tc-badge-gold">Enterprise Hub</span>
 			</h1>
-			<p>Connect your conversational agents, lead pipelines, and automated follow-up sequences across FluentCRM, Twenty CRM, WhatsApp (Evolution API), Google Sheets, and AI Voice.</p>
+			<p>Connect your conversational agents, lead pipelines, and automated follow-up sequences across FluentCRM (Native WordPress Contact Engine), WhatsApp (Evolution API), Brevo Email &amp; SMS, Google Sheets, and AI Voice.</p>
 		</div>
 		<div>
 			<a href="<?php echo esc_url( admin_url( 'admin.php?page=tc-agents' ) ); ?>" class="button button-secondary" style="background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.2); color: #fff;">
@@ -310,55 +309,12 @@ $wa_mode            = get_option( 'tc_agents_whatsapp_mode', 'evolution' );
 			</table>
 		</div>
 
-		<!-- 2. TWENTY CRM (CLOUD DEAL PIPELINE) -->
-		<div class="tc-card-lux" style="border-left: 5px solid <?php echo $twenty_configured ? '#10b981' : '#f59e0b'; ?>;">
-			<div class="tc-card-header-flex">
-				<div class="tc-card-title">
-					<span>🏢</span>
-					2. Twenty CRM — Cloud Deal Pipeline
-				</div>
-				<span class="tc-status-pill <?php echo $twenty_configured ? 'online' : 'down'; ?>">
-					<span class="tc-status-dot"></span>
-					<?php echo $twenty_configured ? 'CONFIGURED & READY' : 'TOKEN REQUIRED'; ?>
-				</span>
-			</div>
-			<p class="tc-card-desc">
-				Syncs qualified inquiries directly into your cloud CRM pipeline at <code>crm.vmstudio.digital</code> as Opportunities and Deals with custom metadata.
-			</p>
-
-			<table class="form-table">
-				<tr>
-					<th scope="row"><label for="twentycrm_url">Twenty CRM Instance URL</label></th>
-					<td>
-						<input type="text" name="twentycrm_url" id="twentycrm_url" class="tc-input-lux" value="<?php echo esc_attr( get_option( 'tc_agents_twentycrm_url', 'https://crm.vmstudio.digital' ) ); ?>" />
-					</td>
-				</tr>
-				<tr>
-					<th scope="row"><label for="twentycrm_api_key">API Bearer Token</label></th>
-					<td>
-						<input type="password" name="twentycrm_api_key" id="twentycrm_api_key" class="tc-input-lux" value="" placeholder="<?php echo esc_attr( TC_Agents_Vault::hint( 'twentycrm_api_key' ) ?: '••••••••••••' ); ?>" autocomplete="new-password" />
-						<?php if ( TC_Agents_Vault::has( 'twentycrm_api_key' ) ) : ?><span class="dashicons dashicons-yes-alt" style="color:#10b981; vertical-align: middle;"></span> <small style="color:#10b981; font-weight: 600;">Vault Encrypted</small><?php endif; ?>
-						<p class="description">Generate an API Bearer token in your Twenty CRM Settings (<strong>Settings &gt; Developers &gt; API Keys</strong>).</p>
-					</td>
-				</tr>
-				<tr>
-					<th scope="row">Connection Test</th>
-					<td>
-						<button type="button" class="tc-btn-secondary" id="tc-test-twentycrm-btn">
-							<span class="dashicons dashicons-rest-api" style="vertical-align: middle;"></span> Test Live Twenty CRM Connection
-						</button>
-						<span id="tc-twentycrm-test-result" style="margin-left: 14px; font-weight: 600; font-size: 13px;"></span>
-					</td>
-				</tr>
-			</table>
-		</div>
-
-		<!-- 3. WHATSAPP GATEWAY (DUAL-MODE) -->
+		<!-- 2. WHATSAPP GATEWAY (DUAL-MODE) -->
 		<div class="tc-card-lux" style="border-left: 5px solid #25d366;">
 			<div class="tc-card-header-flex">
 				<div class="tc-card-title">
 					<span>💬</span>
-					3. WhatsApp Gateway (Evolution API &amp; Legacy Bridge)
+					2. WhatsApp Gateway (Evolution API &amp; Legacy Bridge)
 				</div>
 				<span class="tc-status-pill online">
 					<span class="tc-status-dot"></span>
@@ -501,12 +457,12 @@ $wa_mode            = get_option( 'tc_agents_whatsapp_mode', 'evolution' );
 			</div>
 		</div>
 
-		<!-- 4. GOOGLE SHEETS LIVE SYNC -->
+		<!-- 3. GOOGLE SHEETS LIVE SYNC -->
 		<div class="tc-card-lux" style="border-left: 5px solid #0f9d58;">
 			<div class="tc-card-header-flex">
 				<div class="tc-card-title">
 					<span>📊</span>
-					4. Google Sheets Live Inquiry Feed
+					3. Google Sheets Live Inquiry Feed
 				</div>
 				<span class="tc-status-pill <?php echo $sheets_enabled ? 'online' : 'down'; ?>">
 					<span class="tc-status-dot"></span>
@@ -535,12 +491,12 @@ $wa_mode            = get_option( 'tc_agents_whatsapp_mode', 'evolution' );
 			</table>
 		</div>
 
-		<!-- 5. BREVO EMAIL MARKETING -->
+		<!-- 4. BREVO EMAIL MARKETING -->
 		<div class="tc-card-lux" style="border-left: 5px solid #0092ff;">
 			<div class="tc-card-header-flex">
 				<div class="tc-card-title">
 					<span>✉️</span>
-					5. Brevo — Transactional &amp; B2B Marketing Email
+					4. Brevo — Transactional &amp; B2B Marketing Email
 				</div>
 			</div>
 			<p class="tc-card-desc">
@@ -569,12 +525,12 @@ $wa_mode            = get_option( 'tc_agents_whatsapp_mode', 'evolution' );
 			</table>
 		</div>
 
-		<!-- 6. GOOGLE BUSINESS B2B AGENCY IMPORT -->
+		<!-- 5. GOOGLE BUSINESS B2B AGENCY IMPORT -->
 		<div class="tc-card-lux" style="border-left: 5px solid #8b5cf6;">
 			<div class="tc-card-header-flex">
 				<div class="tc-card-title">
 					<span>🗺️</span>
-					6. Google Places — B2B Travel Agency Discovery
+					5. Google Places — B2B Travel Agency Discovery
 				</div>
 			</div>
 			<p class="tc-card-desc">
@@ -602,6 +558,65 @@ $wa_mode            = get_option( 'tc_agents_whatsapp_mode', 'evolution' );
 							Automatically dispatch introductory B2B WhatsApp &amp; Brevo partnership invites
 						</label>
 						<p class="description">Last batch import executed: <code><?php echo esc_html( get_option( 'tc_agents_b2b_last_import', 'never' ) ); ?></code></p>
+					</td>
+				</tr>
+			</table>
+		</div>
+
+		<!-- 6. ZOHO BOOKS FINANCIAL INVOICING & LEDGER -->
+		<?php
+			$zoho_active = class_exists( 'TC_Integration_Zoho' ) && TC_Integration_Zoho::is_configured();
+			$zoho_dc     = class_exists( 'TC_Integration_Zoho' ) ? TC_Integration_Zoho::get_datacenter() : 'zoho.in';
+		?>
+		<div class="tc-card-lux" style="border-left: 5px solid <?php echo $zoho_active ? '#10b981' : '#f59e0b'; ?>;">
+			<div class="tc-card-header-flex">
+				<div class="tc-card-title">
+					<span>📚</span>
+					6. Zoho Books — Financial Invoicing &amp; Ledger API (v3)
+				</div>
+				<span class="tc-badge-status <?php echo $zoho_active ? 'tc-badge-active' : 'tc-badge-inactive'; ?>">
+					<?php echo $zoho_active ? '● Connected' : '○ Not Configured'; ?>
+				</span>
+			</div>
+			<p class="tc-card-desc">
+				Syncs invoices, customer balances, and ledger revenue with the Financial Hub in the Sales Agents mobile app.
+			</p>
+			<table class="form-table">
+				<tr>
+					<th scope="row"><label for="zoho_datacenter">Zoho Data Center Region</label></th>
+					<td>
+						<select name="zoho_datacenter" id="zoho_datacenter" class="tc-input-lux">
+							<option value="zoho.in" <?php selected( $zoho_dc, 'zoho.in' ); ?>>India (accounts.zoho.in / books.zoho.in)</option>
+							<option value="zoho.com" <?php selected( $zoho_dc, 'zoho.com' ); ?>>Global / US (accounts.zoho.com / books.zoho.com)</option>
+							<option value="zoho.eu" <?php selected( $zoho_dc, 'zoho.eu' ); ?>>Europe (accounts.zoho.eu)</option>
+						</select>
+					</td>
+				</tr>
+				<tr>
+					<th scope="row"><label for="zoho_org_id">Organization ID</label></th>
+					<td>
+						<input type="text" name="zoho_org_id" id="zoho_org_id" class="tc-input-lux" value="<?php echo esc_attr( get_option( 'tc_agents_zoho_org_id', '' ) ); ?>" placeholder="e.g. 60012345678" />
+					</td>
+				</tr>
+				<tr>
+					<th scope="row"><label for="zoho_client_id">Client ID</label></th>
+					<td>
+						<input type="text" name="zoho_client_id" id="zoho_client_id" class="tc-input-lux" value="<?php echo esc_attr( get_option( 'tc_agents_zoho_client_id', '' ) ); ?>" placeholder="e.g. 1000.XXXXX" />
+					</td>
+				</tr>
+				<tr>
+					<th scope="row"><label for="zoho_client_secret">Client Secret</label></th>
+					<td>
+						<input type="password" name="zoho_client_secret" id="zoho_client_secret" class="tc-input-lux" value="" placeholder="<?php echo esc_attr( TC_Agents_Vault::hint( 'zoho_client_secret' ) ?: 'Client secret...' ); ?>" autocomplete="new-password" />
+						<?php if ( TC_Agents_Vault::has( 'zoho_client_secret' ) ) : ?><span class="dashicons dashicons-yes-alt" style="color:#10b981; vertical-align: middle;"></span> <small style="color:#10b981; font-weight: 600;">Vault Encrypted</small><?php endif; ?>
+					</td>
+				</tr>
+				<tr>
+					<th scope="row"><label for="zoho_refresh_token">OAuth Refresh Token</label></th>
+					<td>
+						<input type="password" name="zoho_refresh_token" id="zoho_refresh_token" class="tc-input-lux" value="" placeholder="<?php echo esc_attr( TC_Agents_Vault::hint( 'zoho_refresh_token' ) ?: '1000.XXXXX' ); ?>" autocomplete="new-password" />
+						<?php if ( TC_Agents_Vault::has( 'zoho_refresh_token' ) ) : ?><span class="dashicons dashicons-yes-alt" style="color:#10b981; vertical-align: middle;"></span> <small style="color:#10b981; font-weight: 600;">Vault Encrypted</small><?php endif; ?>
+						<p class="description">Scope required: <code>ZohoBooks.fullaccess.all</code>. Can also be connected and tested directly in the Sales Agents mobile app.</p>
 					</td>
 				</tr>
 			</table>
@@ -791,41 +806,6 @@ $wa_mode            = get_option( 'tc_agents_whatsapp_mode', 'evolution' );
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-	var testBtn = document.getElementById('tc-test-twentycrm-btn');
-	if (!testBtn) return;
-
-	testBtn.addEventListener('click', function() {
-		var resEl = document.getElementById('tc-twentycrm-test-result');
-		testBtn.disabled = true;
-		resEl.style.color = '#6b7280';
-		resEl.textContent = 'Testing connection to Twenty CRM...';
-
-		var data = new FormData();
-		data.append('action', 'tc_test_twentycrm');
-		data.append('nonce', '<?php echo wp_create_nonce( 'tc_agents_admin_nonce' ); ?>');
-
-		fetch(ajaxurl, {
-			method: 'POST',
-			body: data
-		})
-		.then(function(res) { return res.json(); })
-		.then(function(response) {
-			testBtn.disabled = false;
-			if (response.success) {
-				resEl.style.color = '#10b981';
-				resEl.textContent = '✓ ' + (response.data && response.data.message ? response.data.message : 'Successfully connected to Twenty CRM!');
-			} else {
-				resEl.style.color = '#ef4444';
-				var msg = (response.data && response.data.message) ? response.data.message : (response.message || 'Connection failed.');
-				resEl.textContent = '✕ ' + msg;
-			}
-		})
-		.catch(function(err) {
-			testBtn.disabled = false;
-			resEl.style.color = '#ef4444';
-			resEl.textContent = '✕ Network error: ' + err.message;
-		});
-	});
 
 	// Evolution WhatsApp Gateway Link & QR Scanner
 	var evoBadge = document.getElementById('tc-evo-status-badge');
@@ -920,23 +900,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <?php
 // Inbound webhook secrets (created on first view so they can be copied into the provider).
-foreach ( array( 'tc_agents_voice_webhook_secret', 'tc_agents_twentycrm_webhook_secret' ) as $tc_secret_opt ) {
-	if ( '' === (string) get_option( $tc_secret_opt, '' ) ) {
-		update_option( $tc_secret_opt, wp_generate_password( 32, false ), false );
-	}
+if ( '' === (string) get_option( 'tc_agents_voice_webhook_secret', '' ) ) {
+	update_option( 'tc_agents_voice_webhook_secret', wp_generate_password( 32, false ), false );
 }
 ?>
 <div class="wrap" style="max-width: 900px; margin-top: 24px;">
 	<h2>Inbound Webhook Secrets</h2>
-	<p class="description">Voice and TwentyCRM webhooks reject requests without this secret. Send it as the <code>X-Webhook-Secret</code> header (or append <code>?secret=&hellip;</code> to the URL if the provider cannot set headers).</p>
+	<p class="description">Voice webhooks reject requests without this secret. Send it as the <code>X-Webhook-Secret</code> header (or append <code>?secret=&hellip;</code> to the URL if the provider cannot set headers).</p>
 	<table class="form-table" role="presentation">
 		<tr>
 			<th scope="row">Voice webhook</th>
 			<td><code><?php echo esc_html( rest_url( 'tc-agents/v1/voice-webhook' ) ); ?></code><br /><input type="text" readonly class="regular-text" style="font-family: monospace;" value="<?php echo esc_attr( get_option( 'tc_agents_voice_webhook_secret', '' ) ); ?>" /></td>
-		</tr>
-		<tr>
-			<th scope="row">TwentyCRM webhook</th>
-			<td><code><?php echo esc_html( rest_url( 'tc-agents/v1/twentycrm-webhook' ) ); ?></code><br /><input type="text" readonly class="regular-text" style="font-family: monospace;" value="<?php echo esc_attr( get_option( 'tc_agents_twentycrm_webhook_secret', '' ) ); ?>" /></td>
 		</tr>
 	</table>
 </div>

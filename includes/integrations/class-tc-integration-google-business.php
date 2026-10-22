@@ -11,6 +11,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  * 2. Strict deduplication (place_id, normalized phone, name + city).
  * 3. Safe daily scheduled rotation across Indian target travel hubs.
  * 4. Automatic sync to FluentCRM B2B lists & tags (triggering Dev Deepawali & Spiritual Circuit funnels).
+ * 5. Bi-directional sync with FluentCRM Companies (wp_fc_companies).
  */
 class TC_Integration_Google_Business {
 
@@ -149,7 +150,7 @@ class TC_Integration_Google_Business {
 				array( 'name' => 'Gomti Spiritual Circuit Planners', 'phone' => '+919839112233', 'email' => 'info@gomtispiritual.com', 'address' => 'Gomti Nagar, Lucknow, UP', 'rating' => 4.8, 'website' => 'https://gomtispiritual.com' ),
 			),
 			'Pune'      => array(
-				array( 'name' => 'Peshwa Tirth Yatra & Holidays Pune', 'phone' => '+919822011223', 'email' => 'b2b@peshwatirthyatra.in', 'address' => 'Shivajinagar, Pune, Maharashtra', 'rating' => 4.9, 'website' => 'https://peshwatirthyatra.in' ),
+				array( 'name' => 'Peshwa Tirth Yatra & Holidays Pune', 'phone' => '+919820011223', 'email' => 'b2b@peshwatirthyatra.in', 'address' => 'Shivajinagar, Pune, Maharashtra', 'rating' => 4.9, 'website' => 'https://peshwatirthyatra.in' ),
 				array( 'name' => 'Deccan Sahyadri Pilgrimage Tours', 'phone' => '+919850123456', 'email' => 'tours@sahyadripilgrimage.com', 'address' => 'Kothrud, Pune, Maharashtra', 'rating' => 4.8, 'website' => 'https://sahyadripilgrimage.com' ),
 			),
 		);
@@ -200,7 +201,7 @@ class TC_Integration_Google_Business {
 	}
 
 	/**
-	 * Two-way sync between FluentCRM B2B Lists (5,6,7,8) / B2B Tags and wp_tc_agent_agencies.
+	 * Two-way sync between FluentCRM B2B Lists/Companies and wp_tc_agent_agencies.
 	 */
 	public static function sync_fluentcrm_b2b_two_way() {
 		global $wpdb;
@@ -211,11 +212,12 @@ class TC_Integration_Google_Business {
 		$pulled = 0;
 		$pushed = 0;
 
+		// 1. Pull from FluentCRM B2B Subscribers
 		if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $sub_t ) ) === $sub_t ) {
 			$fc_b2b = $wpdb->get_results(
-				"SELECT DISTINCT s.id, s.first_name, s.last_name, s.email, s.phone, s.city, s.state, s.address_line_1
-				 FROM $sub_t s
-				 JOIN $piv_t p ON s.id = p.subscriber_id
+				"SELECT DISTINCT s.id, s.first_name, s.last_name, s.email, s.phone, s.city, s.state, s.address_line_1 
+				 FROM $sub_t s 
+				 JOIN $piv_t p ON s.id = p.subscriber_id 
 				 WHERE p.object_id IN (5,6,7,8,12,13,14,15,31,32,33,34)",
 				ARRAY_A
 			);
@@ -269,7 +271,55 @@ class TC_Integration_Google_Business {
 			}
 		}
 
-		// Ensure Master B2B List ID is 8 (B2B Travel Agencies - Pan India)
+		// 2. Pull from FluentCRM Companies (wp_fc_companies)
+		$comp_t = $wpdb->prefix . 'fc_companies';
+		if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $comp_t ) ) === $comp_t ) {
+			$fc_comps = $wpdb->get_results( "SELECT * FROM $comp_t", ARRAY_A ) ?: array();
+			foreach ( $fc_comps as $fc_c ) {
+				$c_name  = trim( $fc_c['name'] ?? '' );
+				$c_phone = self::normalize_phone( $fc_c['phone'] ?? '' );
+				$c_email = sanitize_email( $fc_c['email'] ?? '' );
+				$c_city  = sanitize_text_field( $fc_c['city'] ?: 'Varanasi' );
+				$c_addr  = sanitize_text_field( $fc_c['address_line_1'] ?: ( $c_city . ', India' ) );
+				$c_web   = esc_url_raw( $fc_c['website'] ?? '' );
+
+				if ( empty( $c_name ) || stripos( $c_name, 'Test Agency' ) !== false ) {
+					continue;
+				}
+
+				$exists = 0;
+				if ( ! empty( $c_phone ) ) {
+					$exists = (int) $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $table WHERE phone = %s LIMIT 1", $c_phone ) );
+				}
+				if ( ! $exists && ! empty( $c_email ) ) {
+					$exists = (int) $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $table WHERE email = %s LIMIT 1", $c_email ) );
+				}
+				if ( ! $exists ) {
+					$exists = (int) $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $table WHERE name = %s AND city = %s LIMIT 1", $c_name, $c_city ) );
+				}
+
+				if ( ! $exists ) {
+					$wpdb->insert(
+						$table,
+						array(
+							'name'       => $c_name,
+							'city'       => $c_city,
+							'address'    => $c_addr,
+							'phone'      => $c_phone,
+							'email'      => $c_email,
+							'website'    => $c_web,
+							'source'     => 'fluentcrm_company',
+							'status'     => 'in_crm',
+							'created_at' => current_time( 'mysql' ),
+							'updated_at' => current_time( 'mysql' ),
+						)
+					);
+					$pulled++;
+				}
+			}
+		}
+
+		// 3. Push agencies to FluentCRM (Subscribers + Companies)
 		if ( ! get_option( 'tc_agents_fluentcrm_b2b_list_id' ) ) {
 			update_option( 'tc_agents_fluentcrm_b2b_list_id', 8 );
 		}
@@ -290,6 +340,9 @@ class TC_Integration_Google_Business {
 					)
 				);
 				if ( $fid ) {
+					if ( method_exists( 'TC_Integration_FluentCRM', 'sync_agency_company' ) ) {
+						TC_Integration_FluentCRM::sync_agency_company( $a );
+					}
 					$wpdb->update( $table, array( 'status' => 'in_crm' ), array( 'id' => (int) $a['id'] ) );
 					$pushed++;
 				}
@@ -385,7 +438,7 @@ class TC_Integration_Google_Business {
 				$ins++;
 			}
 
-			// Automated Sync to FluentCRM List 8
+			// Automated Sync to FluentCRM List 8 and Companies
 			if ( $auto_crm && $agency_id > 0 ) {
 				$sync_email = ! empty( $email_clean ) && is_email( $email_clean )
 					? $email_clean
@@ -403,6 +456,10 @@ class TC_Integration_Google_Business {
 						)
 					);
 					if ( $fluent_id ) {
+						if ( method_exists( 'TC_Integration_FluentCRM', 'sync_agency_company' ) ) {
+							$data['id'] = $agency_id;
+							TC_Integration_FluentCRM::sync_agency_company( $data );
+						}
 						$wpdb->update( $table, array( 'status' => 'in_crm', 'email' => $sync_email ), array( 'id' => $agency_id ) );
 						$crm++;
 					}

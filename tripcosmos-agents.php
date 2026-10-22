@@ -3,7 +3,7 @@
  * Plugin Name: TripCosmos Agents
  * Plugin URI: https://tripcosmos.co
  * Description: Unified multi-provider AI conversational agent layer for TripCosmos.co, featuring customer chat widget, master control console, automated CRM/WhatsApp plumbings, and failover safety guardrails.
- * Version: 2.2.5
+ * Version: 2.3.2
  * Author: TripCosmos Team
  * Author URI: https://tripcosmos.co
  * Text Domain: tripcosmos-agents
@@ -19,7 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // 1. Plugin Constants
-define( 'TC_AGENTS_VERSION', '2.3.0' );
+define( 'TC_AGENTS_VERSION', '2.3.2' );
 define( 'TC_AGENTS_FILE', __FILE__ );
 define( 'TC_AGENTS_PATH', plugin_dir_path( __FILE__ ) );
 define( 'TC_AGENTS_URL', plugin_dir_url( __FILE__ ) );
@@ -74,13 +74,13 @@ require_once TC_AGENTS_PATH . 'includes/orchestrator/class-tc-agent-b2b-campaign
 
 // 5. Integrations Includes
 require_once TC_AGENTS_PATH . 'includes/integrations/class-tc-integration-fluentcrm.php';
-require_once TC_AGENTS_PATH . 'includes/integrations/class-tc-integration-twentycrm.php';
 require_once TC_AGENTS_PATH . 'includes/integrations/class-tc-integration-whatsapp.php';
 require_once TC_AGENTS_PATH . 'includes/integrations/class-tc-integration-evolution.php';
 require_once TC_AGENTS_PATH . 'includes/integrations/class-tc-integration-brevo.php';
 require_once TC_AGENTS_PATH . 'includes/integrations/class-tc-integration-google-business.php';
 require_once TC_AGENTS_PATH . 'includes/integrations/class-tc-integration-sheets.php';
 require_once TC_AGENTS_PATH . 'includes/integrations/class-tc-integration-voice.php';
+require_once TC_AGENTS_PATH . 'includes/integrations/class-tc-integration-zoho.php';
 
 // 6. API Includes
 require_once TC_AGENTS_PATH . 'includes/api/class-tc-agents-rest.php';

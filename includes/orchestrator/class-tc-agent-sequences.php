@@ -186,7 +186,7 @@ class TC_Agent_Sequences {
 				array(
 					'delay_hours' => 48,
 					'subject'     => 'TripCosmos Dev Deepawali 2026 B2B Net Rates & Boat Slabs',
-					'message'     => "Namaste {name} team! ðŸ™ Following up on our Dev Deepawali 2026 Varanasi allocation.\n\nHere are our protected B2B Net Partner Slabs:\nðŸš¤ Private Bajra Boat Charter (80 Pax Deck): Net â‚¹45,000 (Retail â‚¹65k+ | Your Margin: â‚¹20,000+)\nðŸ›• Kashi Vishwanath Sugam Darshan Assistance: Net â‚¹1,100 / pass\nðŸš— Toyota Innova Crysta (6+1 AC): â‚¹19 / km (Varanasi â€“ Ayodhya â€“ Prayagraj)\nðŸš Force Urbania / Tempo Traveller: â‚¹32 / km\nðŸ¨ Riverside Hotel Blocks: 3-Star Deluxe & 4-Star Luxury allotments available.\n\nReply 'RATES' to lock your tentative allotment before festive bookings close.",
+					'message'     => "Namaste {name} team! 🙏 Following up on our Dev Deepawali 2026 Varanasi allocation.\n\nHere are our protected B2B Net Partner Slabs:\nðŸš¤ Private Bajra Boat Charter (80 Pax Deck): Net â‚¹45,000 (Retail â‚¹65k+ | Your Margin: â‚¹20,000+)\nðŸ›• Kashi Vishwanath Sugam Darshan Assistance: Net â‚¹1,100 / pass\nðŸš— Toyota Innova Crysta (6+1 AC): â‚¹19 / km (Varanasi â€“ Ayodhya â€“ Prayagraj)\nðŸš Force Urbania / Tempo Traveller: â‚¹32 / km\nðŸ¨ Riverside Hotel Blocks: 3-Star Deluxe & 4-Star Luxury allotments available.\n\nReply 'RATES' to lock your tentative allotment before festive bookings close.",
 				),
 				array(
 					'delay_hours' => 96,

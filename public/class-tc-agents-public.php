@@ -15,6 +15,7 @@ class TC_Agents_Public {
 		add_action( 'wp_enqueue_scripts', array( __CLASS__, 'enqueue_assets' ) );
 		add_action( 'wp_footer', array( __CLASS__, 'render_widget_markup' ) );
 		add_action( 'wp_footer', array( __CLASS__, 'render_mobile_sticky_bar' ), 20 );
+		add_filter( 'the_content', array( __CLASS__, 'inject_in_post_whatsapp_cta' ), 20 );
 		add_shortcode( 'tripcosmos_chat', array( __CLASS__, 'render_shortcode' ) );
 
 		if ( '1' === (string) get_option( 'tc_agents_gtm_enabled', '1' ) ) {
@@ -73,7 +74,24 @@ class TC_Agents_Public {
 			)
 		);
 
-		$default_greeting = "Namaste! 🙏 Welcome to TripCosmos — Varanasi's premier pilgrimage & tour desk.\n\nLooking for Kashi Vishwanath VIP darshan, Ayodhya Ram Mandir packages, outstation cabs (Innova Crysta / Swift Dzire), hotel bookings, or private Ganga Aarti boat rides? How can I assist you today?";
+				$default_greeting = "Namaste! 🙏 Welcome to TripCosmos — Varanasi's premier pilgrimage & tour desk.\n\nLooking for Kashi Vishwanath VIP darshan, Ayodhya Ram Mandir packages, outstation cabs (Innova Crysta / Swift Dzire), hotel bookings, or private Ganga Aarti boat rides? How can I assist you today?";
+
+		// Contextual Dev Diwali Detection
+		$is_dev_diwali = false;
+		$req_uri = isset( $_SERVER['REQUEST_URI'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REQUEST_URI'] ) ) : '';
+		if ( false !== stripos( $req_uri, 'dev-diwali' ) || false !== stripos( $req_uri, 'dev-deepawali' ) ) {
+			$is_dev_diwali = true;
+		} elseif ( is_singular() ) {
+			$p_slug  = get_post_field( 'post_name', get_the_ID() );
+			$p_title = get_the_title();
+			if ( false !== stripos( $p_slug, 'dev-diwali' ) || false !== stripos( $p_slug, 'dev-deepawali' ) || false !== stripos( $p_title, 'Dev Diwali' ) || false !== stripos( $p_title, 'Dev Deepawali' ) ) {
+				$is_dev_diwali = true;
+			}
+		}
+
+		if ( $is_dev_diwali ) {
+			$default_greeting = "Namaste! 🙏 Planning your Dev Diwali 2026 trip in Varanasi?\n\nPrivate boat permits, Bajra seating & Ghat hotels sell out 90 days early. Would you like to check live boat availability, VIP Ganga Aarti passes, or 2N/3D full tour packages?";
+		}
 		$greeting         = get_option( 'tc_agents_widget_greeting', $default_greeting );
 		$current_user_data = null;
 
@@ -88,7 +106,15 @@ class TC_Agents_Public {
 				'email'     => $u->user_email,
 				'phone'     => $u_phone,
 			);
-			$greeting = "Namaste, " . esc_html( $f_name ) . " Ji! 🙏 Welcome back to TripCosmos.\n\nAre you planning an upcoming pilgrimage or looking for verified cab fares, hotel stays, or VIP Darshan passes today?";
+						if ( preg_match( '/\.co|admin|tripcosmos/i', $f_name ) ) {
+				$f_name = '';
+			}
+			$salutation = ! empty( $f_name ) ? "Namaste, " . esc_html( $f_name ) . " Ji! 🙏" : "Namaste! 🙏";
+			if ( $is_dev_diwali ) {
+				$greeting = $salutation . " Planning your Dev Diwali 2026 trip in Varanasi?\n\nPrivate boat permits, Bajra seating & Ghat hotels sell out 90 days early. How can I assist you with boat booking, Aarti passes, or 2N/3D packages today?";
+			} else {
+				$greeting = $salutation . " Welcome back to TripCosmos.\n\nAre you planning an upcoming pilgrimage or looking for verified cab fares, hotel stays, or VIP Darshan passes today?";
+			}
 		}
 
 		wp_localize_script(
@@ -131,7 +157,15 @@ class TC_Agents_Public {
 		if ( is_user_logged_in() ) {
 			$u = wp_get_current_user();
 			$f_name = ! empty( $u->first_name ) ? $u->first_name : $u->display_name;
-			$greeting = "Namaste, " . esc_html( $f_name ) . " Ji! 🙏 Welcome back to TripCosmos.\n\nAre you planning an upcoming pilgrimage or looking for verified cab fares, hotel stays, or VIP Darshan passes today?";
+						if ( preg_match( '/\.co|admin|tripcosmos/i', $f_name ) ) {
+				$f_name = '';
+			}
+			$salutation = ! empty( $f_name ) ? "Namaste, " . esc_html( $f_name ) . " Ji! 🙏" : "Namaste! 🙏";
+			if ( $is_dev_diwali ) {
+				$greeting = $salutation . " Planning your Dev Diwali 2026 trip in Varanasi?\n\nPrivate boat permits, Bajra seating & Ghat hotels sell out 90 days early. How can I assist you with boat booking, Aarti passes, or 2N/3D packages today?";
+			} else {
+				$greeting = $salutation . " Welcome back to TripCosmos.\n\nAre you planning an upcoming pilgrimage or looking for verified cab fares, hotel stays, or VIP Darshan passes today?";
+			}
 		}
 		$teaser_text   = get_option( 'tc_agents_launcher_teaser_text', 'Namaste! 🙏 Planning your trip to Varanasi or Ayodhya? I can check live cab fares, VIP Darshan passes & hotel availability for you right now.' );
 		$side          = get_option( 'tc_agents_widget_side', 'right' );
@@ -145,7 +179,23 @@ class TC_Agents_Public {
 		$direct_wa     = "https://wa.me/{$wa_num}?text=" . rawurlencode( 'Hi TripCosmos, I am browsing your site and would like help planning a Varanasi tour or outstation cab.' );
 
 		// Custom Starter Prompts
+				// Contextual Dev Diwali Detection
+		$is_dev_diwali = false;
+		$req_uri = isset( $_SERVER['REQUEST_URI'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REQUEST_URI'] ) ) : '';
+		if ( false !== stripos( $req_uri, 'dev-diwali' ) || false !== stripos( $req_uri, 'dev-deepawali' ) ) {
+			$is_dev_diwali = true;
+		} elseif ( is_singular() ) {
+			$p_slug  = get_post_field( 'post_name', get_the_ID() );
+			$p_title = get_the_title();
+			if ( false !== stripos( $p_slug, 'dev-diwali' ) || false !== stripos( $p_slug, 'dev-deepawali' ) || false !== stripos( $p_title, 'Dev Diwali' ) || false !== stripos( $p_title, 'Dev Deepawali' ) ) {
+				$is_dev_diwali = true;
+			}
+		}
+
 		$default_starters = "🛕 Kashi Ayodhya Tour | Tell me about Kashi Ayodhya Prayagraj 4 Days Tour Package\n🚗 Outstation Cabs | Book outstation cab Dzire or Innova Crysta for Varanasi to Ayodhya\n⛵ Ganga Aarti Boat | Book private boat for evening Ganga Aarti at Dashashwamedh Ghat\n🏨 Ghat Hotels | Best ghat-view hotels in Varanasi near Kashi Vishwanath";
+		if ( $is_dev_diwali ) {
+			$default_starters = "🪔 Dev Diwali Boat | Book private motorboat or Bajra for Dev Diwali 2026\n📋 2N/3D Tour Package | Check complete Dev Diwali 2026 itinerary and pricing\n🏨 Ghat View Hotels | Available hotels near Dashashwamedh Ghat for Dev Diwali\n🚗 Airport Cab | Pre-book AC Innova or Sedan for Dev Diwali arrival";
+		}
 		$raw_starters     = get_option( 'tc_agents_starter_prompts', $default_starters );
 		$starter_lines    = array_filter( array_map( 'trim', explode( "\n", $raw_starters ) ) );
 
@@ -491,7 +541,7 @@ class TC_Agents_Public {
 		<div id="tc-mobile-sticky-bar" class="tc-mobile-sticky-bar" role="region" aria-label="Quick Booking & Inquiry">
 			<div class="tc-sticky-scarcity-ribbon">
 				<span class="tc-scarcity-dot"></span>
-				<span class="tc-scarcity-text">ðŸª” Dev Deepawali & Magh Mela: Only 1 Bajra Boat & 2 Tents Remaining!</span>
+				<span class="tc-scarcity-text">🪔 Dev Deepawali & Magh Mela: Only 1 Bajra Boat & 2 Tents Remaining!</span>
 			</div>
 			<div class="tc-sticky-inner">
 				<!-- 1. Instant WhatsApp Button -->
@@ -597,5 +647,98 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 <!-- End Google Tag Manager -->
 		<?php
+	}
+
+	/**
+	 * Inject high-converting WhatsApp & Call action boxes into all 2,200+ blog posts.
+	 *
+	 * @param string $content Post HTML.
+	 * @return string Modified content with conversion cards.
+	 */
+	public static function inject_in_post_whatsapp_cta( $content ) {
+		if ( ! is_singular( 'post' ) || ! in_the_loop() || ! is_main_query() ) {
+			return $content;
+		}
+
+		$title   = get_the_title();
+		$wa_num  = preg_replace( '/[^0-9]/', '', get_option( 'tc_agents_human_whatsapp_number', '' ) );
+		if ( empty( $wa_num ) ) {
+			$wa_num = '919336116210';
+		}
+		$phone = '+919336116210';
+
+		$is_dev_diwali = ( stripos( $title, 'Dev Diwali' ) !== false || stripos( $title, 'Dev Deepawali' ) !== false );
+		$is_boat       = ( stripos( $title, 'Boat' ) !== false || stripos( $title, 'Cruise' ) !== false || stripos( $title, 'Bajra' ) !== false );
+		$is_cab        = ( stripos( $title, 'Cab' ) !== false || stripos( $title, 'Tempo' ) !== false || stripos( $title, 'Traveller' ) !== false );
+
+		if ( $is_dev_diwali ) {
+			$badge_text  = '🪔 Dev Deepawali 2026 Special Advance Desk';
+			$cta_heading = 'Reserve Dev Deepawali Boat, Bajra & VIP Passes';
+			$cta_desc    = 'Boat permits & reserved ghat seating sell out 90 days before the festival. Talk directly with our Kashi local coordinators on WhatsApp for live pricing, boat options & transparent net rates.';
+			$pre_msg     = "Namaste TripCosmos! 🙏 I am reading '{$title}'. Please share available boat options (Shared Motor Boat / Bajra / Luxury Cruise) and prices for Dev Deepawali 2026.";
+		} elseif ( $is_boat ) {
+			$badge_text  = '⛵ Official Ganga Boat & Aarti Desk';
+			$cta_heading = 'Book Private Morning & Aarti Boat Rides';
+			$cta_desc    = 'Avoid chaotic ghat bargaining. Lock in verified CNG motorboats, Maharaja Bajras, and reserved Dashashwamedh Aarti spots with verified local boat captains.';
+			$pre_msg     = "Namaste TripCosmos! 🙏 I want to book a boat ride in Varanasi ('{$title}'). Please share availability and rates.";
+		} elseif ( $is_cab ) {
+			$badge_text  = '🚗 Verified Outstation & Local Fleet Desk';
+			$cta_heading = 'Get Instant Cab / Tempo Traveller Net Rates';
+			$cta_desc    = 'Clean commercial AC Sedans, Innova Crysta, and 12-26 seater Tempo Travellers for Kashi, Ayodhya, Prayagraj, Gaya, and Naimisharanya with polite local chauffeurs.';
+			$pre_msg     = "Namaste TripCosmos! 🙏 I need verified vehicle rates for '{$title}'. Please share vehicle options and instant quote.";
+		} else {
+			$badge_text  = '🛕 Verified Kashi & Ayodhya Pilgrimage Desk';
+			$cta_heading = 'Plan Your Yatra with Local Varanasi Experts';
+			$cta_desc    = 'VIP Sugam Darshan passes, verified outstation cabs, Ganga aarti boat allocations, and clean hotel stays — fully coordinated by our on-ground team.';
+			$pre_msg     = "Namaste TripCosmos! 🙏 I am planning a trip based on '{$title}'. Please share complete itinerary and cost breakdown.";
+		}
+
+		$wa_link = 'https://wa.me/' . $wa_num . '?text=' . rawurlencode( $pre_msg );
+
+		$card_html = '
+		<div class="tc-in-post-cta" style="margin: 32px 0; padding: 22px 24px; border-radius: 16px; background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%); color: #ffffff; box-shadow: 0 16px 32px rgba(15, 23, 42, 0.22); border: 1.5px solid rgba(245, 158, 11, 0.45); font-family: -apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, sans-serif;">
+			<div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 12px;">
+				<span style="display: inline-flex; align-items: center; gap: 6px; background: rgba(245, 158, 11, 0.18); border: 1px solid rgba(245, 158, 11, 0.5); color: #fde047; font-size: 12px; font-weight: 700; padding: 4px 12px; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.5px;">
+					' . esc_html( $badge_text ) . '
+				</span>
+				<span style="font-size: 12px; color: #94a3b8; font-weight: 500;">
+					🟢 Online • Replies in &lt; 2 Mins
+				</span>
+			</div>
+			<h3 style="font-size: 19px; font-weight: 800; color: #ffffff; margin: 0 0 8px 0; line-height: 1.35;">
+				' . esc_html( $cta_heading ) . '
+			</h3>
+			<p style="font-size: 14px; color: #cbd5e1; margin: 0 0 18px 0; line-height: 1.6;">
+				' . esc_html( $cta_desc ) . '
+			</p>
+			<div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+				<a href="' . esc_url( $wa_link ) . '" target="_blank" rel="noopener" style="display: inline-flex; align-items: center; justify-content: center; gap: 8px; background: #22c55e; color: #ffffff; font-weight: 800; font-size: 14.5px; padding: 12px 20px; border-radius: 10px; text-decoration: none; box-shadow: 0 6px 18px rgba(34, 197, 94, 0.35);">
+					<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.582 2.128 2.182-.573c.978.58 1.911.928 3.145.929 3.178 0 5.767-2.587 5.768-5.766 0-3.187-2.59-5.771-5.764-5.771zm3.392 8.244c-.144.405-.837.774-1.17.824-.312.045-.694.072-2.18-.545-1.898-.787-3.13-2.73-3.224-2.855-.094-.127-.775-1.03-.775-1.965 0-.934.489-1.393.663-1.583.175-.19.38-.238.508-.238.127 0 .254.002.365.008.117.006.273-.044.428.328.16.383.548 1.339.596 1.436.048.098.08.212.015.339-.064.127-.095.207-.19.317-.095.111-.2.248-.286.333-.095.096-.195.2-.084.391.111.19.493.813 1.056 1.314.726.645 1.338.845 1.53.94.19.096.302.08.413-.048.111-.127.476-.556.603-.746.127-.19.254-.159.429-.095.174.064 1.111.524 1.302.619.19.096.317.143.365.223.048.079.048.461-.096.866z"/></svg>
+					<span>Chat on WhatsApp</span>
+				</a>
+				<a href="tel:' . esc_attr( $phone ) . '" style="display: inline-flex; align-items: center; justify-content: center; gap: 8px; background: rgba(255, 255, 255, 0.12); color: #ffffff; font-weight: 700; font-size: 14px; padding: 12px 18px; border-radius: 10px; text-decoration: none; border: 1px solid rgba(255, 255, 255, 0.25);">
+					<span>📞 Call Desk (+91 93361 16210)</span>
+				</a>
+			</div>
+			<div style="margin-top: 12px; font-size: 11.5px; color: #94a3b8; display: flex; align-items: center; gap: 14px; flex-wrap: wrap;">
+				<span>✓ No Advance for Itinerary</span>
+				<span>✓ 100% Verified Fleet & Drivers</span>
+				<span>✓ Direct Kashi Local Coordination</span>
+			</div>
+		</div>';
+
+		$parts = preg_split( '/(<\/p>)/i', $content, -1, PREG_SPLIT_DELIM_CAPTURE );
+		if ( count( $parts ) > 6 ) {
+			$new_content = '';
+			for ( $i = 0; $i < count( $parts ); $i++ ) {
+				$new_content .= $parts[ $i ];
+				if ( 5 === $i ) {
+					$new_content .= $card_html;
+				}
+			}
+			return $new_content . $card_html;
+		}
+
+		return $content . $card_html;
 	}
 }

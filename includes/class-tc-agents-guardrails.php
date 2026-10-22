@@ -273,4 +273,22 @@ class TC_Agents_Guardrails {
 		}
 		return true;
 	}
+
+	/**
+	 * Check whether quiet hours are currently in effect (21:00 to 08:30 IST).
+	 *
+	 * @return bool True if quiet hours active.
+	 */
+	public static function is_quiet_hours() {
+		try {
+			$tz = new DateTimeZone( 'Asia/Kolkata' );
+			$now = new DateTime( 'now', $tz );
+			$hour = (int) $now->format( 'G' );
+			$minute = (int) $now->format( 'i' );
+			$time_decimal = $hour + ( $minute / 60 );
+			return ( $time_decimal >= 21.0 || $time_decimal < 8.5 );
+		} catch ( Exception $e ) {
+			return false;
+		}
+	}
 }

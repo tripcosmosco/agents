@@ -498,7 +498,7 @@ class TC_Contact_Service {
 			return false;
 		}
 		$fill = array();
-		foreach ( array( 'email', 'phone', 'phone_e164', 'owner', 'utm_source', 'utm_medium', 'utm_campaign', 'referrer', 'landing_page', 'consent_source', 'consent_at', 'twentycrm_id' ) as $k ) {
+		foreach ( array( 'email', 'phone', 'phone_e164', 'owner', 'utm_source', 'utm_medium', 'utm_campaign', 'referrer', 'landing_page', 'consent_source', 'consent_at' ) as $k ) {
 			if ( empty( $keep[ $k ] ) && ! empty( $remove[ $k ] ) ) {
 				$fill[ $k ] = $remove[ $k ];
 			}
@@ -586,9 +586,6 @@ class TC_Contact_Service {
 				$notes[] = 'FluentCRM subscriber #' . (int) $contact['fluentcrm_id'] . ' could not be deleted: ' . $e->getMessage();
 			}
 			self::$syncing = false;
-		}
-		if ( $crm && ! empty( $contact['twentycrm_id'] ) ) {
-			$notes[] = 'TwentyCRM person ' . $contact['twentycrm_id'] . ' must be deleted in TwentyCRM.';
 		}
 		if ( $crm && '1' === (string) get_option( 'tc_agents_sheets_enabled', '0' ) ) {
 			$notes[] = 'Rows for this contact in the Google Sheet must be removed manually.';
@@ -905,5 +902,16 @@ class TC_Contact_Service {
 			}
 		}
 		return $pick;
+	}
+
+	/**
+	 * Defensive alias for upsert.
+	 *
+	 * @param array $data Contact data.
+	 * @param array $opts Options.
+	 * @return int|false
+	 */
+	public static function upsert_contact( array $data, array $opts = array() ) {
+		return self::upsert( $data, $opts );
 	}
 }

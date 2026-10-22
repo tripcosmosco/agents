@@ -22,7 +22,6 @@ class TC_Agents_Admin {
 		add_action( 'wp_ajax_tc_sync_catalog_kb', array( __CLASS__, 'ajax_sync_catalog_kb' ) );
 		add_action( 'wp_ajax_tc_sync_aipuffer_bots', array( __CLASS__, 'ajax_sync_aipuffer_bots' ) );
 		add_action( 'wp_ajax_tc_sync_provider_models', array( __CLASS__, 'ajax_sync_provider_models' ) );
-		add_action( 'wp_ajax_tc_test_twentycrm', array( __CLASS__, 'ajax_test_twentycrm' ) );
 		add_action( 'wp_ajax_tc_toggle_widget', array( __CLASS__, 'ajax_toggle_widget' ) );
 		add_action( 'wp_ajax_tc_evolution_status', array( __CLASS__, 'ajax_evolution_status' ) );
 		add_action( 'wp_ajax_tc_evolution_qr', array( __CLASS__, 'ajax_evolution_qr' ) );
@@ -456,28 +455,6 @@ class TC_Agents_Admin {
 	}
 
 	/**
-	 * AJAX endpoint to test Twenty CRM connection.
-	 */
-	public static function ajax_test_twentycrm() {
-		check_ajax_referer( 'tc_agents_admin_nonce', 'nonce' );
-
-		if ( ! current_user_can( 'manage_options' ) ) {
-			wp_send_json_error( array( 'message' => 'Unauthorized' ), 403 );
-		}
-
-		if ( ! class_exists( 'TC_Integration_TwentyCRM' ) ) {
-			wp_send_json_error( array( 'message' => 'Twenty CRM integration class not found.' ) );
-		}
-
-		$result = TC_Integration_TwentyCRM::test_connection();
-		if ( ! empty( $result['success'] ) ) {
-			wp_send_json_success( $result );
-		} else {
-			wp_send_json_error( $result );
-		}
-	}
-
-	/**
 	 * AJAX endpoint to toggle the frontend chatbot on/off.
 	 */
 	public static function ajax_toggle_widget() {
@@ -878,10 +855,6 @@ class TC_Agents_Admin {
 			update_option( 'tc_agents_fluentcrm_city_lists', sanitize_textarea_field( wp_unslash( $_POST['fluentcrm_city_lists'] ?? '' ) ) );
 			update_option( 'tc_agents_fluentcrm_b2b_tags', sanitize_text_field( wp_unslash( $_POST['fluentcrm_b2b_tags'] ?? '' ) ) );
 			update_option( 'tc_agents_fluentcrm_import_new', empty( $_POST['fluentcrm_import_new'] ) ? '0' : '1' );
-			update_option( 'tc_agents_twentycrm_url', esc_url_raw( $_POST['twentycrm_url'] ?? '' ) );
-			if ( ! empty( $_POST['twentycrm_api_key'] ) ) {
-				TC_Agents_Vault::put( 'twentycrm_api_key', sanitize_text_field( $_POST['twentycrm_api_key'] ) );
-			}
 			if ( ! empty( $_POST['brevo_api_key'] ) ) {
 				TC_Agents_Vault::put( 'brevo_api_key', sanitize_text_field( $_POST['brevo_api_key'] ) );
 			}
@@ -894,6 +867,31 @@ class TC_Agents_Admin {
 			update_option( 'tc_agents_b2b_auto_outreach', ! empty( $_POST['b2b_auto_outreach'] ) ? '1' : '0' );
 			update_option( 'tc_agents_sheets_enabled', ! empty( $_POST['sheets_enabled'] ) ? '1' : '0' );
 			update_option( 'tc_agents_sheets_webhook_url', esc_url_raw( $_POST['sheets_webhook_url'] ?? '' ) );
+
+			// Zoho Books Financial API
+			if ( isset( $_POST['zoho_client_id'] ) ) {
+				update_option( 'tc_agents_zoho_client_id', sanitize_text_field( $_POST['zoho_client_id'] ) );
+			}
+			if ( ! empty( $_POST['zoho_client_secret'] ) ) {
+				if ( class_exists( 'TC_Agents_Vault' ) ) {
+					TC_Agents_Vault::put( 'zoho_client_secret', sanitize_text_field( $_POST['zoho_client_secret'] ) );
+				} else {
+					update_option( 'tc_agents_zoho_client_secret', sanitize_text_field( $_POST['zoho_client_secret'] ) );
+				}
+			}
+			if ( ! empty( $_POST['zoho_refresh_token'] ) ) {
+				if ( class_exists( 'TC_Agents_Vault' ) ) {
+					TC_Agents_Vault::put( 'zoho_refresh_token', sanitize_text_field( $_POST['zoho_refresh_token'] ) );
+				} else {
+					update_option( 'tc_agents_zoho_refresh_token', sanitize_text_field( $_POST['zoho_refresh_token'] ) );
+				}
+			}
+			if ( isset( $_POST['zoho_org_id'] ) ) {
+				update_option( 'tc_agents_zoho_org_id', sanitize_text_field( $_POST['zoho_org_id'] ) );
+			}
+			if ( isset( $_POST['zoho_datacenter'] ) ) {
+				update_option( 'tc_agents_zoho_datacenter', sanitize_text_field( $_POST['zoho_datacenter'] ) );
+			}
 
 			// Voice & Multi-Mode Telephony settings
 			update_option( 'tc_agents_voice_enabled', ! empty( $_POST['voice_enabled'] ) ? '1' : '0' );

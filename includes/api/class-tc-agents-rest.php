@@ -182,18 +182,7 @@ class TC_Agents_REST {
 			)
 		);
 
-		// 9. Twenty CRM Inbound Webhook
-		register_rest_route(
-			self::NAMESPACE,
-			'/twentycrm-webhook',
-			array(
-				'methods'             => 'POST',
-				'callback'            => array( 'TC_Integration_TwentyCRM', 'handle_incoming_webhook' ),
-				'permission_callback' => '__return_true',
-			)
-		);
-
-		// 10. Live model catalogue sync (admin).
+		// 9. Live model catalogue sync (admin).
 		register_rest_route(
 			self::NAMESPACE,
 			'/models/sync',
@@ -1049,26 +1038,12 @@ class TC_Agents_REST {
 			) );
 		}
 
-		// Push to Twenty CRM
-		$twenty_id = false;
-		if ( class_exists( 'TC_Integration_TwentyCRM' ) && TC_Integration_TwentyCRM::is_configured() ) {
-			$twenty_id = TC_Integration_TwentyCRM::push_lead( array(
-				'name'         => $agency['name'],
-				'email'        => $agency['email'],
-				'phone'        => $agency['phone'],
-				'destination'  => $agency['city'],
-				'requirements' => 'B2B Travel Agent Partnership: Ground Handling, Cabs & Hotel Allotments',
-				'deal_value'   => 50000.00,
-			) );
-		}
-
 		$wpdb->update( $table, array( 'status' => 'in_crm' ), array( 'id' => $id ) );
 
 		return new WP_REST_Response( array(
 			'success'   => true,
 			'fluent_id' => $fluent_id,
-			'twenty_id' => $twenty_id,
-			'message'   => __( 'Agency synced to FluentCRM & Twenty CRM!', 'tripcosmos-agents' ),
+			'message'   => __( 'Agency synced to FluentCRM!', 'tripcosmos-agents' ),
 		), 200 );
 	}
 

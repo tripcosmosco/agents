@@ -460,6 +460,50 @@ class TC_Agents_Mobile_API {
 			)
 		);
 
+		// 37. Zoho Books Financial Summary & Invoices
+		register_rest_route(
+			self::NAMESPACE,
+			'/mobile/zoho/summary',
+			array(
+				'methods'             => 'GET',
+				'callback'            => array( __CLASS__, 'handle_zoho_summary' ),
+				'permission_callback' => array( __CLASS__, 'verify_token' ),
+			)
+		);
+
+		// 38. Zoho Books Live Sync
+		register_rest_route(
+			self::NAMESPACE,
+			'/mobile/zoho/sync',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( __CLASS__, 'handle_zoho_sync' ),
+				'permission_callback' => array( __CLASS__, 'verify_token' ),
+			)
+		);
+
+		// 39. Zoho Books Safe Configuration Status
+		register_rest_route(
+			self::NAMESPACE,
+			'/mobile/zoho/config',
+			array(
+				'methods'             => 'GET',
+				'callback'            => array( __CLASS__, 'handle_zoho_config' ),
+				'permission_callback' => array( __CLASS__, 'verify_token' ),
+			)
+		);
+
+		// 40. Zoho Books In-App Connect / Credentials Save
+		register_rest_route(
+			self::NAMESPACE,
+			'/mobile/zoho/connect',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( __CLASS__, 'handle_zoho_connect' ),
+				'permission_callback' => array( __CLASS__, 'verify_token' ),
+			)
+		);
+
 	}
 
 	/**
@@ -2346,7 +2390,7 @@ class TC_Agents_Mobile_API {
 
 		if ( ! empty( $customer_phone ) ) {
 			global $wpdb;
-			$table_leads = $wpdb->prefix . 'tc_agent_leads';
+			$table_leads = $wpdb->prefix . 'tc_agent_contacts';
 			$lead = $wpdb->get_row( $wpdb->prepare( "SELECT id, notes FROM {$table_leads} WHERE phone LIKE %s ORDER BY id DESC LIMIT 1", '%' . substr( preg_replace( '/\D/', '', $customer_phone ), -10 ) ), ARRAY_A );
 
 			$note_text = sprintf(
@@ -2892,7 +2936,7 @@ class TC_Agents_Mobile_API {
 	}
 
 	/**
-	 * 24. Handle B2B sync to FluentCRM & Twenty CRM from mobile app (supports single agency or sync_all).
+	 * 24. Handle B2B sync to FluentCRM from mobile app (supports single agency or sync_all).
 	 */
 	public static function handle_b2b_sync_crm( WP_REST_Request $request ) {
 		global $wpdb;
@@ -3803,5 +3847,50 @@ class TC_Agents_Mobile_API {
 		return new WP_REST_Response( array( 'ok' => true, 'message' => 'Feedback request dispatched to traveler.' ), 200 );
 	}
 
+	/**
+	 * 37. Zoho Books Financial Summary & Invoices
+	 */
+	public static function handle_zoho_summary( WP_REST_Request $request ) {
+		if ( ! class_exists( 'TC_Integration_Zoho' ) ) {
+			return new WP_REST_Response( array( 'success' => false, 'error' => 'Zoho integration class unavailable' ), 500 );
+		}
+		$res = TC_Integration_Zoho::get_summary();
+		return new WP_REST_Response( $res, 200 );
+	}
+
+	/**
+	 * 38. Zoho Books Live Sync
+	 */
+	public static function handle_zoho_sync( WP_REST_Request $request ) {
+		if ( ! class_exists( 'TC_Integration_Zoho' ) ) {
+			return new WP_REST_Response( array( 'success' => false, 'error' => 'Zoho integration class unavailable' ), 500 );
+		}
+		$res = TC_Integration_Zoho::sync();
+		return new WP_REST_Response( $res, 200 );
+	}
+
+	/**
+	 * 39. Zoho Books Safe Configuration Status
+	 */
+	public static function handle_zoho_config( WP_REST_Request $request ) {
+		if ( ! class_exists( 'TC_Integration_Zoho' ) ) {
+			return new WP_REST_Response( array( 'success' => false, 'error' => 'Zoho integration class unavailable' ), 500 );
+		}
+		$res = TC_Integration_Zoho::get_config_status();
+		return new WP_REST_Response( $res, 200 );
+	}
+
+	/**
+	 * 40. Zoho Books In-App Connect / Credentials Save
+	 */
+	public static function handle_zoho_connect( WP_REST_Request $request ) {
+		if ( ! class_exists( 'TC_Integration_Zoho' ) ) {
+			return new WP_REST_Response( array( 'success' => false, 'message' => 'Zoho integration class unavailable' ), 500 );
+		}
+		$p   = $request->get_json_params() ?: $request->get_params();
+		$res = TC_Integration_Zoho::save_credentials( (array) $p );
+		$status = ! empty( $res['success'] ) ? 200 : 400;
+		return new WP_REST_Response( $res, $status );
+	}
 
 }

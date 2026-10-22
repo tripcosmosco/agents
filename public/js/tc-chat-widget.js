@@ -1,4 +1,4 @@
-/**
+﻿/**
  * TripCosmos Public AI Chat Widget JavaScript
  * High-Intelligence Conversational Sales & Lead Capture Hub.
  */
@@ -133,7 +133,34 @@
 		const langPills = document.querySelectorAll('#tc-agent-widget-root .tc-lang-pill');
 		let currentLang = sessionStorage.getItem('tc_chat_lang') || 'en';
 
-		const langStarters = {
+				const isDevDiwali = window.location.href.indexOf('dev-diwali') !== -1 || window.location.href.indexOf('dev-deepawali') !== -1;
+
+		const langStarters = isDevDiwali ? {
+			en: [
+				{ label: '🪔 Dev Diwali Boat', query: 'Book private motorboat or Bajra for Dev Diwali 2026' },
+				{ label: '📋 2N/3D Tour Package', query: 'Check complete Dev Diwali 2026 itinerary and pricing' },
+				{ label: '🏨 Ghat View Hotels', query: 'Available hotels near Dashashwamedh Ghat for Dev Diwali' },
+				{ label: '🚗 Airport Cab', query: 'Pre-book AC Innova or Sedan for Dev Diwali arrival' }
+			],
+			hi: [
+				{ label: '🪔 देव दीपावली नाव', query: 'देव दीपावली 2026 के लिए प्राइवेट नाव और बजरा बुकिंग की जानकारी दें' },
+				{ label: '📋 2N/3D टूर पैकेज', query: 'देव दीपावली 2N/3D टूर पैकेज का पूरा विवरण और किराया बताएं' },
+				{ label: '🏨 घाट होटल बुकिंग', query: 'देव दीपावली पर दशाश्वमेध घाट के पास होटल रूम उपलब्ध हैं?' },
+				{ label: '🚗 एयरपोर्ट कैब', query: 'देव दीपावली आगमन पर वाराणसी एयरपोर्ट से घाट कैब बुकिंग' }
+			],
+			gu: [
+				{ label: '🪔 દેવ દિવાળી બોટ', query: 'દેવ દિવાળી 2026 માટે પ્રાઇવેટ બોટ અને બજરા બુકિંગ ભાડું જણાવો' },
+				{ label: '📋 2N/3D ટૂર પેકેજ', query: 'દેવ દિવાળી સ્પેશિયલ ટૂર પેકેજ અને દર્શન વિગતો આપો' },
+				{ label: '🏨 ઘાટ હોટેલ્સ', query: 'દેવ દિવાળી માટે ઘાટ ફેસિંગ હોટેલ રૂમની ઉપલબ્ધતા' },
+				{ label: '🚗 એરપોર્ટ કેબ', query: 'વારાણસી એરપોર્ટ પીકઅપ માટે ઇનોવા કેબ બુકિંગ' }
+			],
+			te: [
+				{ label: '🪔 దేవ్ దీపావళి బోట్', query: 'దేవ్ దీపావళి 2026 కోసం ప్రైవేట్ బోట్ బుకింగ్ వివరాలు' },
+				{ label: '📋 2N/3D టూర్ ప్యాకేజీ', query: 'దేవ్ దీపావళి 2N/3D టూర్ ప్యాకేజీ పూర్తి వివరాలు మరియు ఛార్జీలు' },
+				{ label: '🏨 ఘాట్ హోటళ్ళు', query: 'దేవ్ దీపావళి సమయంలో ఘాట్ సమీపంలో హోటల్ రూమ్‌లు' },
+				{ label: '🚗 ఎయిర్‌పోర్ట్ క్యాబ్', query: 'వారణాసి ఎయిర్‌పోర్ట్ నుండి పికప్ క్యాబ్ బుకింగ్' }
+			]
+		} : {
 			en: [
 				{ label: '🛕 Kashi Ayodhya Tour', query: 'Tell me about Kashi Ayodhya Prayagraj 4 Days Tour Package' },
 				{ label: '🚗 Outstation Cabs', query: 'Book outstation cab Innova Crysta for Varanasi to Ayodhya' },

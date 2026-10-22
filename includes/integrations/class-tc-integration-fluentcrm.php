@@ -26,6 +26,10 @@ class TC_Integration_FluentCRM {
 		add_action( 'fluent_crm/subscriber_status_changed', array( __CLASS__, 'on_contact_changed' ), 20, 1 );
 		add_action( 'fluent_crm/contact_added_to_tags', array( __CLASS__, 'on_contact_changed' ), 20, 1 );
 		add_action( 'fluent_crm/contact_removed_from_tags', array( __CLASS__, 'on_contact_changed' ), 20, 1 );
+
+		// Real-time two-way sync: FluentCRM Companies <-> B2B Agencies in App
+		add_action( 'fluent_crm/company_created', array( __CLASS__, 'on_company_created' ), 20, 2 );
+		add_action( 'fluent_crm/company_updated', array( __CLASS__, 'on_company_updated' ), 20, 2 );
 	}
 
 	public static function on_contact_created( $subscriber ) {
@@ -34,6 +38,74 @@ class TC_Integration_FluentCRM {
 
 	public static function on_contact_changed( $subscriber ) {
 		TC_Contact_Service::pull_from_fluentcrm( $subscriber, false );
+	}
+
+	public static function on_company_created( $company, $data = array() ) {
+		self::sync_company_to_agency( $company );
+	}
+
+	public static function on_company_updated( $company, $data = array() ) {
+		self::sync_company_to_agency( $company );
+	}
+
+	public static function sync_company_to_agency( $company ) {
+		if ( ! is_object( $company ) || empty( $company->name ) ) {
+			return 0;
+		}
+		global $wpdb;
+		$table = $wpdb->prefix . 'tc_agent_agencies';
+		$name  = trim( $company->name );
+		$phone = class_exists( 'TC_Contact_Service' ) ? TC_Contact_Service::normalize_phone( $company->phone ?? '' ) : (string) ( $company->phone ?? '' );
+		$email = sanitize_email( $company->email ?? '' );
+		$city  = sanitize_text_field( $company->city ?: 'Varanasi' );
+		$addr  = sanitize_text_field( $company->address_line_1 ?: ( $city . ', India' ) );
+		$web   = esc_url_raw( $company->website ?? '' );
+
+		$exists_id = 0;
+		if ( ! empty( $phone ) ) {
+			$exists_id = (int) $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $table WHERE phone = %s LIMIT 1", $phone ) );
+		}
+		if ( ! $exists_id && ! empty( $email ) ) {
+			$exists_id = (int) $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $table WHERE email = %s LIMIT 1", $email ) );
+		}
+		if ( ! $exists_id ) {
+			$exists_id = (int) $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $table WHERE name = %s AND city = %s LIMIT 1", $name, $city ) );
+		}
+
+		if ( $exists_id ) {
+			$wpdb->update(
+				$table,
+				array(
+					'name'       => $name,
+					'city'       => $city,
+					'address'    => $addr,
+					'phone'      => $phone,
+					'email'      => $email,
+					'website'    => $web,
+					'status'     => 'in_crm',
+					'updated_at' => current_time( 'mysql' ),
+				),
+				array( 'id' => $exists_id )
+			);
+			return $exists_id;
+		}
+
+		$wpdb->insert(
+			$table,
+			array(
+				'name'       => $name,
+				'city'       => $city,
+				'address'    => $addr,
+				'phone'      => $phone,
+				'email'      => $email,
+				'website'    => $web,
+				'source'     => 'fluentcrm_company',
+				'status'     => 'in_crm',
+				'created_at' => current_time( 'mysql' ),
+				'updated_at' => current_time( 'mysql' ),
+			)
+		);
+		return (int) $wpdb->insert_id;
 	}
 
 	/**
@@ -98,7 +170,7 @@ class TC_Integration_FluentCRM {
 
 	/**
 	 * Handle incoming Fluent Forms submission.
-	 * Auto-qualifies lead, creates contact in TripCosmos CRM, syncs to FluentCRM & Twenty CRM,
+	 * Auto-qualifies lead, creates contact in TripCosmos CRM, syncs to FluentCRM,
 	 * and enrolls in automated nurture sequence.
 	 *
 	 * @param int          $entry_id  Entry ID.
@@ -208,25 +280,7 @@ class TC_Integration_FluentCRM {
 			return;
 		}
 
-		// 4. Twenty CRM (new contacts only)
-		if ( 'created' === $res['status'] && class_exists( 'TC_Integration_TwentyCRM' ) && TC_Integration_TwentyCRM::is_configured() ) {
-			$twenty_id = TC_Integration_TwentyCRM::push_lead(
-				array(
-					'name'         => $name,
-					'email'        => $email,
-					'phone'        => $phone,
-					'destination'  => $destination,
-					'requirements' => trim( $requirements ),
-					'deal_value'   => 0.00,
-				)
-			);
-			if ( $twenty_id ) {
-				global $wpdb;
-				$wpdb->update( TC_Contact_Service::table(), array( 'twentycrm_id' => $twenty_id ), array( 'id' => $contact_id ) );
-			}
-		}
-
-		// 5. Auto-enroll into automated follow-up sequence
+		// 4. Auto-enroll into automated follow-up sequence
 		if ( class_exists( 'TC_Agent_Sequences' ) ) {
 			TC_Agent_Sequences::enroll_contact( $contact_id, 'fluentform_submitted' );
 		}
@@ -476,5 +530,90 @@ class TC_Integration_FluentCRM {
 		} catch ( Exception $e ) {
 			return '';
 		}
+	}
+
+	/**
+	 * Sync an agency record from wp_tc_agent_agencies to FluentCRM Companies (wp_fc_companies)
+	 * and link the B2B contact subscriber (company_id).
+	 *
+	 * @param array|object $agency Agency row data.
+	 * @return int Company ID or 0.
+	 */
+	public static function sync_agency_company( $agency ) {
+		global $wpdb;
+		$comp_table = $wpdb->prefix . 'fc_companies';
+		if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $comp_table ) ) !== $comp_table ) {
+			return 0;
+		}
+
+		$a = (array) $agency;
+		$name  = sanitize_text_field( $a['name'] ?? '' );
+		$phone = sanitize_text_field( $a['phone'] ?? '' );
+		$email = sanitize_email( $a['email'] ?? '' );
+		$city  = sanitize_text_field( $a['city'] ?? 'Varanasi' );
+		$addr  = sanitize_text_field( $a['address'] ?? ( $city . ', India' ) );
+		$web   = esc_url_raw( $a['website'] ?? '' );
+
+		if ( empty( $name ) ) {
+			return 0;
+		}
+
+		$existing_id = 0;
+		if ( ! empty( $phone ) ) {
+			$existing_id = (int) $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $comp_table WHERE phone = %s LIMIT 1", $phone ) );
+		}
+		if ( ! $existing_id && ! empty( $email ) ) {
+			$existing_id = (int) $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $comp_table WHERE email = %s LIMIT 1", $email ) );
+		}
+		if ( ! $existing_id ) {
+			$existing_id = (int) $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $comp_table WHERE name = %s LIMIT 1", $name ) );
+		}
+
+		$company_id = 0;
+		if ( $existing_id ) {
+			$company_id = $existing_id;
+			$wpdb->update(
+				$comp_table,
+				array(
+					'phone'          => $phone,
+					'email'          => $email,
+					'website'        => $web,
+					'city'           => $city,
+					'address_line_1' => $addr,
+					'updated_at'     => current_time( 'mysql' ),
+				),
+				array( 'id' => $existing_id )
+			);
+		} else {
+			$wpdb->insert(
+				$comp_table,
+				array(
+					'name'           => $name,
+					'phone'          => $phone,
+					'email'          => $email,
+					'website'        => $web,
+					'city'           => $city,
+					'address_line_1' => $addr,
+					'country'        => 'India',
+					'created_at'     => current_time( 'mysql' ),
+					'updated_at'     => current_time( 'mysql' ),
+				)
+			);
+			$company_id = (int) $wpdb->insert_id;
+		}
+
+		if ( $company_id > 0 ) {
+			$sub_table = $wpdb->prefix . 'fc_subscribers';
+			if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $sub_table ) ) === $sub_table ) {
+				if ( ! empty( $email ) ) {
+					$wpdb->query( $wpdb->prepare( "UPDATE $sub_table SET company_id = %d WHERE email = %s AND (company_id = 0 OR company_id IS NULL)", $company_id, $email ) );
+				}
+				if ( ! empty( $phone ) ) {
+					$wpdb->query( $wpdb->prepare( "UPDATE $sub_table SET company_id = %d WHERE phone = %s AND (company_id = 0 OR company_id IS NULL)", $company_id, $phone ) );
+				}
+			}
+		}
+
+		return $company_id;
 	}
 }
