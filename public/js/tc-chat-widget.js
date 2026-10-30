@@ -1,4 +1,4 @@
-﻿/**
+/**
  * TripCosmos Public AI Chat Widget JavaScript
  * High-Intelligence Conversational Sales & Lead Capture Hub.
  */
@@ -6,7 +6,12 @@
 (function() {
 	'use strict';
 
-	document.addEventListener('DOMContentLoaded', function() {
+	function getCfg() {
+		return (typeof tcChatWidget !== 'undefined' && tcChatWidget) ? tcChatWidget : (window.tcChatWidget || {});
+	}
+
+	function initTcChatWidget() {
+		if (window._tcChatWidgetInitialized) return;
 		const triggerBtn        = document.getElementById('tc-widget-trigger');
 		const chatWindow        = document.getElementById('tc-widget-window');
 		const closeBtn          = document.getElementById('tc-widget-close');
@@ -39,12 +44,38 @@
 		const clearHistoryBtn   = document.getElementById('tc-clear-history-btn');
 
 		if (!triggerBtn || !chatWindow) return;
+		window._tcChatWidgetInitialized = true;
+
+		// Safe Storage Helpers
+		function safeSessionGet(key) {
+			try { return sessionStorage.getItem(key); } catch (e) { return null; }
+		}
+		function safeSessionSet(key, val) {
+			try { sessionStorage.setItem(key, val); } catch (e) {}
+		}
+		function safeLocalGet(key) {
+			try { return localStorage.getItem(key); } catch (e) { return null; }
+		}
+		function safeLocalSet(key, val) {
+			try { localStorage.setItem(key, val); } catch (e) {}
+		}
+
+		// State Variables
+		let isInVoiceCall = false;
+		let isSending = false;
+		let voiceRecInstance = null;
+		let animFrameId = null;
+		let wavePhase = 0;
+		let inactivityTimer = null;
+		let livePollTimer = null;
+		let lastMessageId = 0;
+		let currentLang = 'en';
 
 		// 1. Session Storage Management
 		// First-touch attribution, kept for the browser session so a later lead is credited to the landing visit.
 		function getAttribution() {
 			var stored = null;
-			try { stored = JSON.parse(sessionStorage.getItem('tc_agent_attribution') || 'null'); } catch (e) {}
+			try { stored = JSON.parse(safeSessionGet('tc_agent_attribution') || 'null'); } catch (e) {}
 			if (stored) { return stored; }
 			var q = new URLSearchParams(window.location.search);
 			var attr = {
@@ -54,7 +85,7 @@
 				referrer: document.referrer || '',
 				landing_page: window.location.href
 			};
-			try { sessionStorage.setItem('tc_agent_attribution', JSON.stringify(attr)); } catch (e) {}
+			try { safeSessionSet('tc_agent_attribution', JSON.stringify(attr)); } catch (e) {}
 			return attr;
 		}
 		getAttribution();
@@ -64,10 +95,10 @@
 			(window.crypto || window.msCrypto).getRandomValues(a);
 			return 'web_' + Array.prototype.map.call(a, function (b) { return ('0' + b.toString(16)).slice(-2); }).join('');
 		}
-		let sessionId = sessionStorage.getItem('tc_agent_session_id');
+		let sessionId = safeSessionGet('tc_agent_session_id');
 		if (!sessionId) {
 			sessionId = newSessionId();
-			sessionStorage.setItem('tc_agent_session_id', sessionId);
+			safeSessionSet('tc_agent_session_id', sessionId);
 		}
 
 		// 1c. Compliant Web-to-WhatsApp Attribution & Session Bridging
@@ -88,7 +119,7 @@
 		}
 
 		function recordWaClick(ref, context) {
-			const clickUrl = (typeof tcChatWidget !== 'undefined' && tcChatWidget.leadCaptureUrl) ? tcChatWidget.leadCaptureUrl.replace('lead-capture', 'wa-click') : '/wp-json/tc-agents/v1/wa-click';
+			const clickUrl = (getCfg().leadCaptureUrl) ? getCfg().leadCaptureUrl.replace('lead-capture', 'wa-click') : '/wp-json/tc-agents/v1/wa-click';
 			try {
 				fetch(clickUrl, {
 					method: 'POST',
@@ -104,11 +135,12 @@
 				});
 			} catch (e) {}
 		}
+		window.tcRecordWaClick = recordWaClick;
 
 		// Update dynamic WhatsApp bar link with verified TC-XXXXX attribution
 		const waBarLink = document.getElementById('tc-wa-bar-link');
 		if (waBarLink) {
-			const waNum = (typeof tcChatWidget !== 'undefined' && tcChatWidget.whatsappNumber) ? tcChatWidget.whatsappNumber : '919336116210';
+			const waNum = getCfg().whatsappNumber || '919336116210';
 			const ref = getTcRef();
 			const pageTitle = document.title ? document.title.split('-')[0].trim() : 'Trip';
 			const waText = encodeURIComponent('Hi TripCosmos (Ref ' + ref + '), I am browsing ' + pageTitle + ' and would like itinerary and quote details.');
@@ -119,8 +151,8 @@
 		}
 
 		// Auto-populate quote panel inputs if user is logged in
-		if (typeof tcChatWidget !== 'undefined' && tcChatWidget.currentUser) {
-			const cu = tcChatWidget.currentUser;
+		if (getCfg().currentUser) {
+			const cu = getCfg().currentUser;
 			const qName = document.getElementById('tc-q-name');
 			const qEmail = document.getElementById('tc-q-email');
 			const qPhone = document.getElementById('tc-q-phone');
@@ -131,7 +163,7 @@
 
 		// 1b. Multilingual Pilgrim Language Management
 		const langPills = document.querySelectorAll('#tc-agent-widget-root .tc-lang-pill');
-		let currentLang = sessionStorage.getItem('tc_chat_lang') || 'en';
+		currentLang = safeSessionGet('tc_chat_lang') || 'en';
 
 				const isDevDiwali = window.location.href.indexOf('dev-diwali') !== -1 || window.location.href.indexOf('dev-deepawali') !== -1;
 
@@ -208,6 +240,15 @@
 			starterChips.innerHTML = html;
 		}
 
+		function getSpeechLang() {
+			switch (currentLang) {
+				case 'hi': return 'hi-IN';
+				case 'gu': return 'gu-IN';
+				case 'te': return 'te-IN';
+				default: return 'en-IN';
+			}
+		}
+
 		if (langPills.length) {
 			langPills.forEach(function(pill) {
 				pill.addEventListener('click', function() {
@@ -221,7 +262,7 @@
 		// Helper: build standardized user data for Google Ads Enhanced Conversions
 		function getUserDataForGtm(extraParams) {
 			extraParams = extraParams || {};
-			const u = (typeof tcChatWidget !== 'undefined' && tcChatWidget.currentUser) ? tcChatWidget.currentUser : {};
+			const u = getCfg().currentUser || {};
 			const email = extraParams.email || u.email || '';
 			const phone = extraParams.phone || u.phone || '';
 			const name = extraParams.name || u.firstName || u.name || '';
@@ -235,11 +276,11 @@
 		}
 
 		// Push initial authenticated user identity to dataLayer if logged in
-		if (typeof tcChatWidget !== 'undefined' && tcChatWidget.currentUser) {
+		if (getCfg().currentUser) {
 			window.dataLayer = window.dataLayer || [];
 			window.dataLayer.push({
 				event: 'tc_user_identified',
-				user_id: tcChatWidget.currentUser.id || '',
+				user_id: (getCfg().currentUser && getCfg().currentUser.id) ? getCfg().currentUser.id : '',
 				user_data: getUserDataForGtm()
 			});
 		}
@@ -266,12 +307,13 @@
 			const isLeadEvent = (
 				eventName === 'tc_agent_quote_submitted' ||
 				eventName === 'tc_agent_phone_detected' ||
-				eventName === 'tc_agent_whatsapp_click' ||
+				// whatsapp click tracked separately via GAds whatsapp_click tag
 				eventName === 'tc_agent_mobile_call_dispatched'
 			);
 
 			if (isLeadEvent) {
-				const leadVal = (typeof tcChatWidget !== 'undefined' && tcChatWidget.leadValue) ? Number(tcChatWidget.leadValue) : 1500;
+				const cfg = getCfg();
+				const leadVal = cfg.leadValue ? Number(cfg.leadValue) : 1500;
 				const convPayload = {
 					event: 'generate_lead',
 					event_category: 'Lead',
@@ -283,21 +325,34 @@
 					conversion_channel: eventName === 'tc_agent_whatsapp_click' ? 'whatsapp' : (eventName === 'tc_agent_mobile_call_dispatched' ? 'phone_call' : 'web_chat'),
 					user_data: getUserDataForGtm(params)
 				};
+				window.dataLayer = window.dataLayer || [];
 				window.dataLayer.push(convPayload);
 				document.dispatchEvent(new CustomEvent('tc_agent_conversion', { detail: convPayload }));
+
+				// Enhanced Conversions first-party user data for Google Ads & GTM
+				if (typeof window.gtag === 'function') {
+					if (convPayload.user_data && (convPayload.user_data.phone_number || convPayload.user_data.email)) {
+						window.gtag('set', 'user_data', {
+							'email': convPayload.user_data.email || undefined,
+							'phone_number': convPayload.user_data.phone_number || undefined
+						});
+					}
+				}
 			}
 
 			// Ping backend for Android app companion live alerts on visitor actions
 			if (eventName === 'tc_agent_chat_opened' || eventName === 'tc_agent_visitor_landed' || eventName === 'tc_agent_heartbeat') {
 				try {
 					const attr = getAttribution() || {};
-					const trackUrl = (tcChatWidget.siteUrl ? tcChatWidget.siteUrl.replace(/\/$/, '') : '') + '/wp-json/tc-agents/v1/track-visitor';
+					const cfg = getCfg();
+					const siteUrl = cfg.siteUrl ? cfg.siteUrl.replace(/\/$/, '') : (window.location.origin || '');
+					const trackUrl = siteUrl + '/wp-json/tc-agents/v1/track-visitor';
 					fetch(trackUrl, {
 						method: 'POST',
 						credentials: 'same-origin',
 						headers: {
 							'Content-Type': 'application/json',
-							'X-WP-Nonce': (typeof tcChatWidget !== 'undefined' && tcChatWidget.nonce) ? tcChatWidget.nonce : ''
+							'X-WP-Nonce': cfg.nonce || ''
 						},
 						body: JSON.stringify({
 							action: eventName === 'tc_agent_chat_opened' ? 'chat_opened' : (eventName === 'tc_agent_heartbeat' ? 'heartbeat' : 'landed'),
@@ -307,7 +362,7 @@
 							referrer: document.referrer || attr.referrer || '',
 							utm_source: attr.utm_source || '',
 							language: currentLang || 'en',
-							currentUser: (typeof tcChatWidget !== 'undefined' && tcChatWidget.currentUser) ? tcChatWidget.currentUser : null
+							currentUser: cfg.currentUser || null
 						})
 					}).catch(function() {});
 				} catch (e) {}
@@ -323,6 +378,14 @@
 				trackEvent('tc_agent_whatsapp_click', { url: href });
 			} else if (href.indexOf('tel:') === 0) {
 				trackEvent('tc_agent_mobile_call_requested', { phone: href.replace('tel:', '') });
+
+				// Standard GA4 & GTM DataLayer phone_click event (GTM Tag 205 fires Google Ads conversion)
+				window.dataLayer = window.dataLayer || [];
+				window.dataLayer.push({
+					event: 'phone_click',
+					phone_number: href.replace('tel:', '').trim(),
+					click_url: href
+				});
 			} else if (href.indexOf('/checkout') !== -1 || href.indexOf('pay') !== -1 || href.indexOf('booking-token') !== -1) {
 				trackEvent('begin_checkout', { url: href, currency: 'INR' });
 			}
@@ -343,7 +406,10 @@
 		restoreHistory();
 
 		// 3. Open / Close Toggle
-		let isOpen = false;
+		let isOpen = (widgetRoot && widgetRoot.classList.contains('tc-window-open')) || (chatWindow && chatWindow.style.display === 'flex');
+		if (isOpen) {
+			setTimeout(function() { toggleWidget(true); }, 10);
+		}
 
 		function toggleWidget(forceState) {
 			if (typeof forceState === 'boolean') {
@@ -355,6 +421,8 @@
 			triggerBtn.classList.toggle('active', isOpen);
 			if (widgetRoot) widgetRoot.classList.toggle('tc-window-open', isOpen);
 			document.body.classList.toggle('tc-chat-open', isOpen);
+			if (isOpen && typeof resetInactivityTimer === 'function') resetInactivityTimer();
+			if (!isOpen && typeof inactivityTimer !== 'undefined' && inactivityTimer) clearTimeout(inactivityTimer);
 			const mobileSticky = document.getElementById('tc-mobile-sticky-bar');
 			if (mobileSticky) {
 				mobileSticky.classList.toggle('tc-hidden', isOpen);
@@ -371,9 +439,15 @@
 			if (closeIcon) closeIcon.style.setProperty('display', isOpen ? 'flex' : 'none', 'important');
 
 			const badgeEl = document.getElementById('tc-fab-badge');
-			if (badgeEl && isOpen) badgeEl.style.display = 'none';
+			if (badgeEl && isOpen) {
+				badgeEl.classList.remove('tc-badge-visible');
+				badgeEl.style.setProperty('display', 'none', 'important');
+			}
+			const calloutPillEl = document.getElementById('tc-fab-callout');
+			if (calloutPillEl) calloutPillEl.style.setProperty('display', isOpen ? 'none' : 'inline-flex', 'important');
 
 			if (teaserEl) teaserEl.style.display = 'none';
+			if (widgetRoot) widgetRoot.classList.remove('tc-teaser-open');
 
 			if (isOpen) {
 				trackEvent('tc_agent_chat_opened');
@@ -423,8 +497,18 @@
 			window.visualViewport.addEventListener('scroll', handleViewportChange);
 		}
 
+		const calloutPill = document.getElementById('tc-fab-callout');
+		if (calloutPill) {
+			calloutPill.addEventListener('click', function(e) {
+				e.preventDefault();
+				e.stopPropagation();
+				toggleWidget(true);
+			});
+		}
+
 		triggerBtn.addEventListener('click', function(e) {
 			e.preventDefault();
+			e.stopPropagation();
 			toggleWidget();
 		});
 
@@ -432,6 +516,7 @@
 		if (stickyAiBtn) {
 			stickyAiBtn.addEventListener('click', function(e) {
 				e.preventDefault();
+				e.stopPropagation();
 				toggleWidget(true);
 			});
 		}
@@ -453,7 +538,7 @@
 				sessionId = newSessionId();
 				sessionStorage.setItem('tc_agent_session_id', sessionId);
 
-				const greeting = tcChatWidget.greeting || "Namaste! 🙏 Welcome to TripCosmos — Varanasi's premier pilgrimage & tour desk.\n\nLooking for Kashi Vishwanath VIP darshan, Ayodhya Ram Mandir packages, outstation cabs (Innova Crysta / Swift Dzire), hotel bookings, or private Ganga Aarti boat rides? How can I assist you today?";
+				const greeting = getCfg().greeting || "Namaste! 🙏 Welcome to TripCosmos — Varanasi's premier pilgrimage & tour desk.\n\nLooking for Kashi Vishwanath VIP darshan, Ayodhya Ram Mandir packages, outstation cabs (Innova Crysta / Swift Dzire), hotel bookings, or private Ganga Aarti boat rides? How can I assist you today?";
 				const greetingHtml = '<div class="tc-chat-bubble tc-bubble-bot"><div class="tc-bubble-text">' + escapeHtml(greeting).replace(/\n/g, '<br />') + '</div></div>';
 				messagesContainer.innerHTML = greetingHtml;
 				if (starterChips) {
@@ -493,10 +578,30 @@
 		function showProactiveTeaser() {
 			if (teaserShown || isOpen || sessionStorage.getItem('tc_teaser_dismissed') || !teaserEl) return;
 			teaserShown = true;
+			if (widgetRoot) widgetRoot.classList.add('tc-teaser-open');
+			const calloutPill = document.getElementById('tc-fab-callout');
+			if (calloutPill) calloutPill.style.setProperty('display', 'none', 'important');
 			teaserEl.style.display = 'block';
-			if (badgeEl) badgeEl.style.display = 'flex';
+			if (badgeEl) {
+				badgeEl.classList.add('tc-badge-visible');
+				badgeEl.style.setProperty('display', 'flex', 'important');
+			}
 			playSoftChime();
 			trackEvent('tc_agent_proactive_sales_outreach_shown');
+		}
+
+		function dismissTeaser() {
+			if (teaserEl) teaserEl.style.display = 'none';
+			sessionStorage.setItem('tc_teaser_dismissed', '1');
+			if (widgetRoot) widgetRoot.classList.remove('tc-teaser-open');
+			if (badgeEl) {
+				badgeEl.classList.remove('tc-badge-visible');
+				badgeEl.style.setProperty('display', 'none', 'important');
+			}
+			const calloutPill = document.getElementById('tc-fab-callout');
+			if (calloutPill && !isOpen) {
+				calloutPill.style.setProperty('display', 'inline-flex', 'important');
+			}
 		}
 
 		if (!teaserDismissed && teaserEl) {
@@ -514,14 +619,14 @@
 			// Desktop Exit-Intent Trigger: captures abandoning visitors before tab close (with 24h cooldown)
 			document.addEventListener('mouseleave', function onMouseLeave(e) {
 				let lastExit = 0;
-				try { lastExit = parseInt(localStorage.getItem('tc_exit_intent_ts') || '0', 10); } catch (err) {}
+				try { lastExit = parseInt(safeLocalGet('tc_exit_intent_ts') || '0', 10); } catch (err) {}
 				const now = Date.now();
 				const cooldown = 24 * 60 * 60 * 1000; // 24 hours
 
-				if (e.clientY <= 15 && !isOpen && (now - lastExit > cooldown) && !sessionStorage.getItem('tc_exit_intent_fired')) {
+				if (e.clientY <= 15 && !isOpen && (now - lastExit > cooldown) && !safeSessionGet('tc_exit_intent_fired')) {
 					try {
-						localStorage.setItem('tc_exit_intent_ts', now.toString());
-						sessionStorage.setItem('tc_exit_intent_fired', '1');
+						safeLocalSet('tc_exit_intent_ts', now.toString());
+						safeSessionSet('tc_exit_intent_fired', '1');
 					} catch (err) {}
 					teaserShown = false;
 					const teaserBody = document.getElementById('tc-teaser-body');
@@ -531,17 +636,17 @@
 					showProactiveTeaser();
 				}
 			});
+		}
 
+		if (teaserEl) {
 			// Handle quick action chips inside the proactive card!
 			const teaserChips = teaserEl.querySelectorAll('.tc-teaser-chip');
 			teaserChips.forEach(function(chip) {
 				chip.addEventListener('click', function(e) {
 					e.stopPropagation();
 					const query = chip.getAttribute('data-query');
-					teaserEl.style.display = 'none';
-					sessionStorage.setItem('tc_teaser_dismissed', '1');
-					if (badgeEl) badgeEl.style.display = 'none';
-					if (!isOpen) toggleWidget();
+					dismissTeaser();
+					if (!isOpen) toggleWidget(true);
 					if (query) {
 						setTimeout(function() {
 							sendMessage(query);
@@ -554,23 +659,18 @@
 			if (openBtn) {
 				openBtn.addEventListener('click', function(e) {
 					e.stopPropagation();
-					teaserEl.style.display = 'none';
-					sessionStorage.setItem('tc_teaser_dismissed', '1');
-					if (badgeEl) badgeEl.style.display = 'none';
-					if (!isOpen) toggleWidget();
+					dismissTeaser();
+					if (!isOpen) toggleWidget(true);
 				});
 			}
 
 			teaserEl.addEventListener('click', function(e) {
 				if (e.target === teaserCloseBtn || (teaserCloseBtn && teaserCloseBtn.contains(e.target))) {
 					e.stopPropagation();
-					teaserEl.style.display = 'none';
-					sessionStorage.setItem('tc_teaser_dismissed', '1');
+					dismissTeaser();
 				} else if (!e.target.closest('.tc-teaser-chip') && e.target !== openBtn) {
-					teaserEl.style.display = 'none';
-					sessionStorage.setItem('tc_teaser_dismissed', '1');
-					if (badgeEl) badgeEl.style.display = 'none';
-					if (!isOpen) toggleWidget();
+					dismissTeaser();
+					if (!isOpen) toggleWidget(true);
 				}
 			});
 		}
@@ -584,7 +684,7 @@
 				const recognition = new SpeechRecognition();
 				recognition.continuous = false;
 				recognition.interimResults = false;
-				recognition.lang = 'en-IN';
+				recognition.lang = getSpeechLang();
 
 				let isListening = false;
 
@@ -593,6 +693,7 @@
 						recognition.stop();
 					} else {
 						try {
+							recognition.lang = getSpeechLang();
 							recognition.start();
 							isListening = true;
 							micBtn.classList.add('listening');
@@ -626,10 +727,10 @@
 		}
 
 		// 7b. Interactive In-Browser WebCall Engine
-		let isInVoiceCall = false;
-		let voiceRecInstance = null;
-		let animFrameId = null;
-		let wavePhase = 0;
+		isInVoiceCall = false;
+		voiceRecInstance = null;
+		animFrameId = null;
+		wavePhase = 0;
 
 		function stopVisualizerLoop() {
 			if (animFrameId) {
@@ -714,7 +815,7 @@
 				voiceRecInstance = new SpeechRec();
 				voiceRecInstance.continuous = true;
 				voiceRecInstance.interimResults = true;
-				voiceRecInstance.lang = 'en-IN';
+				voiceRecInstance.lang = getSpeechLang();
 
 				voiceRecInstance.onresult = function(e) {
 					let interim = '';
@@ -785,23 +886,25 @@
 				try { voiceRecInstance.abort(); } catch (e) {}
 			}
 
-			fetch(tcChatWidget.restUrl, {
+			const cfg = getCfg();
+			const restUrl = cfg.restUrl || '/wp-json/tc-agents/v1/chat';
+			fetch(restUrl, {
 				method: 'POST',
 				credentials: 'same-origin',
 				headers: {
 					'Content-Type': 'application/json',
-					'X-WP-Nonce': (typeof tcChatWidget !== 'undefined' && tcChatWidget.nonce) ? tcChatWidget.nonce : ''
+					'X-WP-Nonce': cfg.nonce || ''
 				},
 				body: JSON.stringify({
 					message: queryText,
 					session_id: sessionId,
 					channel: 'web_voice',
-					agent_slug: 'tripcosmos-guide',
+					agent_slug: cfg.agentSlug || 'tripcosmos-guide',
 					stream: false,
 					page_url: window.location.href,
 					page_title: document.title,
 					language: currentLang,
-					currentUser: (typeof tcChatWidget !== 'undefined' && tcChatWidget.currentUser) ? tcChatWidget.currentUser : null
+					currentUser: cfg.currentUser || null
 				})
 			})
 			.then(function(res) { return res.json(); })
@@ -881,11 +984,13 @@
 				phoneCallStatus.textContent = 'Initiating automated AI phone call...';
 			}
 
-			fetch(tcChatWidget.triggerCallUrl, {
+			const cfg = getCfg();
+			const callUrl = cfg.triggerCallUrl || '/wp-json/tc-agents/v1/trigger-call';
+			fetch(callUrl, {
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/json',
-					'X-WP-Nonce': tcChatWidget.nonce || ''
+					'X-WP-Nonce': cfg.nonce || ''
 				},
 				body: JSON.stringify({
 					phone: phone,
@@ -951,15 +1056,42 @@
 			});
 		}
 
-		// 9. Form Submit
-		chatForm.addEventListener('submit', function(e) {
-			e.preventDefault();
-			const text = chatInput.value.trim();
-			if (!text) return;
-			sendMessage(text);
-			chatInput.value = '';
-			if (starterChips) starterChips.style.display = 'none';
-		});
+		// 9. Form Submit & Send Button Listeners
+		if (chatForm) {
+			chatForm.addEventListener('submit', function(e) {
+				e.preventDefault();
+				const text = chatInput ? chatInput.value.trim() : '';
+				if (!text) return;
+				sendMessage(text);
+				if (chatInput) chatInput.value = '';
+				if (starterChips) starterChips.style.display = 'none';
+			});
+		}
+
+		const sendBtn = document.getElementById('tc-widget-send');
+		if (sendBtn) {
+			sendBtn.addEventListener('click', function(e) {
+				e.preventDefault();
+				const text = chatInput ? chatInput.value.trim() : '';
+				if (!text) return;
+				sendMessage(text);
+				if (chatInput) chatInput.value = '';
+				if (starterChips) starterChips.style.display = 'none';
+			});
+		}
+
+		if (chatInput) {
+			chatInput.addEventListener('keydown', function(e) {
+				if (e.key === 'Enter' && !e.shiftKey) {
+					e.preventDefault();
+					const text = chatInput.value.trim();
+					if (!text) return;
+					sendMessage(text);
+					chatInput.value = '';
+					if (starterChips) starterChips.style.display = 'none';
+				}
+			});
+		}
 
 		// 9b. Fast Itinerary & Group Quote Form Submit
 		if (quoteForm) {
@@ -983,11 +1115,12 @@
 					submitBtn.textContent = '⚡ Preparing Itinerary & Fare...';
 				}
 
-				fetch(tcChatWidget.leadCaptureUrl, {
+				const leadCapUrl = getCfg().leadCaptureUrl || '/wp-json/tc-agents/v1/lead-capture';
+				fetch(leadCapUrl, {
 					method: 'POST',
 					headers: {
 						'Content-Type': 'application/json',
-						'X-WP-Nonce': tcChatWidget.nonce || ''
+						'X-WP-Nonce': cfg.nonce || ''
 					},
 					body: JSON.stringify({
 						name: name,
@@ -1059,39 +1192,50 @@
 			});
 
 			const inputArea = document.getElementById('tc-widget-input-area');
+			const langBar = document.querySelector('.tc-lang-picker-bar');
+			const waBar = document.getElementById('tc-widget-wa-bar');
 
 			if (tabId === 'chat') {
 				if (messagesContainer) messagesContainer.classList.add('active');
 				if (inputArea) inputArea.style.display = 'block';
+				if (langBar) langBar.style.display = 'flex';
+				if (waBar) waBar.style.display = 'block';
 				stopVisualizerLoop();
 				scrollToBottom();
 				if (chatInput) chatInput.focus();
-			} else if (tabId === 'quote') {
-				if (quotePanel) quotePanel.classList.add('active');
+			} else {
 				if (inputArea) inputArea.style.display = 'none';
-				stopVisualizerLoop();
-				if (window.tcChatWidget && tcChatWidget.currentUser) {
-					const u = tcChatWidget.currentUser;
-					const n = document.getElementById('tc-q-name');
-					const e = document.getElementById('tc-q-email');
-					const p = document.getElementById('tc-q-phone');
-					if (n && !n.value && u.name) n.value = u.name;
-					if (e && !e.value && u.email) e.value = u.email;
-					if (p && !p.value && u.phone) p.value = u.phone;
+				if (langBar) langBar.style.display = 'none';
+				if (waBar) waBar.style.display = 'none';
+
+				if (tabId === 'quote') {
+					if (quotePanel) {
+						quotePanel.classList.add('active');
+						quotePanel.scrollTop = 0;
+					}
+					stopVisualizerLoop();
+					if (getCfg().currentUser) {
+						const u = getCfg().currentUser;
+						const n = document.getElementById('tc-q-name');
+						const e = document.getElementById('tc-q-email');
+						const p = document.getElementById('tc-q-phone');
+						if (n && !n.value && u.name) n.value = u.name;
+						if (e && !e.value && u.email) e.value = u.email;
+						if (p && !p.value && u.phone) p.value = u.phone;
+					}
+				} else if (tabId === 'voice') {
+					if (voicePanel) voicePanel.classList.add('active');
+					startVisualizerLoop();
+					if (getCfg().currentUser) {
+						const dp = document.getElementById('tc-direct-phone-input');
+						const u = getCfg().currentUser;
+						if (dp && !dp.value && u && u.phone) dp.value = u.phone;
+					}
+				} else if (tabId === 'history') {
+					if (historyPanel) historyPanel.classList.add('active');
+					stopVisualizerLoop();
+					renderHistoryPanel();
 				}
-			} else if (tabId === 'voice') {
-				if (voicePanel) voicePanel.classList.add('active');
-				if (inputArea) inputArea.style.display = 'none';
-				startVisualizerLoop();
-				if (window.tcChatWidget && tcChatWidget.currentUser) {
-					const dp = document.getElementById('tc-direct-phone');
-					if (dp && !dp.value && tcChatWidget.currentUser.phone) dp.value = tcChatWidget.currentUser.phone;
-				}
-			} else if (tabId === 'history') {
-				if (historyPanel) historyPanel.classList.add('active');
-				if (inputArea) inputArea.style.display = 'none';
-				stopVisualizerLoop();
-				renderHistoryPanel();
 			}
 		}
 
@@ -1126,7 +1270,7 @@
 			clearHistoryBtn.addEventListener('click', function() {
 				sessionStorage.removeItem('tc_chat_history');
 				renderHistoryPanel();
-				const greeting = tcChatWidget.greeting || 'Namaste! How can I assist you today?';
+				const greeting = getCfg().greeting || 'Namaste! How can I assist you today?';
 				messagesContainer.innerHTML = '<div class="tc-chat-bubble tc-bubble-bot"><div class="tc-bubble-text">' + escapeHtml(greeting).replace(/\n/g, '<br />') + '</div></div>';
 				if (starterChips) {
 					messagesContainer.appendChild(starterChips);
@@ -1136,15 +1280,22 @@
 		}
 
 		// 10. Send Message Flow with Streaming & Context
-		let isSending = false;
+		isSending = false;
 		const chatSubmitBtn = chatForm ? chatForm.querySelector('button[type="submit"]') : null;
 
 		function setSendingState(sending) {
 			isSending = sending;
-			if (chatInput) chatInput.disabled = sending;
+			if (chatInput) {
+				chatInput.readOnly = sending;
+				if (sending) {
+					chatInput.classList.add('tc-sending');
+				} else {
+					chatInput.classList.remove('tc-sending');
+					chatInput.focus();
+				}
+			}
 			if (chatSubmitBtn) chatSubmitBtn.disabled = sending;
 			if (micBtn) micBtn.disabled = sending;
-			if (!sending && chatInput) chatInput.focus();
 		}
 
 		function sendMessage(text) {
@@ -1156,7 +1307,8 @@
 			if (phoneMatch) {
 				const detectedPhone = phoneMatch[0];
 				trackEvent('tc_agent_phone_detected', { phone: detectedPhone });
-				fetch(tcChatWidget.leadCaptureUrl, {
+				const leadCapUrl = getCfg().leadCaptureUrl || '/wp-json/tc-agents/v1/lead-capture';
+				fetch(leadCapUrl, {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({
@@ -1198,24 +1350,29 @@
 			let isFirstChunk = true;
 
 			// Fetch with Streaming & Context Awareness
-			fetch(tcChatWidget.restUrl, {
+			const cfg = getCfg();
+			const restUrl = cfg.restUrl || '/wp-json/tc-agents/v1/chat';
+			const requestHeaders = {
+				'Content-Type': 'application/json',
+				'Accept': 'text/event-stream, application/json'
+			};
+			if (cfg.currentUser && cfg.nonce) {
+				requestHeaders['X-WP-Nonce'] = cfg.nonce;
+			}
+			fetch(restUrl, {
 				method: 'POST',
 				credentials: 'same-origin',
-				headers: {
-					'Content-Type': 'application/json',
-					'Accept': 'text/event-stream, application/json',
-					'X-WP-Nonce': (window.tcChatWidget && tcChatWidget.nonce) ? tcChatWidget.nonce : ''
-				},
+				headers: requestHeaders,
 				body: JSON.stringify({
 					message: text,
 					session_id: sessionId,
 					channel: 'web',
-					agent_slug: (window.tcChatWidget && tcChatWidget.agentSlug) ? tcChatWidget.agentSlug : 'tripcosmos-guide',
+					agent_slug: getCfg().agentSlug || 'tripcosmos-guide',
 					stream: true,
 					page_url: window.location.href,
 					page_title: document.title,
 					language: currentLang,
-					currentUser: (window.tcChatWidget && tcChatWidget.currentUser) ? tcChatWidget.currentUser : null
+					currentUser: getCfg().currentUser || null
 				})
 			})
 			.then(function(response) {
@@ -1257,6 +1414,7 @@
 										} else if (event.type === 'done') {
 											setSendingState(false);
 											scrollToBottom(true);
+											resetInactivityTimer();
 											if (event.handoff && event.handoff.whatsapp_url) {
 												renderHandoffCta(event.handoff.whatsapp_url);
 											}
@@ -1323,9 +1481,51 @@
 			})
 			.catch(function(err) {
 				setSendingState(false);
-				textDiv.innerHTML = '<span style="color:#b91c1c; font-weight:600;">⚠️ Connection issue.</span> Our expedition specialist is ready on WhatsApp for immediate custom planning.';
-				renderHandoffCta();
+				if (!navigator.onLine) {
+					textDiv.innerHTML = '<span style="color:#b91c1c; font-weight:600;">📡 Network disconnected.</span> Your message is saved. Reconnecting... <button type="button" class="tc-retry-send-btn" style="background:#ea580c; color:#fff; border:none; padding:3px 9px; border-radius:6px; font-size:11px; margin-left:6px; cursor:pointer; font-weight:600;">Retry</button>';
+					const rBtn = textDiv.querySelector('.tc-retry-send-btn');
+					if (rBtn) {
+						rBtn.addEventListener('click', function() {
+							botBubble.remove();
+							sendMessage(text);
+						});
+					}
+					function onBackOnline() {
+						window.removeEventListener('online', onBackOnline);
+						if (botBubble && botBubble.parentNode) {
+							botBubble.remove();
+							sendMessage(text);
+						}
+					}
+					window.addEventListener('online', onBackOnline);
+				} else {
+					textDiv.innerHTML = '<span style="color:#b91c1c; font-weight:600;">⚠️ Connection issue.</span> Our expedition specialist is ready on WhatsApp for immediate custom planning.';
+					renderHandoffCta();
+				}
 			});
+			resetInactivityTimer();
+		}
+
+		inactivityTimer = null;
+		function resetInactivityTimer() {
+			if (inactivityTimer) clearTimeout(inactivityTimer);
+			if (!isOpen) return;
+			inactivityTimer = setTimeout(function() {
+				const existingRibbon = document.getElementById('tc-wa-retention-ribbon');
+				let history = [];
+				try { history = JSON.parse(sessionStorage.getItem('tc_chat_history') || '[]'); } catch (e) {}
+				if (!existingRibbon && history.length >= 2) {
+					const ribbon = document.createElement('div');
+					ribbon.id = 'tc-wa-retention-ribbon';
+					ribbon.className = 'tc-exit-ribbon';
+					const waNum = getCfg().whatsappNumber || '919336116210';
+					const ref = typeof getTcRef === 'function' ? getTcRef() : '';
+					const waUrl = 'https://wa.me/' + waNum + '?text=' + encodeURIComponent('Hi TripCosmos! (Ref ' + ref + ') I was chatting on the website and would like to continue our conversation on WhatsApp.');
+					ribbon.innerHTML = '<span>📲 Keep this quote on WhatsApp?</span><a href="' + waUrl + '" target="_blank" rel="noopener">Continue &rarr;</a>';
+					messagesContainer.appendChild(ribbon);
+					scrollToBottom(true);
+				}
+			}, 35000);
 		}
 
 		function appendMessage(role, text) {
@@ -1342,8 +1542,8 @@
 		}
 
 		// 11. Live Polling for Human Specialist Takeover
-		let livePollTimer = null;
-		let lastMessageId = 0;
+		livePollTimer = null;
+		lastMessageId = 0;
 		const knownMsgIds = new Set();
 
 		function startLivePolling() {
@@ -1361,7 +1561,8 @@
 
 		function pollLiveMessages() {
 			if (!isOpen || !sessionId) return;
-			const pollUrl = (tcChatWidget.siteUrl ? tcChatWidget.siteUrl.replace(/\/$/, '') : '') + 
+			const siteUrl = getCfg().siteUrl ? getCfg().siteUrl.replace(/\/$/, '') : (window.location.origin || '');
+			const pollUrl = siteUrl + 
 				'/wp-json/tc-agents/v1/conversations/' + encodeURIComponent(sessionId) + '/poll?after=' + lastMessageId;
 
 			fetch(pollUrl)
@@ -1446,7 +1647,7 @@
 				card.className = 'tc-trip-card';
 
 				const thumb = trip.thumbnail || 'https://images.unsplash.com/photo-1561361513-2d000a50f0dc?w=600&q=80';
-				const waNumber = (typeof tcChatWidget !== 'undefined' && tcChatWidget.whatsappNumber) ? tcChatWidget.whatsappNumber : '919336116210';
+				const waNumber = getCfg().whatsappNumber || '919336116210';
 				const waUrl = 'https://wa.me/' + waNumber + '?text=' + encodeURIComponent('Hi TripCosmos! I am inquiring about the ' + trip.title + ' (' + (trip.price || 'package') + '). Could you share upcoming dates?');
 
 				card.innerHTML =
@@ -1472,7 +1673,7 @@
 		}
 
 		function renderHandoffCta(customUrl) {
-			const waNum = (typeof tcChatWidget !== 'undefined' && tcChatWidget.whatsappNumber) ? tcChatWidget.whatsappNumber : '919336116210';
+			const waNum = getCfg().whatsappNumber || '919336116210';
 			const url = customUrl || ('https://wa.me/' + waNum + '?text=' + encodeURIComponent('Hi TripCosmos Team, I am looking for a custom Varanasi/Ayodhya tour package and cab quotation.'));
 			const cta = document.createElement('div');
 			cta.className = 'tc-handoff-cta';
@@ -1491,33 +1692,69 @@
 			if (!data) return;
 			const origin = data.origin || 'Varanasi';
 			const dest = data.destination || (data.route || 'Ayodhya');
-			const vehicleName = data.vehicle_name || data.vehicle || 'Dedicated AC Cab';
-			const fare = data.estimated_fare || (data.total_estimate ? '₹' + Number(data.total_estimate).toLocaleString('en-IN') : 'All-Inclusive Fare');
+			let vehicleName = data.vehicle_name || data.vehicle || 'Dedicated AC Cab';
+			let fare = data.estimated_fare || (data.total_estimate ? '₹' + Number(data.total_estimate).toLocaleString('en-IN') : 'All-Inclusive Fare');
 			const card = document.createElement('div');
 			card.className = 'tc-cab-fare-card';
 
-			const waNumber = (typeof tcChatWidget !== 'undefined' && tcChatWidget.whatsappNumber) ? tcChatWidget.whatsappNumber : '919336116210';
-			const waMsg = 'Namaste TripCosmos! I would like to book a cab for ' + origin + ' to ' + dest + ' (' + vehicleName + ', ' + fare + '). Please confirm availability.';
-			const waUrl = 'https://wa.me/' + waNumber + '?text=' + encodeURIComponent(waMsg);
+			const waNumber = getCfg().whatsappNumber || '919336116210';
+			const ref = typeof getTcRef === 'function' ? getTcRef() : '';
+
+			function makeWaUrl(vName, vFare) {
+				const waMsg = 'Namaste TripCosmos! (Ref ' + ref + ') I would like to book ' + vName + ' for ' + origin + ' to ' + dest + ' at ' + vFare + '. Please confirm availability.';
+				return 'https://wa.me/' + waNumber + '?text=' + encodeURIComponent(waMsg);
+			}
 
 			const billableKm = data.total_billable_km || data.billable_km || data.distance_km || '';
 			const tripType = data.is_round_trip ? 'Round Trip' : 'One Way';
 			const da = data.driver_allowance || (data.breakdown && data.breakdown.driver_allowance ? data.breakdown.driver_allowance : 'Included');
 			const toll = data.toll_tax_estimate || (data.breakdown && data.breakdown.estimated_tolls ? data.breakdown.estimated_tolls : 'Est. Included');
 
+			let fleetTabsHtml = '';
+			if (Array.isArray(data.all_vehicle_options) && data.all_vehicle_options.length > 1) {
+				fleetTabsHtml = '<div class="tc-cab-fleet-tabs">';
+				data.all_vehicle_options.forEach(function(opt) {
+					const isCur = opt.vehicle === vehicleName || (opt.vehicle_name && opt.vehicle_name === vehicleName);
+					const label = opt.vehicle_type === 'sedan' ? 'Dzire' : (opt.vehicle_type === 'ertiga' ? 'Ertiga' : (opt.vehicle_type === 'innova' ? 'Innova' : (opt.vehicle_type === 'tempo_12' ? 'Tempo 12S' : (opt.vehicle_type === 'tempo_17' ? 'Tempo 17S' : 'Tempo 26S'))));
+					const p = opt.total_estimate ? '₹' + Number(opt.total_estimate).toLocaleString('en-IN') : '';
+					fleetTabsHtml += '<button type="button" class="tc-fleet-pill' + (isCur ? ' active' : '') + '" data-vehicle="' + escapeHtml(opt.vehicle) + '" data-fare="' + escapeHtml(p) + '">' + escapeHtml(label) + ' <strong>' + escapeHtml(p) + '</strong></button>';
+				});
+				fleetTabsHtml += '</div>';
+			}
+
 			card.innerHTML =
 				'<div class="tc-card-header">' +
-					'<span class="tc-card-title">🚗 ' + escapeHtml(vehicleName) + '</span>' +
+					'<span class="tc-card-title tc-cab-title">🚗 ' + escapeHtml(vehicleName) + '</span>' +
 					'<span class="tc-card-badge">' + escapeHtml(origin) + ' &rarr; ' + escapeHtml(dest) + '</span>' +
 				'</div>' +
-				'<div class="tc-fare-amount">' + escapeHtml(fare) + ' <span>(All-inclusive est.)</span></div>' +
+				fleetTabsHtml +
+				'<div class="tc-fare-amount tc-cab-fare">' + escapeHtml(fare) + ' <span>(All-inclusive est.)</span></div>' +
 				'<div class="tc-card-grid">' +
 					'<div class="tc-card-stat"><div class="tc-card-stat-label">Distance / Trip</div><div class="tc-card-stat-val">' + (billableKm ? escapeHtml(String(billableKm)) + ' km (' + tripType + ')' : escapeHtml(tripType)) + '</div></div>' +
 					'<div class="tc-card-stat"><div class="tc-card-stat-label">Duration</div><div class="tc-card-stat-val">' + escapeHtml(String(data.days || 1)) + ' Day(s)</div></div>' +
 					'<div class="tc-card-stat"><div class="tc-card-stat-label">Driver DA</div><div class="tc-card-stat-val">' + escapeHtml(String(da)) + '</div></div>' +
 					'<div class="tc-card-stat"><div class="tc-card-stat-label">Toll & Parking</div><div class="tc-card-stat-val">' + escapeHtml(String(toll)) + '</div></div>' +
 				'</div>' +
-				'<a href="' + waUrl + '" target="_blank" rel="noopener" class="tc-card-action-btn">💬 Book This Cab via WhatsApp</a>';
+				'<div class="tc-card-actions">' +
+					'<a href="' + makeWaUrl(vehicleName, fare) + '" target="_blank" rel="noopener" class="tc-card-action-btn tc-cab-book-wa">💬 Book This Cab via WhatsApp</a>' +
+					'<a href="https://wa.me/' + waNumber + '?text=' + encodeURIComponent('Namaste TripCosmos! (Ref ' + ref + ') I want to lock my rate for ' + vehicleName + ' (' + origin + ' to ' + dest + ') with ₹1,000 token advance. Please send booking confirmation link.') + '" target="_blank" rel="noopener" class="tc-card-action-token">🔒 Lock Rate with ₹1,000 Token Advance</a>' +
+				'</div>';
+
+			// Bind fleet pill clicks
+			card.querySelectorAll('.tc-fleet-pill').forEach(function(pill) {
+				pill.addEventListener('click', function() {
+					card.querySelectorAll('.tc-fleet-pill').forEach(function(p) { p.classList.remove('active'); });
+					pill.classList.add('active');
+					const vN = pill.getAttribute('data-vehicle') || vehicleName;
+					const vF = pill.getAttribute('data-fare') || fare;
+					const titleEl = card.querySelector('.tc-cab-title');
+					const fareEl = card.querySelector('.tc-cab-fare');
+					const btnEl = card.querySelector('.tc-cab-book-wa');
+					if (titleEl) titleEl.textContent = '🚗 ' + vN;
+					if (fareEl) fareEl.innerHTML = escapeHtml(vF) + ' <span>(All-inclusive est.)</span>';
+					if (btnEl) btnEl.href = makeWaUrl(vN, vF);
+				});
+			});
 
 			messagesContainer.appendChild(card);
 			scrollToBottom(true);
@@ -1528,7 +1765,7 @@
 			const card = document.createElement('div');
 			card.className = 'tc-itinerary-card';
 
-			const waNumber = (typeof tcChatWidget !== 'undefined' && tcChatWidget.whatsappNumber) ? tcChatWidget.whatsappNumber : '919336116210';
+			const waNumber = getCfg().whatsappNumber || '919336116210';
 			const waMsg = 'Namaste TripCosmos! I have reviewed my tour itinerary (' + (data.itinerary_id || '') + ' - ' + (data.summary || '') + '). I would like to proceed with booking.';
 			const waUrl = 'https://wa.me/' + waNumber + '?text=' + encodeURIComponent(waMsg);
 
@@ -1616,12 +1853,12 @@
 
 			// WhatsApp 1-tap action button: [WHATSAPP_ACTION: Button Label] or [WHATSAPP: Button Label]
 			safe = safe.replace(/\[(?:WHATSAPP_ACTION|WHATSAPP):\s*([^\]]+)\]/gi, function(match, label) {
-				const waNum = (typeof tcChatWidget !== 'undefined' && tcChatWidget.whatsappNumber) ? tcChatWidget.whatsappNumber : '919336116210';
+				const waNum = getCfg().whatsappNumber || '919336116210';
 				const ref = typeof getTcRef === 'function' ? getTcRef() : 'Ref: Web';
 				const waText = encodeURIComponent('Hi TripCosmos (Ref ' + ref + '), I would like to get details and quote for: ' + label.trim());
 				const waUrl = 'https://wa.me/' + waNum + '?text=' + waText;
 				return '<div class="tc-wa-action-card">' +
-					'<a href="' + waUrl + '" target="_blank" rel="noopener" class="tc-wa-action-btn" onclick="(typeof recordWaClick===\'function\')&&recordWaClick(\'' + ref + '\',\'in_chat_action\')">' +
+					'<a href="' + waUrl + '" target="_blank" rel="noopener" class="tc-wa-action-btn" onclick="(window.tcRecordWaClick)&&window.tcRecordWaClick(\'' + ref + '\',\'in_chat_action\')">' +
 						'<svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.582 2.128 2.182-.573c.978.58 1.911.928 3.145.929 3.178 0 5.767-2.587 5.768-5.766 0-3.187-2.59-5.771-5.764-5.771zm3.392 8.244c-.144.405-.837.774-1.17.824-.312.045-.694.072-2.18-.545-1.898-.787-3.13-2.73-3.224-2.855-.094-.127-.775-1.03-.775-1.965 0-.934.489-1.393.663-1.583.175-.19.38-.238.508-.238.127 0 .254.002.365.008.117.006.273-.044.428.328.16.383.548 1.339.596 1.436.048.098.08.212.015.339-.064.127-.095.207-.19.317-.095.111-.2.248-.286.333-.095.096-.195.2-.084.391.111.19.493.813 1.056 1.314.726.645 1.338.845 1.53.94.19.096.302.08.413-.048.111-.127.476-.556.603-.746.127-.19.254-.159.429-.095.174.064 1.111.524 1.302.619.19.096.317.143.365.223.048.079.048.461-.096.866z"/></svg>' +
 						'<span>' + label.trim() + '</span>' +
 						'<span class="tc-wa-arrow">&rarr;</span>' +
@@ -1695,8 +1932,33 @@
 					history.forEach(function(item) {
 						appendMessage(item.role, item.text);
 					});
+				} else {
+					// Hydrate default greeting bubble with rich markdown & action buttons
+					const defText = document.querySelector('#tc-widget-messages .tc-bubble-bot .tc-bubble-text');
+					if (defText && defText.textContent) {
+						defText.innerHTML = formatMarkdown(defText.textContent.trim());
+					}
 				}
 			} catch (e) {}
 		}
-	});
+
+		// Accessibility: Close widget on Escape key press
+		document.addEventListener('keydown', function(e) {
+			if (e.key === 'Escape' && isOpen) {
+				toggleWidget(false);
+			}
+		});
+
+		// Expose global control APIs so header buttons, sticky bars, or CTAs can trigger the chat window
+		window.tcToggleWidget = toggleWidget;
+		window.tcOpenChatWidget = function() { toggleWidget(true); };
+		window.tcCloseChatWidget = function() { toggleWidget(false); };
+	} // end initTcChatWidget
+
+	// Support defer / delay JS caching optimizations (LiteSpeed Cache, WP Rocket, etc.)
+	if (document.readyState === 'loading') {
+		document.addEventListener('DOMContentLoaded', initTcChatWidget);
+	} else {
+		initTcChatWidget();
+	}
 })();

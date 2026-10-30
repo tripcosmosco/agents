@@ -60,12 +60,15 @@
 	}
 
 	function newRef() {
+		var existing = load('tc_wa_ref');
+		if (existing) { return existing; }
 		var out = 'TC-';
 		var bytes = new Uint8Array(5);
 		(window.crypto || window.msCrypto).getRandomValues(bytes);
 		for (var i = 0; i < 5; i++) {
 			out += ALPHABET.charAt(bytes[i] % ALPHABET.length);
 		}
+		store('tc_wa_ref', out);
 		return out;
 	}
 

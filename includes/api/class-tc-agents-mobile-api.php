@@ -504,6 +504,61 @@ class TC_Agents_Mobile_API {
 			)
 		);
 
+		// 41. Payroll: Get Employees Directory
+		register_rest_route(
+			self::NAMESPACE,
+			'/mobile/payroll/employees',
+			array(
+				'methods'             => 'GET',
+				'callback'            => array( __CLASS__, 'handle_payroll_get_employees' ),
+				'permission_callback' => array( __CLASS__, 'verify_token' ),
+			)
+		);
+
+		// 42. Payroll: Save / Update Employee
+		register_rest_route(
+			self::NAMESPACE,
+			'/mobile/payroll/employees',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( __CLASS__, 'handle_payroll_save_employee' ),
+				'permission_callback' => array( __CLASS__, 'verify_token' ),
+			)
+		);
+
+		// 43. Payroll: Monthly Salary Calculation & Run
+		register_rest_route(
+			self::NAMESPACE,
+			'/mobile/payroll/calculate',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( __CLASS__, 'handle_payroll_calculate' ),
+				'permission_callback' => array( __CLASS__, 'verify_token' ),
+			)
+		);
+
+		// 44. Payroll: Generate & Dispatch Payslip via WhatsApp
+		register_rest_route(
+			self::NAMESPACE,
+			'/mobile/payroll/dispatch-payslip',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( __CLASS__, 'handle_payroll_dispatch_payslip' ),
+				'permission_callback' => array( __CLASS__, 'verify_token' ),
+			)
+		);
+
+		// 45. Payroll: 1-Click Sync to Zoho Books Free Plan Manual Journal
+		register_rest_route(
+			self::NAMESPACE,
+			'/mobile/payroll/sync-zoho',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( __CLASS__, 'handle_payroll_sync_zoho' ),
+				'permission_callback' => array( __CLASS__, 'verify_token' ),
+			)
+		);
+
 	}
 
 	/**
@@ -784,6 +839,42 @@ class TC_Agents_Mobile_API {
 			ARRAY_A
 		) ?: array();
 
+		// Role-based scoping: non-admin/managers may only see calls for their assigned leads
+		$is_admin = class_exists( 'TC_Agents_Mobile_CRM_API' ) && TC_Agents_Mobile_CRM_API::is_admin_or_manager( $request );
+		$my_phones = array();
+		if ( ! $is_admin ) {
+			$user_id        = (int) $request->get_param( '_tc_user_id' );
+			$agent          = (string) $request->get_param( '_tc_agent' );
+			$table_contacts = $wpdb->prefix . 'tc_agent_contacts';
+			$owned_rows     = $wpdb->get_results(
+				$wpdb->prepare( "SELECT id, phone, name FROM {$table_contacts} WHERE owner_user_id = %d OR owner = %s", $user_id, $agent ),
+				ARRAY_A
+			) ?: array();
+			foreach ( $owned_rows as $or ) {
+				$digits = preg_replace( '/\D/', '', $or['phone'] );
+				if ( strlen( $digits ) >= 10 ) {
+					$my_phones[ substr( $digits, -10 ) ] = $or['name'];
+				}
+			}
+		}
+
+		// Pre-fetch contact names in 1 query to prevent N+1 query performance bottleneck
+		$contact_ids = array();
+		foreach ( $rows as $r ) {
+			$d = json_decode( (string) ( $r['details'] ?? '' ), true );
+			if ( ! empty( $d['contact_id'] ) ) {
+				$contact_ids[] = (int) $d['contact_id'];
+			}
+		}
+		$name_map = array();
+		if ( ! empty( $contact_ids ) ) {
+			$ids_in = implode( ',', array_map( 'intval', array_unique( $contact_ids ) ) );
+			$names  = $wpdb->get_results( "SELECT id, name FROM {$wpdb->prefix}tc_agent_contacts WHERE id IN ($ids_in)", ARRAY_A ) ?: array();
+			foreach ( $names as $n ) {
+				$name_map[ (int) $n['id'] ] = $n['name'];
+			}
+		}
+
 		$calls = array();
 		foreach ( $rows as $row ) {
 			$details = json_decode( (string) ( $row['details'] ?? '' ), true ) ?: array();
@@ -791,6 +882,13 @@ class TC_Agents_Mobile_API {
 			if ( empty( $phone ) ) {
 				continue;
 			}
+
+			// RBAC check: staff agents only see their own assigned contacts' calls
+			$digits = substr( preg_replace( '/\D/', '', $phone ), -10 );
+			if ( ! $is_admin && ! isset( $my_phones[ $digits ] ) ) {
+				continue;
+			}
+
 			$direction = $details['type'] ?? $details['direction'] ?? 'outbound';
 			if ( 'incoming' === $direction ) {
 				$direction = 'inbound';
@@ -799,19 +897,13 @@ class TC_Agents_Mobile_API {
 			$duration = (int) ( $details['duration'] ?? $details['duration_seconds'] ?? 0 );
 			$notes    = $details['notes'] ?? '';
 
-			// Name lookup
+			// Name lookup from batch map or staff map
 			$customer_name = 'Traveler';
-			if ( ! empty( $details['contact_id'] ) ) {
-				$c = $wpdb->get_row( $wpdb->prepare( "SELECT name FROM {$wpdb->prefix}tc_agent_contacts WHERE id = %d", (int) $details['contact_id'] ), ARRAY_A );
-				if ( ! empty( $c['name'] ) ) {
-					$customer_name = $c['name'];
-				}
-			}
-			if ( 'Traveler' === $customer_name && ! empty( $phone ) ) {
-				$contact = TC_Contact_Service::find( '', $phone );
-				if ( $contact && ! empty( $contact['name'] ) ) {
-					$customer_name = $contact['name'];
-				}
+			$cid           = (int) ( $details['contact_id'] ?? 0 );
+			if ( $cid && ! empty( $name_map[ $cid ] ) ) {
+				$customer_name = $name_map[ $cid ];
+			} elseif ( ! empty( $my_phones[ $digits ] ) ) {
+				$customer_name = $my_phones[ $digits ];
 			}
 
 			$calls[] = array(
@@ -905,21 +997,13 @@ class TC_Agents_Mobile_API {
 			$params[] = $stage;
 		}
 
-		$agent = (string) $request->get_param( '_tc_agent' );
-		if ( '' !== $agent && 'master' !== $agent && 'admin' !== $agent ) {
-			$lower_a = strtolower( trim( $agent ) );
-			if ( strpos( $lower_a, 'nishkarsh' ) !== false ) {
-				$where .= ' AND ( owner LIKE %s OR owner LIKE %s OR owner = "" OR owner IS NULL )';
-				$params[] = '%Nishkarsh%';
-				$params[] = '%Nishkarsh AI%';
-			} elseif ( strpos( $lower_a, 'aditi' ) !== false || strpos( $lower_a, 'adity' ) !== false ) {
-				$where .= ' AND ( owner LIKE %s OR owner LIKE %s OR owner = "" OR owner IS NULL )';
-				$params[] = '%Aditi%';
-				$params[] = '%Aditi AI%';
-			} else {
-				$where .= ' AND ( owner = %s OR owner = "" OR owner IS NULL )';
-				$params[] = $agent;
-			}
+		$is_admin = class_exists( 'TC_Agents_Mobile_CRM_API' ) && TC_Agents_Mobile_CRM_API::is_admin_or_manager( $request );
+		if ( ! $is_admin ) {
+			$user_id = (int) $request->get_param( '_tc_user_id' );
+			$agent   = (string) $request->get_param( '_tc_agent' );
+			$where  .= ' AND ( owner_user_id = %d OR owner = %s )';
+			$params[] = $user_id;
+			$params[] = $agent;
 		}
 
 		// Paged, so the list keeps working as the CRM grows. The defaults keep the old behaviour (first 100).
@@ -951,10 +1035,10 @@ class TC_Agents_Mobile_API {
 			);
 		}
 
-		// Also check if any FluentCRM subscribers with phone should be included
+		// FluentCRM unassigned subscribers are only exposed to Administrators & Managers
 		$table_subscribers = $wpdb->prefix . 'fc_subscribers';
 		$subscribers_table_exists = $wpdb->get_var( $wpdb->prepare( "SHOW TABLES LIKE %s", $table_subscribers ) );
-		if ( $subscribers_table_exists && 0 === $offset ) {
+		if ( $is_admin && $subscribers_table_exists && 0 === $offset ) {
 			$existing_phones = array_column( $leads, 'phone' );
 			$subscribers = $wpdb->get_results(
 				"SELECT id, first_name, last_name, email, phone, created_at, updated_at FROM $table_subscribers WHERE phone IS NOT NULL AND phone != '' ORDER BY id DESC LIMIT 50",
@@ -1128,11 +1212,26 @@ class TC_Agents_Mobile_API {
 		$table_contacts = $wpdb->prefix . 'tc_agent_contacts';
 		$table_agencies = $wpdb->prefix . 'tc_agent_agencies';
 
-		// 1. Load all CRM contacts and index by 10-digit phone suffix
-		$contacts = $wpdb->get_results(
-			"SELECT id, name, phone, email, stage, score, deal_value, owner, source_channel, next_follow_up_at, meta_data, created_at, updated_at FROM $table_contacts WHERE phone IS NOT NULL AND phone != '' ORDER BY updated_at DESC LIMIT 120",
-			ARRAY_A
-		) ?: array();
+		$is_admin = class_exists( 'TC_Agents_Mobile_CRM_API' ) && TC_Agents_Mobile_CRM_API::is_admin_or_manager( $request );
+		$my_id    = (int) $request->get_param( '_tc_user_id' );
+		$my_agent = trim( (string) $request->get_param( '_tc_agent' ) );
+
+		// 1. Load CRM contacts scoped to current agent if not admin/manager
+		if ( ! $is_admin ) {
+			$contacts = $wpdb->get_results(
+				$wpdb->prepare(
+					"SELECT id, name, phone, email, stage, score, deal_value, owner, source_channel, next_follow_up_at, meta_data, created_at, updated_at FROM $table_contacts WHERE phone IS NOT NULL AND phone != '' AND (owner_user_id = %d OR owner = %s) ORDER BY updated_at DESC LIMIT 120",
+					$my_id,
+					$my_agent
+				),
+				ARRAY_A
+			) ?: array();
+		} else {
+			$contacts = $wpdb->get_results(
+				"SELECT id, name, phone, email, stage, score, deal_value, owner, source_channel, next_follow_up_at, meta_data, created_at, updated_at FROM $table_contacts WHERE phone IS NOT NULL AND phone != '' ORDER BY updated_at DESC LIMIT 120",
+				ARRAY_A
+			) ?: array();
+		}
 
 		$contact_by_suffix = array();
 		foreach ( $contacts as $c ) {
@@ -1170,6 +1269,11 @@ class TC_Agents_Mobile_API {
 
 			// Skip own business number if echoed
 			if ( '9336116210' === $suffix ) {
+				continue;
+			}
+
+			// RBAC: Staff agents can ONLY see chats for leads assigned to them
+			if ( ! $is_admin && ! isset( $contact_by_suffix[ $suffix ] ) ) {
 				continue;
 			}
 			if ( '' !== $suffix ) {
@@ -1420,6 +1524,9 @@ class TC_Agents_Mobile_API {
 	 * Admin assigns WhatsApp lead to manager and optionally dispatches WhatsApp alert.
 	 */
 	public static function handle_assign_lead( WP_REST_Request $request ) {
+		if ( ! class_exists( 'TC_Agents_Mobile_CRM_API' ) || ! TC_Agents_Mobile_CRM_API::is_admin_or_manager( $request ) ) {
+			return new WP_REST_Response( array( 'ok' => false, 'error' => 'Access denied. Only administrators and sales managers can assign leads.' ), 403 );
+		}
 		$params         = $request->get_json_params() ?: $request->get_params();
 		$lead_id        = (int) ( $params['lead_id'] ?? 0 );
 		$manager_name   = sanitize_text_field( $params['manager_name'] ?? '' );
@@ -1714,14 +1821,15 @@ class TC_Agents_Mobile_API {
 		// 2. Check async jobs queue if available
 		global $wpdb;
 		$table_name = $wpdb->prefix . 'tc_agent_jobs';
-		if ( $wpdb->get_var( "SHOW TABLES LIKE '$table_name'" ) === $table_name ) {
+		if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table_name ) ) === $table_name ) {
+			$lease_cutoff = date( 'Y-m-d H:i:s', current_time( 'timestamp' ) - 300 );
 			$db_jobs = $wpdb->get_results(
 				$wpdb->prepare(
 					"SELECT id, job_type, payload, created_at FROM {$table_name}
 					 WHERE job_type = 'jio_outbound_call'
 					 AND ( status = 'pending' OR ( status = 'processing' AND updated_at < %s ) )
 					 ORDER BY id ASC LIMIT 10",
-					gmdate( 'Y-m-d H:i:s', strtotime( current_time( 'mysql' ) ) - 300 )
+					$lease_cutoff
 				),
 				ARRAY_A
 			);
@@ -1739,7 +1847,7 @@ class TC_Agents_Mobile_API {
 							"UPDATE {$table_name} SET status = 'processing', attempts = attempts + 1, updated_at = %s WHERE id = %d AND ( status = 'pending' OR ( status = 'processing' AND updated_at < %s ) )",
 							current_time( 'mysql' ),
 							(int) $job['id'],
-							gmdate( 'Y-m-d H:i:s', strtotime( current_time( 'mysql' ) ) - 300 )
+							$lease_cutoff
 						)
 					);
 					if ( 1 === (int) $claimed && ! in_array( $cid, $existing_ids, true ) ) {
@@ -2699,6 +2807,33 @@ class TC_Agents_Mobile_API {
 				),
 				400
 			);
+		}
+
+		if ( class_exists( 'TC_Agents_Mobile_CRM_API' ) && ! TC_Agents_Mobile_CRM_API::is_admin_or_manager( $request ) ) {
+			global $wpdb;
+			$my_id    = (int) $request->get_param( '_tc_user_id' );
+			$my_agent = trim( (string) $request->get_param( '_tc_agent' ) );
+			$clean    = preg_replace( '/\D/', '', $phone );
+			$suffix   = strlen( $clean ) >= 10 ? substr( $clean, -10 ) : $clean;
+			$allowed  = $wpdb->get_var(
+				$wpdb->prepare(
+					"SELECT COUNT(*) FROM {$wpdb->prefix}tc_agent_contacts WHERE (phone LIKE %s OR phone_e164 LIKE %s) AND (owner_user_id = %d OR owner = %s)",
+					'%' . $suffix,
+					'%' . $suffix,
+					$my_id,
+					$my_agent
+				)
+			);
+			if ( ! $allowed ) {
+				return new WP_REST_Response(
+					array(
+						'ok'      => false,
+						'success' => false,
+						'error'   => 'Access denied. You can only send WhatsApp messages to leads assigned to you.',
+					),
+					403
+				);
+			}
 		}
 
 		$sent       = false;
@@ -3848,9 +3983,22 @@ class TC_Agents_Mobile_API {
 	}
 
 	/**
+	 * Helper: check finance authorization for Zoho & Payroll endpoints
+	 */
+	public static function is_finance_authorized( WP_REST_Request $request ) {
+		if ( class_exists( 'TC_Agents_Mobile_CRM_API' ) ) {
+			return TC_Agents_Mobile_CRM_API::is_finance_authorized( $request );
+		}
+		return current_user_can( 'manage_options' );
+	}
+
+	/**
 	 * 37. Zoho Books Financial Summary & Invoices
 	 */
 	public static function handle_zoho_summary( WP_REST_Request $request ) {
+		if ( ! self::is_finance_authorized( $request ) ) {
+			return new WP_REST_Response( array( 'success' => false, 'error' => 'Forbidden. Finance authorization required.' ), 403 );
+		}
 		if ( ! class_exists( 'TC_Integration_Zoho' ) ) {
 			return new WP_REST_Response( array( 'success' => false, 'error' => 'Zoho integration class unavailable' ), 500 );
 		}
@@ -3862,6 +4010,9 @@ class TC_Agents_Mobile_API {
 	 * 38. Zoho Books Live Sync
 	 */
 	public static function handle_zoho_sync( WP_REST_Request $request ) {
+		if ( ! self::is_finance_authorized( $request ) ) {
+			return new WP_REST_Response( array( 'success' => false, 'error' => 'Forbidden. Finance authorization required.' ), 403 );
+		}
 		if ( ! class_exists( 'TC_Integration_Zoho' ) ) {
 			return new WP_REST_Response( array( 'success' => false, 'error' => 'Zoho integration class unavailable' ), 500 );
 		}
@@ -3873,6 +4024,9 @@ class TC_Agents_Mobile_API {
 	 * 39. Zoho Books Safe Configuration Status
 	 */
 	public static function handle_zoho_config( WP_REST_Request $request ) {
+		if ( ! self::is_finance_authorized( $request ) ) {
+			return new WP_REST_Response( array( 'success' => false, 'error' => 'Forbidden. Finance authorization required.' ), 403 );
+		}
 		if ( ! class_exists( 'TC_Integration_Zoho' ) ) {
 			return new WP_REST_Response( array( 'success' => false, 'error' => 'Zoho integration class unavailable' ), 500 );
 		}
@@ -3884,11 +4038,100 @@ class TC_Agents_Mobile_API {
 	 * 40. Zoho Books In-App Connect / Credentials Save
 	 */
 	public static function handle_zoho_connect( WP_REST_Request $request ) {
+		if ( ! self::is_finance_authorized( $request ) ) {
+			return new WP_REST_Response( array( 'success' => false, 'message' => 'Forbidden. Finance authorization required.' ), 403 );
+		}
 		if ( ! class_exists( 'TC_Integration_Zoho' ) ) {
 			return new WP_REST_Response( array( 'success' => false, 'message' => 'Zoho integration class unavailable' ), 500 );
 		}
 		$p   = $request->get_json_params() ?: $request->get_params();
 		$res = TC_Integration_Zoho::save_credentials( (array) $p );
+		$status = ! empty( $res['success'] ) ? 200 : 400;
+		return new WP_REST_Response( $res, $status );
+	}
+
+	/**
+	 * 41. Payroll: Get Employees Directory
+	 */
+	public static function handle_payroll_get_employees( WP_REST_Request $request ) {
+		if ( ! self::is_finance_authorized( $request ) ) {
+			return new WP_REST_Response( array( 'success' => false, 'error' => 'Forbidden. Finance authorization required.' ), 403 );
+		}
+		if ( ! class_exists( 'TC_Agents_Payroll_Service' ) ) {
+			return new WP_REST_Response( array( 'success' => false, 'error' => 'Payroll service unavailable' ), 500 );
+		}
+		$employees = TC_Agents_Payroll_Service::get_employees();
+		return new WP_REST_Response( array( 'success' => true, 'employees' => $employees ), 200 );
+	}
+
+	/**
+	 * 42. Payroll: Save / Update Employee
+	 */
+	public static function handle_payroll_save_employee( WP_REST_Request $request ) {
+		if ( ! self::is_finance_authorized( $request ) ) {
+			return new WP_REST_Response( array( 'success' => false, 'error' => 'Forbidden. Finance authorization required.' ), 403 );
+		}
+		if ( ! class_exists( 'TC_Agents_Payroll_Service' ) ) {
+			return new WP_REST_Response( array( 'success' => false, 'error' => 'Payroll service unavailable' ), 500 );
+		}
+		$p = $request->get_json_params() ?: $request->get_params();
+		$res = TC_Agents_Payroll_Service::save_employee( (array) $p );
+		return new WP_REST_Response( array( 'success' => true, 'employee' => $res ), 200 );
+	}
+
+	/**
+	 * 43. Payroll: Calculate Monthly Breakdown
+	 */
+	public static function handle_payroll_calculate( WP_REST_Request $request ) {
+		if ( ! self::is_finance_authorized( $request ) ) {
+			return new WP_REST_Response( array( 'success' => false, 'error' => 'Forbidden. Finance authorization required.' ), 403 );
+		}
+		if ( ! class_exists( 'TC_Agents_Payroll_Service' ) ) {
+			return new WP_REST_Response( array( 'success' => false, 'error' => 'Payroll service unavailable' ), 500 );
+		}
+		$p     = $request->get_json_params() ?: $request->get_params();
+		$month = sanitize_text_field( $p['month'] ?? date( 'Y-m' ) );
+		$att   = ! empty( $p['attendance'] ) && is_array( $p['attendance'] ) ? $p['attendance'] : array();
+		$res   = TC_Agents_Payroll_Service::calculate_payroll( $month, $att );
+		return new WP_REST_Response( array( 'success' => true, 'payroll' => $res ), 200 );
+	}
+
+	/**
+	 * 44. Payroll: Generate & Dispatch Payslip via WhatsApp
+	 */
+	public static function handle_payroll_dispatch_payslip( WP_REST_Request $request ) {
+		if ( ! self::is_finance_authorized( $request ) ) {
+			return new WP_REST_Response( array( 'success' => false, 'error' => 'Forbidden. Finance authorization required.' ), 403 );
+		}
+		if ( ! class_exists( 'TC_Agents_Payroll_Service' ) ) {
+			return new WP_REST_Response( array( 'success' => false, 'error' => 'Payroll service unavailable' ), 500 );
+		}
+		$p           = $request->get_json_params() ?: $request->get_params();
+		$employee_id = sanitize_text_field( $p['employee_id'] ?? '' );
+		$month       = sanitize_text_field( $p['month'] ?? date( 'Y-m' ) );
+
+		if ( empty( $employee_id ) ) {
+			return new WP_REST_Response( array( 'success' => false, 'message' => 'employee_id is required' ), 400 );
+		}
+
+		$res = TC_Agents_Payroll_Service::dispatch_payslip_whatsapp( $employee_id, $month );
+		$status = ! empty( $res['success'] ) ? 200 : 400;
+		return new WP_REST_Response( $res, $status );
+	}
+
+	/**
+	 * 45. Payroll: 1-Click Sync to Zoho Books Free Plan Manual Journal
+	 */
+	public static function handle_payroll_sync_zoho( WP_REST_Request $request ) {
+		if ( ! self::is_finance_authorized( $request ) ) {
+			return new WP_REST_Response( array( 'success' => false, 'error' => 'Forbidden. Finance authorization required.' ), 403 );
+		}
+		if ( ! class_exists( 'TC_Agents_Payroll_Service' ) ) {
+			return new WP_REST_Response( array( 'success' => false, 'error' => 'Payroll service unavailable' ), 500 );
+		}
+		$p     = $request->get_json_params() ?: $request->get_params();
+		$month = sanitize_text_field( $p['month'] ?? date( 'Y-m' ) );
+		$res   = TC_Agents_Payroll_Service::sync_to_zoho_journal( $month );
 		$status = ! empty( $res['success'] ) ? 200 : 400;
 		return new WP_REST_Response( $res, $status );
 	}

@@ -69,11 +69,19 @@ class TC_Agents_Mobile_CRM_API {
 			array( '/mobile/conversations/' . $id . '/reply', 'POST', 'conversation_reply' ),
 			array( '/mobile/conversations/' . $id . '/ai', 'POST', 'conversation_ai' ),
 			array( '/mobile/google-ads/conversions', 'GET', 'google_ads_conversions' ),
+			array( '/mobile/google-ads/sync', 'POST', 'google_ads_sync' ),
+			array( '/mobile/google-ads/config', 'GET', 'google_ads_config' ),
+			array( '/mobile/google-ads/upload-conversion', 'POST', 'google_ads_upload_conversion' ),
 			array( '/mobile/bank-statement/upload', 'POST', 'bank_statement_upload' ),
 			array( '/mobile/bank-statement/transactions', 'GET', 'bank_statement_transactions' ),
 			array( '/mobile/bank-statement/reconcile', 'POST', 'bank_statement_reconcile' ),
 			array( '/mobile/zoho/summary', 'GET', 'zoho_summary' ),
 			array( '/mobile/zoho/sync', 'POST', 'zoho_sync' ),
+			array( '/mobile/customer-margins', 'GET', 'customer_margins' ),
+			array( '/mobile/customer-expenses', 'GET', 'customer_expenses_list' ),
+			array( '/mobile/customer-expenses/add', 'POST', 'customer_expense_add' ),
+			array( '/mobile/customer-expenses/delete', 'POST', 'customer_expense_delete' ),
+			array( '/mobile/customer-expenses/link-debit', 'POST', 'customer_expense_link_debit' ),
 		);
 		foreach ( $map as $r ) {
 			register_rest_route(
@@ -165,8 +173,69 @@ class TC_Agents_Mobile_CRM_API {
 	}
 
 	/** Who is calling, as set by TC_Agents_Mobile_API::verify_token(). */
-	private static function agent( WP_REST_Request $request ) {
+	public static function agent( WP_REST_Request $request ) {
 		return (string) $request->get_param( '_tc_agent' );
+	}
+
+	/** Check if caller is Admin or Sales Manager */
+	public static function is_admin_or_manager( WP_REST_Request $request ) {
+		$user_id  = (int) $request->get_param( '_tc_user_id' );
+		$token_id = (string) $request->get_param( '_tc_token_id' );
+		if ( 0 === $user_id && 'master' === $token_id ) {
+			return true;
+		}
+		if ( $user_id > 0 ) {
+			$u = get_userdata( $user_id );
+			if ( $u ) {
+				$roles = (array) $u->roles;
+				if ( in_array( 'administrator', $roles, true ) || in_array( 'tc_sales_manager', $roles, true ) || user_can( $u, 'manage_options' ) ) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
+	/** Check if caller has Financial Hub access */
+	public static function is_finance_authorized( WP_REST_Request $request ) {
+		$user_id  = (int) $request->get_param( '_tc_user_id' );
+		$token_id = (string) $request->get_param( '_tc_token_id' );
+		if ( 0 === $user_id && 'master' === $token_id ) {
+			return true;
+		}
+		if ( $user_id > 0 ) {
+			$u = get_userdata( $user_id );
+			if ( $u ) {
+				$roles = (array) $u->roles;
+				if ( in_array( 'administrator', $roles, true ) || in_array( 'tcfp_manager', $roles, true ) || in_array( 'tcfp_accountant', $roles, true ) || user_can( $u, 'manage_options' ) ) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
+	/** Check if caller can access a specific lead */
+	public static function can_access_lead( WP_REST_Request $request, array $lead ) {
+		if ( self::is_admin_or_manager( $request ) ) {
+			return true;
+		}
+		$my_id    = (int) $request->get_param( '_tc_user_id' );
+		$my_agent = trim( (string) self::agent( $request ) );
+		$owner_id = (int) ( $lead['owner_user_id'] ?? 0 );
+		$owner    = trim( (string) ( $lead['owner'] ?? '' ) );
+
+		if ( $my_id > 0 && $owner_id === $my_id ) {
+			return true;
+		}
+		if ( '' !== $my_agent && 0 === strcasecmp( $owner, $my_agent ) ) {
+			return true;
+		}
+		// Also allow if unassigned and agents are permitted to see unassigned
+		if ( empty( $owner ) && 0 === $owner_id && class_exists( 'TC_CRM_Access' ) && TC_CRM_Access::agents_see_unassigned() ) {
+			return true;
+		}
+		return false;
 	}
 
 	/**
@@ -503,13 +572,34 @@ class TC_Agents_Mobile_CRM_API {
 			$where[] = 'stage = %s';
 			$args[]  = $stage;
 		}
-		if ( 'me' === $owner ) {
-			$owner = self::agent( $request );
-		}
-		if ( '' !== $owner && 'all' !== $owner ) {
-			$where[] = ( 'unassigned' === $owner ) ? "owner = ''" : 'owner = %s';
-			if ( 'unassigned' !== $owner ) {
-				$args[] = $owner;
+
+		$is_admin = self::is_admin_or_manager( $request );
+		$my_id    = (int) $request->get_param( '_tc_user_id' );
+		$my_agent = trim( (string) self::agent( $request ) );
+
+		if ( ! $is_admin ) {
+			// STRICT RBAC: Non-admin staff can only see their own assigned leads (plus unassigned if permitted)
+			if ( 'unassigned' === $owner && class_exists( 'TC_CRM_Access' ) && TC_CRM_Access::agents_see_unassigned() ) {
+				$where[] = "(owner = '' AND (owner_user_id = 0 OR owner_user_id IS NULL))";
+			} else {
+				if ( class_exists( 'TC_CRM_Access' ) && TC_CRM_Access::agents_see_unassigned() ) {
+					$where[] = "(owner_user_id = %d OR owner = %s OR (owner = '' AND (owner_user_id = 0 OR owner_user_id IS NULL)))";
+					array_push( $args, $my_id, $my_agent );
+				} else {
+					$where[] = "(owner_user_id = %d OR owner = %s)";
+					array_push( $args, $my_id, $my_agent );
+				}
+			}
+		} else {
+			// Admin / Sales Manager filtering
+			if ( 'me' === $owner ) {
+				$owner = $my_agent;
+			}
+			if ( '' !== $owner && 'all' !== $owner ) {
+				$where[] = ( 'unassigned' === $owner ) ? "owner = ''" : 'owner = %s';
+				if ( 'unassigned' !== $owner ) {
+					$args[] = $owner;
+				}
 			}
 		}
 		if ( '' !== $q ) {
@@ -543,6 +633,9 @@ class TC_Agents_Mobile_CRM_API {
 		$c = self::lead_or_error( $request['id'] );
 		if ( ! $c ) {
 			return self::fail( 'Lead not found', 404 );
+		}
+		if ( ! self::can_access_lead( $request, $c ) ) {
+			return self::fail( 'Access denied. You can only view leads assigned to you.', 403 );
 		}
 		$id = (int) $c['id'];
 
@@ -639,6 +732,9 @@ class TC_Agents_Mobile_CRM_API {
 		$c = self::lead_or_error( $request['id'] );
 		if ( ! $c ) {
 			return self::fail( 'Lead not found', 404 );
+		}
+		if ( ! self::can_access_lead( $request, $c ) ) {
+			return self::fail( 'Access denied. You can only summarize leads assigned to you.', 403 );
 		}
 		$p    = self::params( $request );
 		$text = trim( sanitize_textarea_field( ( $p['transcript'] ?? '' ) . "\n" . ( $p['notes'] ?? '' ) ) );
@@ -791,6 +887,15 @@ class TC_Agents_Mobile_CRM_API {
 			$where .= ' AND a.contact_id = %d';
 			$args[] = $lead;
 		}
+
+		if ( ! self::is_admin_or_manager( $request ) ) {
+			$my_id    = (int) $request->get_param( '_tc_user_id' );
+			$my_agent = trim( (string) self::agent( $request ) );
+			$where   .= ' AND (c.owner_user_id = %d OR c.owner = %s)';
+			$args[]   = $my_id;
+			$args[]   = $my_agent;
+		}
+
 		$order  = 'done' === $filter ? 'a.done_at DESC' : 'a.due_at ASC';
 		$args[] = $limit;
 
@@ -810,8 +915,12 @@ class TC_Agents_Mobile_CRM_API {
 		$p       = self::params( $request );
 		$lead_id = absint( $p['lead_id'] ?? 0 );
 		$content = self::text( sanitize_text_field( $p['content'] ?? '' ), 300 );
-		if ( ! $lead_id || '' === $content || ! self::lead_or_error( $lead_id ) ) {
+		$lead    = $lead_id ? self::lead_or_error( $lead_id ) : null;
+		if ( ! $lead_id || '' === $content || ! $lead ) {
 			return self::fail( 'lead_id and content are required.' );
+		}
+		if ( ! self::can_access_lead( $request, $lead ) ) {
+			return self::fail( 'Access denied. You can only create tasks for leads assigned to you.', 403 );
 		}
 		$local = self::to_local( $p['due_at'] ?? '' );
 		if ( '' === $local ) {
@@ -847,6 +956,14 @@ class TC_Agents_Mobile_CRM_API {
 			$where .= ' AND status = %s';
 			$args[] = $status;
 		}
+		if ( ! self::is_admin_or_manager( $request ) ) {
+			$my_id    = (int) $request->get_param( '_tc_user_id' );
+			$my_agent = trim( (string) self::agent( $request ) );
+			$table_c  = TC_Contact_Service::table();
+			$where   .= " AND contact_id IN (SELECT id FROM $table_c WHERE owner_user_id = %d OR owner = %s)";
+			$args[]   = $my_id;
+			$args[]   = $my_agent;
+		}
 		$args[] = min( 200, max( 1, (int) ( $request->get_param( 'limit' ) ?: 100 ) ) );
 		$rows   = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM $t WHERE $where ORDER BY COALESCE(start_date, '9999-12-31') ASC, id DESC LIMIT %d", $args ), ARRAY_A ) ?: array(); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
 		return self::ok( array( 'bookings' => array_map( array( __CLASS__, 'fmt_booking' ), $rows ) ) );
@@ -857,8 +974,12 @@ class TC_Agents_Mobile_CRM_API {
 		$p       = self::params( $request );
 		$lead_id = absint( $p['lead_id'] ?? 0 );
 		$bid     = absint( $p['booking_id'] ?? 0 );
-		if ( ! $lead_id || ! self::lead_or_error( $lead_id ) ) {
+		$lead    = $lead_id ? self::lead_or_error( $lead_id ) : null;
+		if ( ! $lead_id || ! $lead ) {
 			return self::fail( 'lead_id is required.' );
+		}
+		if ( ! self::can_access_lead( $request, $lead ) ) {
+			return self::fail( 'Access denied. You can only save bookings for leads assigned to you.', 403 );
 		}
 		$title = self::text( sanitize_text_field( $p['title'] ?? '' ), 200 );
 		if ( '' === $title ) {
@@ -959,6 +1080,9 @@ class TC_Agents_Mobile_CRM_API {
 		$c = TC_Contact_Service::get( (int) $q['contact_id'] );
 		if ( ! $c || empty( $c['phone'] ) ) {
 			return self::fail( 'This lead has no phone number.' );
+		}
+		if ( ! self::can_access_lead( $request, $c ) ) {
+			return self::fail( 'Access denied. You can only send quotes to leads assigned to you.', 403 );
 		}
 		if ( ! TC_Contact_Service::can_contact( $c, 'whatsapp' ) ) {
 			return self::fail( 'This customer opted out of WhatsApp messages.', 403 );
@@ -1086,6 +1210,9 @@ class TC_Agents_Mobile_CRM_API {
 		if ( ! $c ) {
 			return self::fail( 'Lead not found', 404 );
 		}
+		if ( ! self::can_access_lead( $request, $c ) ) {
+			return self::fail( 'Access denied. You can only send WhatsApp messages to leads assigned to you.', 403 );
+		}
 		$text = self::text( sanitize_textarea_field( self::params( $request )['message'] ?? '' ), 4000 );
 		if ( '' === $text ) {
 			return self::fail( 'Message is empty.' );
@@ -1117,6 +1244,9 @@ class TC_Agents_Mobile_CRM_API {
 		if ( ! $c || '' === (string) $c['phone'] ) {
 			return self::fail( 'Lead not found', 404 );
 		}
+		if ( ! self::can_access_lead( $request, $c ) ) {
+			return self::fail( 'Access denied. You can only control AI for leads assigned to you.', 403 );
+		}
 		$enabled = ! empty( self::params( $request )['enabled'] );
 		$conv    = TC_WhatsApp_Hub::conversation_for( self::digits( $c['phone'] ), (int) $c['id'] );
 		TC_WhatsApp_Hub::set_ai( (int) $conv['id'], $enabled );
@@ -1127,6 +1257,9 @@ class TC_Agents_Mobile_CRM_API {
 	/* ------------------------------------------------------------------ Financials & Analytics */
 
 	public static function handle_financials( WP_REST_Request $request ) {
+		if ( ! self::is_finance_authorized( $request ) ) {
+			return self::fail( 'Access denied. Financial intelligence is restricted to administrators and finance managers.', 403 );
+		}
 		global $wpdb;
 		$bk  = $wpdb->prefix . 'tc_agent_bookings';
 		$pay = $wpdb->prefix . 'tc_agent_payments';
@@ -1705,6 +1838,9 @@ class TC_Agents_Mobile_CRM_API {
 	}
 
 	public static function handle_google_ads_conversions( WP_REST_Request $request ) {
+		if ( ! self::is_finance_authorized( $request ) ) {
+			return self::fail( 'Access denied. Google Ads analytics is restricted to administrators and finance managers.', 403 );
+		}
 		global $wpdb;
 		$table = $wpdb->prefix . 'tc_agent_conversion_log';
 
@@ -1757,9 +1893,60 @@ class TC_Agents_Mobile_CRM_API {
 		) );
 	}
 
+	public static function handle_google_ads_config( WP_REST_Request $request ) {
+		if ( ! self::is_finance_authorized( $request ) ) {
+			return self::fail( 'Access denied. Google Ads configuration is restricted to administrators and finance managers.', 403 );
+		}
+		if ( ! class_exists( 'TC_Integration_Google_Ads' ) ) {
+			return self::fail( 'Google Ads integration module not loaded.', 500 );
+		}
+		$summary = TC_Integration_Google_Ads::get_summary();
+		return self::ok( $summary );
+	}
+
+	public static function handle_google_ads_sync( WP_REST_Request $request ) {
+		if ( ! self::is_finance_authorized( $request ) ) {
+			return self::fail( 'Access denied. Google Ads sync is restricted to administrators and finance managers.', 403 );
+		}
+		if ( ! class_exists( 'TC_Integration_Google_Ads' ) ) {
+			return self::fail( 'Google Ads integration module not loaded.', 500 );
+		}
+		$res = TC_Integration_Google_Ads::sync_campaigns();
+		if ( ! empty( $res['ok'] ) ) {
+			return self::ok( $res );
+		}
+		return self::fail( $res['error'] ?? 'Sync failed.', 400 );
+	}
+
+	public static function handle_google_ads_upload_conversion( WP_REST_Request $request ) {
+		if ( ! self::is_finance_authorized( $request ) ) {
+			return self::fail( 'Access denied. Google Ads offline conversions are restricted to administrators and finance managers.', 403 );
+		}
+		if ( ! class_exists( 'TC_Integration_Google_Ads' ) ) {
+			return self::fail( 'Google Ads integration module not loaded.', 500 );
+		}
+		$p     = self::params( $request );
+		$gclid = sanitize_text_field( $p['gclid'] ?? '' );
+		$value = (float) ( $p['value'] ?? 0 );
+		$order = sanitize_text_field( $p['order_id'] ?? '' );
+
+		if ( empty( $gclid ) || $value <= 0 ) {
+			return self::fail( 'GCLID and a positive conversion value are required.', 400 );
+		}
+
+		$res = TC_Integration_Google_Ads::upload_offline_conversion( $gclid, $value, $order );
+		if ( ! empty( $res['ok'] ) ) {
+			return self::ok( $res );
+		}
+		return self::fail( $res['error'] ?? 'Upload failed.', 400 );
+	}
+
 	/* ------------------------------------------------------------------ Bank Statement Importer (SBI) */
 
 	public static function handle_bank_statement_upload( WP_REST_Request $request ) {
+		if ( ! self::is_finance_authorized( $request ) ) {
+			return self::fail( 'Access denied. Bank statement import is restricted to administrators and finance managers.', 403 );
+		}
 		global $wpdb;
 		$p = self::params( $request );
 
@@ -1952,6 +2139,9 @@ class TC_Agents_Mobile_CRM_API {
 	}
 
 	public static function handle_bank_statement_transactions( WP_REST_Request $request ) {
+		if ( ! self::is_finance_authorized( $request ) ) {
+			return self::fail( 'Access denied. Bank statement feed is restricted to administrators and finance managers.', 403 );
+		}
 		global $wpdb;
 		$p     = self::params( $request );
 		$table = $wpdb->prefix . 'tcfp_bank_transactions';
@@ -1959,7 +2149,7 @@ class TC_Agents_Mobile_CRM_API {
 
 		$type_filter   = sanitize_text_field( $p['type'] ?? 'all' );
 		$status_filter = sanitize_text_field( $p['status'] ?? 'all' );
-		$limit         = min( 200, max( 10, absint( $p['limit'] ?? 100 ) ) );
+		$limit         = min( 500, max( 10, absint( $p['limit'] ?? 100 ) ) );
 
 		$where = array( '1=1' );
 		if ( 'credit' === $type_filter || 'debit' === $type_filter ) {
@@ -2030,6 +2220,9 @@ class TC_Agents_Mobile_CRM_API {
 	}
 
 	public static function handle_bank_statement_reconcile( WP_REST_Request $request ) {
+		if ( ! self::is_finance_authorized( $request ) ) {
+			return self::fail( 'Access denied. Bank reconciliation is restricted to administrators and finance managers.', 403 );
+		}
 		global $wpdb;
 		$p          = self::params( $request );
 		$tx_id      = absint( $p['transaction_id'] ?? 0 );
@@ -2063,6 +2256,20 @@ class TC_Agents_Mobile_CRM_API {
 						)
 					);
 				}
+
+				// Auto-dispatch Offline Conversion to Google Ads if lead has GCLID
+				if ( class_exists( 'TC_Integration_Google_Ads' ) && TC_Integration_Google_Ads::is_configured() ) {
+					$lead_id = (int) $wpdb->get_var( $wpdb->prepare( "SELECT lead_id FROM {$wpdb->prefix}tc_agent_bookings WHERE id = %d", $booking_id ) );
+					if ( $lead_id > 0 ) {
+						$gclid = (string) $wpdb->get_var( $wpdb->prepare( "SELECT gclid FROM {$wpdb->prefix}tc_agent_conversion_log WHERE lead_id = %d AND gclid != '' ORDER BY id DESC LIMIT 1", $lead_id ) );
+						if ( empty( $gclid ) ) {
+							$gclid = (string) get_post_meta( $lead_id, '_gclid', true );
+						}
+						if ( ! empty( $gclid ) ) {
+							TC_Integration_Google_Ads::upload_offline_conversion( $gclid, (float) $tx['amount'], 'TC-BK-' . $booking_id );
+						}
+					}
+				}
 			}
 		}
 
@@ -2072,6 +2279,17 @@ class TC_Agents_Mobile_CRM_API {
 	/* ------------------------------------------------------------------ Zoho Books / Invoice Integration */
 
 	public static function handle_zoho_summary( WP_REST_Request $request ) {
+		if ( ! self::is_finance_authorized( $request ) ) {
+			return self::fail( 'Access denied. Zoho Financial Intelligence is restricted to administrators and finance managers.', 403 );
+		}
+		// Use active TC_Integration_Zoho first
+		if ( class_exists( 'TC_Integration_Zoho' ) ) {
+			$sum = TC_Integration_Zoho::get_summary();
+			if ( ! empty( $sum['connected'] ) || ! empty( $sum['invoices'] ) ) {
+				return self::ok( $sum );
+			}
+		}
+
 		$connected = false;
 		$invoices  = array();
 		$metrics   = array(
@@ -2127,6 +2345,13 @@ class TC_Agents_Mobile_CRM_API {
 	}
 
 	public static function handle_zoho_sync( WP_REST_Request $request ) {
+		if ( ! self::is_finance_authorized( $request ) ) {
+			return self::fail( 'Access denied. Zoho Books synchronization is restricted to administrators and finance managers.', 403 );
+		}
+		if ( class_exists( 'TC_Integration_Zoho' ) ) {
+			$res = TC_Integration_Zoho::sync();
+			return self::ok( array( 'synced' => true, 'result' => $res ) );
+		}
 		if ( class_exists( 'TCFP_Zoho' ) ) {
 			$res = TCFP_Zoho::sync_all();
 			return self::ok( array( 'synced' => true, 'result' => $res ) );
@@ -2134,32 +2359,396 @@ class TC_Agents_Mobile_CRM_API {
 		return self::ok( array( 'synced' => false, 'message' => 'Zoho module ready.' ) );
 	}
 
-	/* ------------------------------------------------------------------ Authentication & User Management */
+	/* ------------------------------------------------------------------ Customer Profit & Margin Ledger */
 
-	public static function handle_auth_google( WP_REST_Request $request ) {
-		$p = self::params( $request );
-		$id_token = sanitize_text_field( $p['id_token'] ?? '' );
-		$email = sanitize_email( $p['email'] ?? '' );
-		$name = sanitize_text_field( $p['name'] ?? $p['display_name'] ?? '' );
-		$avatar = esc_url_raw( $p['avatar_url'] ?? $p['photo_url'] ?? '' );
+	public static function handle_customer_margins( WP_REST_Request $request ) {
+		if ( ! self::is_finance_authorized( $request ) ) {
+			return self::fail( 'Access denied. Customer Profit & Margin Ledger is restricted to administrators and finance managers.', 403 );
+		}
+		global $wpdb;
+		$invoices = array();
+		if ( class_exists( 'TC_Integration_Zoho' ) ) {
+			$sum = TC_Integration_Zoho::get_summary();
+			$invoices = $sum['invoices'] ?? array();
+		}
 
-		// 1. If id_token is provided, verify with Google OAuth endpoint
-		if ( ! empty( $id_token ) ) {
-			$verify_url = 'https://oauth2.googleapis.com/tokeninfo?id_token=' . urlencode( $id_token );
-			$resp = wp_remote_get( $verify_url, array( 'timeout' => 10 ) );
-			if ( ! is_wp_error( $resp ) && 200 === wp_remote_retrieve_response_code( $resp ) ) {
-				$body = json_decode( wp_remote_retrieve_body( $resp ), true );
-				if ( ! empty( $body['email'] ) ) {
-					$email = sanitize_email( $body['email'] );
-					$name = ! empty( $body['name'] ) ? sanitize_text_field( $body['name'] ) : $name;
-					$avatar = ! empty( $body['picture'] ) ? esc_url_raw( $body['picture'] ) : $avatar;
+		$table_exp = $wpdb->prefix . 'tc_agent_customer_expenses';
+		$has_table = (bool) $wpdb->get_var( "SHOW TABLES LIKE '$table_exp'" );
+
+		$all_expenses = array();
+		if ( $has_table ) {
+			$rows = $wpdb->get_results( "SELECT * FROM $table_exp ORDER BY expense_date DESC, id DESC", ARRAY_A ) ?: array();
+			foreach ( $rows as $r ) {
+				$inv_no = trim( (string) $r['invoice_no'] );
+				if ( ! isset( $all_expenses[ $inv_no ] ) ) {
+					$all_expenses[ $inv_no ] = array();
+				}
+				$all_expenses[ $inv_no ][] = $r;
+			}
+		}
+
+		$total_invoiced  = 0.0;
+		$total_collected = 0.0;
+		$total_cogs      = 0.0;
+		$total_hotel     = 0.0;
+		$total_cab       = 0.0;
+		$total_aarti     = 0.0;
+		$total_guide     = 0.0;
+		$total_other     = 0.0;
+
+		$customer_items = array();
+
+		foreach ( $invoices as $inv ) {
+			$inv_no    = trim( (string) ( $inv['invoice_number'] ?? '' ) );
+			$total     = (float) ( $inv['total'] ?? 0 );
+			$balance   = (float) ( $inv['balance'] ?? 0 );
+			$paid      = max( 0.0, $total - $balance );
+			$cust_name = (string) ( $inv['customer_name'] ?? 'Traveler' );
+
+			$total_invoiced  += $total;
+			$total_collected += $paid;
+
+			$exp_list  = $all_expenses[ $inv_no ] ?? array();
+			$hotel_exp = 0.0;
+			$cab_exp   = 0.0;
+			$aarti_exp = 0.0;
+			$guide_exp = 0.0;
+			$meals_exp = 0.0;
+			$other_exp = 0.0;
+
+			foreach ( $exp_list as $e ) {
+				$amt = (float) ( $e['amount'] ?? 0 );
+				$cat = strtolower( (string) ( $e['category'] ?? 'other' ) );
+				if ( 'hotel' === $cat ) {
+					$hotel_exp += $amt;
+				} elseif ( 'cab' === $cat ) {
+					$cab_exp += $amt;
+				} elseif ( 'aarti_boat' === $cat ) {
+					$aarti_exp += $amt;
+				} elseif ( 'guide_temple' === $cat ) {
+					$guide_exp += $amt;
+				} elseif ( 'meals' === $cat ) {
+					$meals_exp += $amt;
+				} else {
+					$other_exp += $amt;
+				}
+			}
+
+			$cust_cogs  = $hotel_exp + $cab_exp + $aarti_exp + $guide_exp + $meals_exp + $other_exp;
+			$net_profit = $total - $cust_cogs;
+			$margin_pct = $total > 0 ? round( ( $net_profit / $total ) * 100, 1 ) : 0.0;
+
+			$total_cogs  += $cust_cogs;
+			$total_hotel += $hotel_exp;
+			$total_cab   += $cab_exp;
+			$total_aarti += $aarti_exp;
+			$total_guide += $guide_exp;
+			$total_other += ( $meals_exp + $other_exp );
+
+			$customer_items[] = array(
+				'invoice_id'     => (string) ( $inv['invoice_id'] ?? '' ),
+				'invoice_number' => $inv_no,
+				'customer_name'  => $cust_name,
+				'date'           => (string) ( $inv['date'] ?? '' ),
+				'due_date'       => (string) ( $inv['due_date'] ?? '' ),
+				'status'         => (string) ( $inv['status'] ?? 'draft' ),
+				'total_invoiced' => $total,
+				'total_paid'     => $paid,
+				'balance'        => $balance,
+				'expenses'       => array(
+					'hotel'        => $hotel_exp,
+					'cab'          => $cab_exp,
+					'aarti_boat'   => $aarti_exp,
+					'guide_temple' => $guide_exp,
+					'meals'        => $meals_exp,
+					'other'        => $other_exp,
+					'total'        => $cust_cogs,
+				),
+				'net_profit'     => $net_profit,
+				'margin_pct'     => $margin_pct,
+				'expense_count'  => count( $exp_list ),
+			);
+		}
+
+		$overall_profit = $total_invoiced - $total_cogs;
+		$avg_margin     = $total_invoiced > 0 ? round( ( $overall_profit / $total_invoiced ) * 100, 1 ) : 0.0;
+
+		return self::ok( array(
+			'summary' => array(
+				'total_invoiced'   => $total_invoiced,
+				'total_collected'  => $total_collected,
+				'total_cogs'       => $total_cogs,
+				'total_hotel'      => $total_hotel,
+				'total_cab'        => $total_cab,
+				'total_aarti_boat' => $total_aarti,
+				'total_guide'      => $total_guide,
+				'total_other'      => $total_other,
+				'net_profit'       => $overall_profit,
+				'avg_margin_pct'   => $avg_margin,
+				'customer_count'   => count( $customer_items ),
+			),
+			'customers' => $customer_items,
+		) );
+	}
+
+	public static function handle_customer_expenses_list( WP_REST_Request $request ) {
+		if ( ! self::is_finance_authorized( $request ) ) {
+			return self::fail( 'Access denied. Expense records are restricted to administrators and finance managers.', 403 );
+		}
+		global $wpdb;
+		$p      = self::params( $request );
+		$inv_no = sanitize_text_field( $p['invoice_number'] ?? ( $p['invoice_no'] ?? '' ) );
+
+		$table_exp = $wpdb->prefix . 'tc_agent_customer_expenses';
+		if ( empty( $inv_no ) ) {
+			$items = $wpdb->get_results( "SELECT * FROM $table_exp ORDER BY expense_date DESC, id DESC LIMIT 200", ARRAY_A ) ?: array();
+		} else {
+			$items = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM $table_exp WHERE invoice_no = %s ORDER BY expense_date DESC, id DESC", $inv_no ), ARRAY_A ) ?: array();
+		}
+
+		return self::ok( array( 'expenses' => $items, 'count' => count( $items ) ) );
+	}
+
+	public static function handle_customer_expense_add( WP_REST_Request $request ) {
+		if ( ! self::is_finance_authorized( $request ) ) {
+			return self::fail( 'Access denied. Expense recording is restricted to administrators and finance managers.', 403 );
+		}
+		global $wpdb;
+		$p           = self::params( $request );
+		$inv_no      = sanitize_text_field( $p['invoice_number'] ?? ( $p['invoice_no'] ?? '' ) );
+		$cust_name   = sanitize_text_field( $p['customer_name'] ?? '' );
+		$category    = sanitize_text_field( $p['category'] ?? 'other' );
+		$vendor_name = sanitize_text_field( $p['vendor_name'] ?? '' );
+		$amount      = (float) ( $p['amount'] ?? 0 );
+		$exp_date    = sanitize_text_field( $p['expense_date'] ?? current_time( 'Y-m-d' ) );
+		$method      = sanitize_text_field( $p['payment_method'] ?? 'bank_debit' );
+		$bank_txn_id = absint( $p['bank_txn_id'] ?? 0 );
+		$notes       = sanitize_textarea_field( $p['notes'] ?? '' );
+
+		if ( empty( $inv_no ) ) {
+			return self::fail( 'Invoice Number is required.', 400 );
+		}
+		if ( $amount <= 0 ) {
+			return self::fail( 'Amount must be greater than zero.', 400 );
+		}
+
+		// Auto resolve customer name from invoices if blank
+		if ( empty( $cust_name ) && class_exists( 'TC_Integration_Zoho' ) ) {
+			$sum = TC_Integration_Zoho::get_summary();
+			foreach ( $sum['invoices'] ?? array() as $i ) {
+				if ( ( $i['invoice_number'] ?? '' ) === $inv_no ) {
+					$cust_name = $i['customer_name'] ?? 'Traveler';
+					break;
 				}
 			}
 		}
 
-		if ( empty( $email ) ) {
-			return self::fail( 'Valid Google email or ID token required.', 400 );
+		$table_exp = $wpdb->prefix . 'tc_agent_customer_expenses';
+		$wpdb->insert(
+			$table_exp,
+			array(
+				'invoice_no'     => $inv_no,
+				'customer_name'  => $cust_name ?: 'Traveler',
+				'category'       => $category,
+				'vendor_name'    => $vendor_name,
+				'amount'         => $amount,
+				'expense_date'   => $exp_date,
+				'payment_method' => $method,
+				'bank_txn_id'    => $bank_txn_id ?: null,
+				'notes'          => $notes,
+				'created_at'     => current_time( 'mysql' ),
+			)
+		);
+		$exp_id = $wpdb->insert_id;
+
+		// If linked to bank transaction, mark reconciled in tcfp_bank_transactions
+		if ( $bank_txn_id ) {
+			$table_bank = $wpdb->prefix . 'tcfp_bank_transactions';
+			$wpdb->update(
+				$table_bank,
+				array(
+					'reconciled'         => 1,
+					'category'           => self::map_expense_category_to_bank( $category ),
+					'matched_expense_id' => $exp_id,
+				),
+				array( 'id' => $bank_txn_id )
+			);
 		}
+
+		return self::ok( array(
+			'created'    => true,
+			'expense_id' => $exp_id,
+			'invoice_no' => $inv_no,
+			'message'    => 'Expense added successfully and margin recalculated.',
+		) );
+	}
+
+	public static function handle_customer_expense_delete( WP_REST_Request $request ) {
+		if ( ! self::is_finance_authorized( $request ) ) {
+			return self::fail( 'Access denied. Expense deletion is restricted to administrators and finance managers.', 403 );
+		}
+		global $wpdb;
+		$p      = self::params( $request );
+		$exp_id = absint( $p['id'] ?? ( $p['expense_id'] ?? 0 ) );
+
+		if ( ! $exp_id ) {
+			return self::fail( 'Expense ID required.', 400 );
+		}
+
+		$table_exp = $wpdb->prefix . 'tc_agent_customer_expenses';
+		$row = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $table_exp WHERE id = %d", $exp_id ), ARRAY_A );
+		if ( ! $row ) {
+			return self::fail( 'Expense not found.', 404 );
+		}
+
+		if ( ! empty( $row['bank_txn_id'] ) ) {
+			$table_bank = $wpdb->prefix . 'tcfp_bank_transactions';
+			$wpdb->update(
+				$table_bank,
+				array( 'reconciled' => 0, 'matched_expense_id' => null ),
+				array( 'id' => (int) $row['bank_txn_id'] )
+			);
+		}
+
+		$wpdb->delete( $table_exp, array( 'id' => $exp_id ) );
+
+		return self::ok( array( 'deleted' => true, 'id' => $exp_id ) );
+	}
+
+	public static function handle_customer_expense_link_debit( WP_REST_Request $request ) {
+		if ( ! self::is_finance_authorized( $request ) ) {
+			return self::fail( 'Access denied. Bank reconciliation is restricted to administrators and finance managers.', 403 );
+		}
+		global $wpdb;
+		$p           = self::params( $request );
+		$tx_id       = absint( $p['transaction_id'] ?? 0 );
+		$inv_no      = sanitize_text_field( $p['invoice_number'] ?? ( $p['invoice_no'] ?? '' ) );
+		$cust_name   = sanitize_text_field( $p['customer_name'] ?? '' );
+		$category    = sanitize_text_field( $p['category'] ?? 'cab' );
+		$vendor_name = sanitize_text_field( $p['vendor_name'] ?? '' );
+		$notes       = sanitize_textarea_field( $p['notes'] ?? '' );
+
+		if ( ! $tx_id || empty( $inv_no ) ) {
+			return self::fail( 'Transaction ID and Invoice Number are required.', 400 );
+		}
+
+		$table_bank = $wpdb->prefix . 'tcfp_bank_transactions';
+		$tx = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $table_bank WHERE id = %d", $tx_id ), ARRAY_A );
+		if ( ! $tx ) {
+			return self::fail( 'Bank transaction not found.', 404 );
+		}
+
+		$amount   = (float) $tx['amount'];
+		$exp_date = $tx['txn_date'];
+
+		// Auto resolve customer name
+		if ( empty( $cust_name ) && class_exists( 'TC_Integration_Zoho' ) ) {
+			$sum = TC_Integration_Zoho::get_summary();
+			foreach ( $sum['invoices'] ?? array() as $i ) {
+				if ( ( $i['invoice_number'] ?? '' ) === $inv_no ) {
+					$cust_name = $i['customer_name'] ?? 'Traveler';
+					break;
+				}
+			}
+		}
+
+		$table_exp = $wpdb->prefix . 'tc_agent_customer_expenses';
+		$wpdb->insert(
+			$table_exp,
+			array(
+				'invoice_no'     => $inv_no,
+				'customer_name'  => $cust_name ?: 'Traveler',
+				'category'       => $category,
+				'vendor_name'    => $vendor_name ?: ( $tx['description'] ?? '' ),
+				'amount'         => $amount,
+				'expense_date'   => $exp_date,
+				'payment_method' => 'bank_debit',
+				'bank_txn_id'    => $tx_id,
+				'notes'          => $notes ?: ( 'Linked from Bank Txn: ' . ( $tx['ref_no'] ?? '' ) ),
+				'created_at'     => current_time( 'mysql' ),
+			)
+		);
+		$exp_id = $wpdb->insert_id;
+
+		// Mark transaction as reconciled
+		$wpdb->update(
+			$table_bank,
+			array(
+				'reconciled'         => 1,
+				'category'           => self::map_expense_category_to_bank( $category ),
+				'matched_expense_id' => $exp_id,
+			),
+			array( 'id' => $tx_id )
+		);
+
+		return self::ok( array(
+			'linked'     => true,
+			'expense_id' => $exp_id,
+			'invoice_no' => $inv_no,
+			'message'    => 'Bank debit linked to customer invoice successfully.',
+		) );
+	}
+
+	private static function map_expense_category_to_bank( $cat ) {
+		switch ( $cat ) {
+			case 'hotel':
+				return 'Hotel & Stay';
+			case 'cab':
+				return 'Cab & Transport';
+			case 'aarti_boat':
+				return 'Boat & Pilgrimage';
+			case 'guide_temple':
+				return 'Guide & Temple VIP';
+			case 'meals':
+				return 'Meals & Refreshment';
+			default:
+				return 'Vendor & Tour Expense';
+		}
+	}
+
+	/* ------------------------------------------------------------------ Authentication & User Management */
+
+	public static function handle_auth_google( WP_REST_Request $request ) {
+		$p        = self::params( $request );
+		$id_token = sanitize_text_field( $p['id_token'] ?? '' );
+		$avatar   = esc_url_raw( $p['avatar_url'] ?? $p['photo_url'] ?? '' );
+
+		// Strict security: id_token is mandatory. Never trust client-supplied email without cryptographic verification.
+		if ( empty( $id_token ) ) {
+			return self::fail( 'Google ID token is required for authentication.', 400 );
+		}
+
+		// 1. Verify id_token with Google OAuth endpoint
+		$verify_url = 'https://oauth2.googleapis.com/tokeninfo?id_token=' . urlencode( $id_token );
+		$resp       = wp_remote_get( $verify_url, array( 'timeout' => 10 ) );
+		if ( is_wp_error( $resp ) || 200 !== wp_remote_retrieve_response_code( $resp ) ) {
+			return self::fail( 'Invalid or expired Google authentication token.', 401 );
+		}
+
+		$body = json_decode( wp_remote_retrieve_body( $resp ), true );
+		if ( empty( $body['email'] ) ) {
+			return self::fail( 'Google authentication token does not contain a valid email.', 401 );
+		}
+
+		// Require email verification flag from Google
+		$email_verified = $body['email_verified'] ?? false;
+		if ( true !== $email_verified && 'true' !== (string) $email_verified ) {
+			return self::fail( 'Google email address is not verified.', 401 );
+		}
+
+		// Validate audience / client ID
+		$allowed_audiences = array(
+			'77399722057-6o97tf20jmhjaaid60gks1ajn5k1029s.apps.googleusercontent.com',
+		);
+		$aud = (string) ( $body['aud'] ?? '' );
+		if ( ! empty( $allowed_audiences ) && ! in_array( $aud, $allowed_audiences, true ) ) {
+			TC_Agents_Logger::log( 'google_auth_aud_mismatch', 'warning', array( 'aud' => $aud ), '', 'security' );
+			return self::fail( 'Google token audience mismatch.', 403 );
+		}
+
+		$email  = sanitize_email( $body['email'] );
+		$name   = ! empty( $body['name'] ) ? sanitize_text_field( $body['name'] ) : '';
+		$avatar = ! empty( $body['picture'] ) ? esc_url_raw( $body['picture'] ) : $avatar;
 
 		// 2. Check if user exists in WordPress
 		$user = get_user_by( 'email', $email );
@@ -2169,7 +2758,7 @@ class TC_Agents_Mobile_CRM_API {
 				$username = $username . '_' . wp_rand( 100, 999 );
 			}
 			$random_password = wp_generate_password( 24, true );
-			$user_id = wp_create_user( $username, $random_password, $email );
+			$user_id         = wp_create_user( $username, $random_password, $email );
 			if ( is_wp_error( $user_id ) ) {
 				return self::fail( 'Could not register user: ' . $user_id->get_error_message(), 500 );
 			}

@@ -14,7 +14,6 @@ class TC_Agents_Public {
 	public static function init() {
 		add_action( 'wp_enqueue_scripts', array( __CLASS__, 'enqueue_assets' ) );
 		add_action( 'wp_footer', array( __CLASS__, 'render_widget_markup' ) );
-		add_action( 'wp_footer', array( __CLASS__, 'render_mobile_sticky_bar' ), 20 );
 		add_filter( 'the_content', array( __CLASS__, 'inject_in_post_whatsapp_cta' ), 20 );
 		add_shortcode( 'tripcosmos_chat', array( __CLASS__, 'render_shortcode' ) );
 
@@ -137,6 +136,9 @@ class TC_Agents_Public {
 				'currentUser'    => $current_user_data,
 				'gtmEnabled'     => '1' === (string) get_option( 'tc_agents_gtm_enabled', '1' ),
 				'leadValue'      => (float) get_option( 'tc_agents_lead_conversion_value', 1500 ),
+				'gadsConversionId' => get_option( 'tc_agents_gads_conversion_id', 'AW-17106475490' ),
+				'gadsConversionLabel' => get_option( 'tc_agents_gads_conversion_label', '' ),
+				'gadsConversionActionId' => get_option( 'tc_agents_gads_conversion_action_id', '' ),
 			)
 		);
 	}
@@ -149,37 +151,7 @@ class TC_Agents_Public {
 			return;
 		}
 
-		$title         = get_option( 'tc_agents_widget_title', 'TripCosmos Travel Desk' );
-		$subtitle      = get_option( 'tc_agents_widget_subtitle', 'Online • Varanasi Desk ✓' );
-		$avatar_url    = get_option( 'tc_agents_bot_avatar', '' );
-		$avatar_emoji  = get_option( 'tc_agents_bot_avatar_emoji', '🛕' );
-		$greeting      = get_option( 'tc_agents_widget_greeting', "Namaste! 🙏 Welcome to TripCosmos — Varanasi's premier pilgrimage & tour desk.\n\nLooking for Kashi Vishwanath VIP darshan, Ayodhya Ram Mandir packages, outstation cabs (Innova Crysta / Swift Dzire), hotel bookings, or private Ganga Aarti boat rides? How can I assist you today?" );
-		if ( is_user_logged_in() ) {
-			$u = wp_get_current_user();
-			$f_name = ! empty( $u->first_name ) ? $u->first_name : $u->display_name;
-						if ( preg_match( '/\.co|admin|tripcosmos/i', $f_name ) ) {
-				$f_name = '';
-			}
-			$salutation = ! empty( $f_name ) ? "Namaste, " . esc_html( $f_name ) . " Ji! 🙏" : "Namaste! 🙏";
-			if ( $is_dev_diwali ) {
-				$greeting = $salutation . " Planning your Dev Diwali 2026 trip in Varanasi?\n\nPrivate boat permits, Bajra seating & Ghat hotels sell out 90 days early. How can I assist you with boat booking, Aarti passes, or 2N/3D packages today?";
-			} else {
-				$greeting = $salutation . " Welcome back to TripCosmos.\n\nAre you planning an upcoming pilgrimage or looking for verified cab fares, hotel stays, or VIP Darshan passes today?";
-			}
-		}
-		$teaser_text   = get_option( 'tc_agents_launcher_teaser_text', 'Namaste! 🙏 Planning your trip to Varanasi or Ayodhya? I can check live cab fares, VIP Darshan passes & hotel availability for you right now.' );
-		$side          = get_option( 'tc_agents_widget_side', 'right' );
-		$primary_color = get_option( 'tc_agents_widget_primary_color', '#ea580c' );
-		$second_color  = get_option( 'tc_agents_widget_secondary_color', '#9333ea' );
-		$wa_num        = preg_replace( '/[^0-9]/', '', get_option( 'tc_agents_human_whatsapp_number', '' ) );
-		if ( empty( $wa_num ) ) {
-			$wa_num = '919336116210';
-		}
-		$clean_phone   = '+' . $wa_num;
-		$direct_wa     = "https://wa.me/{$wa_num}?text=" . rawurlencode( 'Hi TripCosmos, I am browsing your site and would like help planning a Varanasi tour or outstation cab.' );
-
-		// Custom Starter Prompts
-				// Contextual Dev Diwali Detection
+		// Contextual Dev Diwali Detection
 		$is_dev_diwali = false;
 		$req_uri = isset( $_SERVER['REQUEST_URI'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REQUEST_URI'] ) ) : '';
 		if ( false !== stripos( $req_uri, 'dev-diwali' ) || false !== stripos( $req_uri, 'dev-deepawali' ) ) {
@@ -191,6 +163,42 @@ class TC_Agents_Public {
 				$is_dev_diwali = true;
 			}
 		}
+
+		$title         = get_option( 'tc_agents_widget_title', 'TripCosmos Travel Desk' );
+		$subtitle      = get_option( 'tc_agents_widget_subtitle', 'Online • Varanasi Desk ✓' );
+		$avatar_url    = get_option( 'tc_agents_bot_avatar', '' );
+		$avatar_emoji  = get_option( 'tc_agents_bot_avatar_emoji', '🛕' );
+		$default_greet = $is_dev_diwali
+			? "Namaste! 🙏 Planning your Dev Diwali 2026 trip in Varanasi?\n\nPrivate boat permits, Bajra seating & Ghat hotels sell out 90 days early. How can I assist you with boat booking, Aarti passes, or 2N/3D packages today?"
+			: "Namaste! 🙏 Welcome to TripCosmos — Varanasi's premier pilgrimage & tour desk.\n\nLooking for Kashi Vishwanath VIP darshan, Ayodhya Ram Mandir packages, outstation cabs (Innova Crysta / Swift Dzire), hotel bookings, or private Ganga Aarti boat rides? How can I assist you today?";
+		$greeting      = get_option( 'tc_agents_widget_greeting', $default_greet );
+		if ( is_user_logged_in() ) {
+			$u = wp_get_current_user();
+			$f_name = ! empty( $u->first_name ) ? $u->first_name : $u->display_name;
+			if ( preg_match( '/\.co|admin|tripcosmos/i', $f_name ) ) {
+				$f_name = '';
+			}
+			$salutation = ! empty( $f_name ) ? "Namaste, " . esc_html( $f_name ) . " Ji! 🙏" : "Namaste! 🙏";
+			if ( $is_dev_diwali ) {
+				$greeting = $salutation . " Planning your Dev Diwali 2026 trip in Varanasi?\n\nPrivate boat permits, Bajra seating & Ghat hotels sell out 90 days early. How can I assist you with boat booking, Aarti passes, or 2N/3D packages today?";
+			} else {
+				$greeting = $salutation . " Welcome back to TripCosmos.\n\nAre you planning an upcoming pilgrimage or looking for verified cab fares, hotel stays, or VIP Darshan passes today?";
+			}
+		}
+		$teaser_text   = $is_dev_diwali
+			? 'Namaste! 🙏 Heading to Varanasi for Dev Diwali 2026? Ghat hotels & Aarti boats are booking up fast. Let me check live rates & availability for you!'
+			: get_option( 'tc_agents_launcher_teaser_text', 'Namaste! 🙏 Planning your trip to Varanasi or Ayodhya? I can check live cab fares, VIP Darshan passes & hotel availability for you right now.' );
+		$side          = get_option( 'tc_agents_widget_side', 'right' );
+		$primary_color = get_option( 'tc_agents_widget_primary_color', '#ea580c' );
+		$second_color  = get_option( 'tc_agents_widget_secondary_color', '#9333ea' );
+		$wa_num        = preg_replace( '/[^0-9]/', '', get_option( 'tc_agents_human_whatsapp_number', '' ) );
+		if ( empty( $wa_num ) ) {
+			$wa_num = '919336116210';
+		}
+		$clean_phone   = '+' . $wa_num;
+		$direct_wa     = "https://wa.me/{$wa_num}?text=" . rawurlencode( 'Hi TripCosmos, I am browsing your site and would like help planning a Varanasi tour or outstation cab.' );
+
+		// Custom Starter Prompts
 
 		$default_starters = "🛕 Kashi Ayodhya Tour | Tell me about Kashi Ayodhya Prayagraj 4 Days Tour Package\n🚗 Outstation Cabs | Book outstation cab Dzire or Innova Crysta for Varanasi to Ayodhya\n⛵ Ganga Aarti Boat | Book private boat for evening Ganga Aarti at Dashashwamedh Ghat\n🏨 Ghat Hotels | Best ghat-view hotels in Varanasi near Kashi Vishwanath";
 		if ( $is_dev_diwali ) {
@@ -210,7 +218,7 @@ class TC_Agents_Public {
 					<div class="tc-teaser-profile">
 						<div class="tc-teaser-avatar-wrap">
 							<?php if ( ! empty( $avatar_url ) ) : ?>
-								<img src="<?php echo esc_url( $avatar_url ); ?>" alt="Travel Specialist" />
+								<img src="<?php echo esc_url( $avatar_url ); ?>" alt="Travel Specialist" width="36" height="36" loading="lazy" />
 							<?php else : ?>
 								<span><?php echo esc_html( $avatar_emoji ); ?></span>
 							<?php endif; ?>
@@ -227,9 +235,15 @@ class TC_Agents_Public {
 					<?php echo esc_html( $teaser_text ); ?>
 				</div>
 				<div class="tc-teaser-chips">
-					<button type="button" class="tc-teaser-chip" data-query="Tell me about Kashi Ayodhya Prayagraj 4 Days Tour Package">🛕 4D Tour</button>
-					<button type="button" class="tc-teaser-chip" data-query="Check outstation cab fares for Varanasi to Ayodhya">🚗 Cab Fares</button>
-					<button type="button" class="tc-teaser-chip" data-query="How to book VIP Sugam Darshan for Kashi Vishwanath?">🕉️ VIP Darshan</button>
+					<?php if ( $is_dev_diwali ) : ?>
+						<button type="button" class="tc-teaser-chip" data-query="Book private motorboat or Bajra for Dev Diwali 2026">🪔 Dev Diwali Boat</button>
+						<button type="button" class="tc-teaser-chip" data-query="Check complete Dev Diwali 2026 itinerary and pricing">📋 2N/3D Package</button>
+						<button type="button" class="tc-teaser-chip" data-query="Available hotels near Dashashwamedh Ghat for Dev Diwali">🏨 Ghat Hotels</button>
+					<?php else : ?>
+						<button type="button" class="tc-teaser-chip" data-query="Tell me about Kashi Ayodhya Prayagraj 4 Days Tour Package">🛕 4D Tour</button>
+						<button type="button" class="tc-teaser-chip" data-query="Check outstation cab fares for Varanasi to Ayodhya">🚗 Cab Fares</button>
+						<button type="button" class="tc-teaser-chip" data-query="How to book VIP Sugam Darshan for Kashi Vishwanath?">🕉️ VIP Darshan</button>
+					<?php endif; ?>
 				</div>
 				<button type="button" class="tc-teaser-action-btn" id="tc-teaser-open-btn">
 					<span>💬 Chat with Specialist</span>
@@ -237,15 +251,25 @@ class TC_Agents_Public {
 				</button>
 			</div>
 
-			<!-- Floating Trigger Button -->
+			<!-- High-Engaging Floating Action Callout Pill -->
+			<div id="tc-fab-callout" class="tc-fab-callout" role="button" aria-label="<?php esc_attr_e( 'Get Free Trip Itinerary', 'tripcosmos-agents' ); ?>" tabindex="0">
+				<span class="tc-callout-icon"><?php echo $is_dev_diwali ? '🪔' : '✨'; ?></span>
+				<span class="tc-callout-text">
+					<strong><?php echo $is_dev_diwali ? 'Dev Diwali Boat Rates' : 'Free Trip Itinerary'; ?></strong>
+					<span class="tc-callout-sub">&bull; Talk to AI</span>
+				</span>
+				<span class="tc-callout-arrow">&rarr;</span>
+			</div>
+
+			<!-- Floating Trigger Button (Sleek 50px Saffron FAB) -->
 			<button id="tc-widget-trigger" class="tc-widget-fab" aria-label="Open TripCosmos AI Chat" type="button">
 				<span class="tc-fab-icon-chat">
-					<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+					<svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
 						<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
 					</svg>
 				</span>
 				<span class="tc-fab-icon-close" style="display: none;">
-					<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+					<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
 						<line x1="18" y1="6" x2="6" y2="18"></line>
 						<line x1="6" y1="6" x2="18" y2="18"></line>
 					</svg>
@@ -262,14 +286,14 @@ class TC_Agents_Public {
 					<div class="tc-header-info">
 						<div class="tc-avatar-circle">
 							<?php if ( ! empty( $avatar_url ) ) : ?>
-								<img src="<?php echo esc_url( $avatar_url ); ?>" alt="<?php echo esc_attr( $title ); ?>" style="width: 100%; height: 100%; object-fit: cover; border-radius: 12px;" />
+								<img src="<?php echo esc_url( $avatar_url ); ?>" alt="<?php echo esc_attr( $title ); ?>" width="40" height="40" loading="lazy" style="width: 100%; height: 100%; object-fit: cover; border-radius: 12px;" />
 							<?php else : ?>
 								<?php echo esc_html( $avatar_emoji ); ?>
 							<?php endif; ?>
 						</div>
 						<div>
 							<h3 id="tc-widget-heading"><?php echo esc_html( $title ); ?></h3>
-							<span class="tc-online-status"><span class="tc-dot"></span> <?php echo esc_html( $subtitle ); ?></span>
+							<span class="tc-online-status"><span class="tc-dot"></span> <?php echo esc_html( trim( preg_replace( "/[â€¢Â·\s]+$/u", "", $subtitle ) ) ); ?></span>
 						</div>
 					</div>
 					<div class="tc-header-controls">
@@ -353,7 +377,17 @@ class TC_Agents_Public {
 						<div class="tc-form-row">
 							<div class="tc-form-field">
 								<label for="tc-q-destination">Destination / Circuit</label>
-								<input type="text" id="tc-q-destination" placeholder="e.g. Varanasi, Ayodhya, Prayagraj, Bodhgaya" />
+								<select id="tc-q-destination">
+									<option value="Varanasi (Kashi Darshan &amp; Ganga Aarti)">Varanasi (Kashi Darshan &amp; Ganga Aarti)</option>
+									<option value="Dev Deepawali Special 2026 (Varanasi)" <?php echo $is_dev_diwali ? 'selected' : ''; ?>>Dev Deepawali Special 2026 (Varanasi)</option>
+									<option value="Varanasi - Ayodhya - Prayagraj (3 Holy Cities)">Varanasi - Ayodhya - Prayagraj (3 Holy Cities)</option>
+									<option value="Varanasi - Ayodhya (Ram Janmabhoomi)">Varanasi - Ayodhya (Ram Janmabhoomi)</option>
+									<option value="Varanasi - Prayagraj (Triveni Sangam)">Varanasi - Prayagraj (Triveni Sangam)</option>
+									<option value="Varanasi - Bodhgaya - Gaya (Pind Daan Yatra)">Varanasi - Bodhgaya - Gaya (Pind Daan)</option>
+									<option value="Complete Spiritual Circuit (Kashi-Prayag-Ayodhya-Gaya)">Complete Spiritual Circuit (Kashi-Prayag-Ayodhya-Gaya)</option>
+									<option value="Varanasi Airport &amp; Outstation Cab Rental">Varanasi Airport &amp; Outstation Cab Rental</option>
+									<option value="Custom Itinerary / Other">Custom Itinerary / Other</option>
+								</select>
 							</div>
 							<div class="tc-form-field">
 								<label for="tc-q-month">Travel Dates / Month</label>
@@ -387,16 +421,16 @@ class TC_Agents_Public {
 						<div class="tc-voice-avatar-wrap">
 							<div class="tc-voice-ring" id="tc-voice-ring">
 								<?php if ( ! empty( $avatar_url ) ) : ?>
-									<img src="<?php echo esc_url( $avatar_url ); ?>" alt="<?php echo esc_attr( $title ); ?>" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;" />
+									<img src="<?php echo esc_url( $avatar_url ); ?>" alt="<?php echo esc_attr( $title ); ?>" width="80" height="80" loading="lazy" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;" />
 								<?php else : ?>
 									<?php echo esc_html( $avatar_emoji ); ?>
 								<?php endif; ?>
 							</div>
 						</div>
 						<h4 id="tc-voice-agent-title"><?php echo esc_html( $title ); ?></h4>
-						<p id="tc-voice-status">Tap microphone to start live voice call</p>
+						<p id="tc-voice-status">Tap microphone to talk with TripCosmos AI</p>
 						<canvas id="tc-voice-visualizer" width="280" height="60"></canvas>
-						<div id="tc-voice-live-transcript" class="tc-voice-transcript">"Namaste! Ask me about Kashi darshan, Ayodhya, cabs, or hotel bookings..."</div>
+						<div id="tc-voice-live-transcript" class="tc-voice-transcript">"Namaste! Ask me about Varanasi ghats, Dev Diwali boat rates, Ayodhya darshan, or cab fares..."</div>
 
 						<div class="tc-voice-controls">
 							<button type="button" id="tc-voice-toggle-btn" class="tc-voice-call-btn">
@@ -471,115 +505,59 @@ class TC_Agents_Public {
 						<button type="button" class="tc-tab-btn active" data-tab="chat" role="tab" aria-selected="true">
 							<span class="tc-tab-bar"></span>
 							<span class="tc-tab-icon">💬</span>
-							<span class="tc-tab-label">Guide</span>
+							<span class="tc-tab-label">Trip Planner AI</span>
 						</button>
 						<button type="button" class="tc-tab-btn" data-tab="quote" role="tab" aria-selected="false">
 							<span class="tc-tab-bar"></span>
 							<span class="tc-tab-icon">📋</span>
-							<span class="tc-tab-label">Quote & Cab</span>
+							<span class="tc-tab-label">Free Quotation</span>
 						</button>
 						<button type="button" class="tc-tab-btn" data-tab="voice" role="tab" aria-selected="false">
 							<span class="tc-tab-bar"></span>
 							<span class="tc-tab-icon">🎙️</span>
-							<span class="tc-tab-label">WebCall</span>
+							<span class="tc-tab-label">Call</span>
 						</button>
 						<button type="button" class="tc-tab-btn" data-tab="history" role="tab" aria-selected="false">
 							<span class="tc-tab-bar"></span>
 							<span class="tc-tab-icon">📜</span>
-							<span class="tc-tab-label">History</span>
+							<span class="tc-tab-label">Chats</span>
 						</button>
 					</nav>
-
-					<!-- Micro-footer Brand -->
-					<div class="tc-footer-subtext">
-						<span>⚡ Powered by TripCosmos AI</span>
-						<a href="<?php echo esc_url( $direct_wa ); ?>" target="_blank" rel="noopener">Talk to human &rarr;</a>
-					</div>
 				</div>
 			</div>
 		</div>
-		<?php
-	}
+		<!-- Instant Zero-Delay Click Stub -->
+		<script id="tc-widget-instant-click">
+		(function(){
+			window.tcToggleWidget = window.tcToggleWidget || function(forceState) {
+				var root = document.getElementById('tc-agent-widget-root');
+				var win = document.getElementById('tc-widget-window');
+				var fab = document.getElementById('tc-widget-trigger');
+				var isOpen = root ? root.classList.contains('tc-window-open') : false;
+				var nextState = (typeof forceState === 'boolean') ? forceState : !isOpen;
+				if (root) root.classList.toggle('tc-window-open', nextState);
+				if (win) win.style.setProperty('display', nextState ? 'flex' : 'none', 'important');
+				if (fab) fab.classList.toggle('active', nextState);
+				document.body.classList.toggle('tc-chat-open', nextState);
+				window._tcPendingOpen = nextState;
+			};
+			window.tcOpenChatWidget = window.tcOpenChatWidget || function() { window.tcToggleWidget(true); };
+			window.tcCloseChatWidget = window.tcCloseChatWidget || function() { window.tcToggleWidget(false); };
 
-	/**
-	 * Render high-converting Sticky Mobile Bottom Bar across all posts and pages.
-	 */
-	public static function render_mobile_sticky_bar() {
-		if ( is_admin() || is_feed() ) {
-			return;
-		}
-
-		// Only show if widget is enabled
-		if ( '1' !== (string) get_option( 'tc_agents_widget_enabled', '1' ) ) {
-			return;
-		}
-
-		$wa_num = preg_replace( '/[^0-9]/', '', get_option( 'tc_agents_human_whatsapp_number', '' ) );
-		if ( empty( $wa_num ) ) {
-			$wa_num = '919336116210';
-		}
-		$phone = '+919336116210';
-
-		$page_title = '';
-		if ( is_singular() ) {
-			$page_title = get_the_title();
-		} elseif ( is_archive() ) {
-			$page_title = single_term_title( '', false ) ?: 'Pilgrimage Tours';
-		} else {
-			$page_title = 'Varanasi & Ayodhya Tour Packages';
-		}
-		$page_title = trim( wp_strip_all_tags( (string) $page_title ) );
-
-		$wa_msg = sprintf(
-			"Namaste TripCosmos! 🙏 I am looking at '%s' on your website and would like to check available dates, VIP passes, and verified package prices.",
-			$page_title
-		);
-		$wa_url = "https://wa.me/{$wa_num}?text=" . rawurlencode( $wa_msg );
-		?>
-		<!-- TripCosmos High-Converting Sticky Mobile Bottom Bar -->
-		<!-- TripCosmos High-Converting Sticky Mobile Bottom Bar -->
-		<div id="tc-mobile-sticky-bar" class="tc-mobile-sticky-bar" role="region" aria-label="Quick Booking & Inquiry">
-			<div class="tc-sticky-scarcity-ribbon">
-				<span class="tc-scarcity-dot"></span>
-				<span class="tc-scarcity-text">🪔 Dev Deepawali & Magh Mela: Only 1 Bajra Boat & 2 Tents Remaining!</span>
-			</div>
-			<div class="tc-sticky-inner">
-				<!-- 1. Instant WhatsApp Button -->
-				<a href="<?php echo esc_url( $wa_url ); ?>" class="tc-sticky-btn tc-sticky-btn-wa" target="_blank" rel="noopener" data-channel="whatsapp" aria-label="Chat on WhatsApp">
-					<span class="tc-sticky-icon tc-sticky-icon-wa">
-						<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-							<path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.582 2.128 2.182-.573c.978.58 1.911.928 3.145.929 3.178 0 5.767-2.587 5.768-5.766 0-3.187-2.59-5.771-5.764-5.771zm3.392 8.244c-.144.405-.837.774-1.17.824-.312.045-.694.072-2.18-.545-1.898-.787-3.13-2.73-3.224-2.855-.094-.127-.775-1.03-.775-1.965 0-.934.489-1.393.663-1.583.175-.19.38-.238.508-.238.127 0 .254.002.365.008.117.006.273-.044.428.328.16.383.548 1.339.596 1.436.048.098.08.212.015.339-.064.127-.095.207-.19.317-.095.111-.2.248-.286.333-.095.096-.195.2-.084.391.111.19.493.813 1.056 1.314.726.645 1.338.845 1.53.94.19.096.302.08.413-.048.111-.127.476-.556.603-.746.127-.19.254-.159.429-.095.174.064 1.111.524 1.302.619.19.096.317.143.365.223.048.079.048.461-.096.866z"/>
-						</svg>
-					</span>
-					<div class="tc-sticky-text">
-						<span class="tc-sticky-title">WhatsApp Rates</span>
-						<span class="tc-sticky-sub">⚡ Fast &lt; 30s</span>
-					</div>
-				</a>
-
-				<!-- 2. Instant Call Button -->
-				<a href="tel:<?php echo esc_attr( $phone ); ?>" class="tc-sticky-btn tc-sticky-btn-call" data-channel="phone" aria-label="Call Reservations Desk">
-					<span class="tc-sticky-icon tc-sticky-icon-call">
-						<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
-							<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
-						</svg>
-					</span>
-					<div class="tc-sticky-text">
-						<span class="tc-sticky-title">Call Expert</span>
-						<span class="tc-sticky-sub">📞 ₹0 Toll Free</span>
-					</div>
-				</a>
-
-				<!-- 3. Mini AI Concierge Trigger -->
-				<button type="button" class="tc-sticky-btn tc-sticky-btn-ai" id="tc-sticky-open-ai" aria-label="Open AI Tour Concierge">
-					<span class="tc-sticky-icon">🛕</span>
-					<div class="tc-sticky-text">
-						<span class="tc-sticky-title">AI Concierge</span>
-						<span class="tc-sticky-sub">Live Itinerary</span>
-					</div>
-				</button>
-			</div>
-		</div>
+			document.addEventListener('click', function(e){
+				var target = e.target;
+				if (!target) return;
+				var trigger = target.closest('#tc-widget-trigger, #tc-fab-callout, .tc-widget-fab, #tc-sticky-open-ai, .tc-open-chat-trigger, #tc-teaser-open-btn');
+				if (!trigger) return;
+				e.preventDefault();
+				if (trigger.id === 'tc-widget-trigger' || trigger.classList.contains('tc-widget-fab')) {
+					window.tcToggleWidget();
+				} else {
+					window.tcOpenChatWidget();
+				}
+			});
+		})();
+		</script>
 		<?php
 	}
 

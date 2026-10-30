@@ -22,6 +22,17 @@ class TC_Agents_REST {
 			return $headers;
 		} );
 
+		// Prevent LiteSpeed / aggressive page cache from rejecting public chat/lead requests due to stale nonces
+		add_filter( 'rest_authentication_errors', function( $result ) {
+			if ( is_wp_error( $result ) && 'rest_cookie_invalid_nonce' === $result->get_error_code() ) {
+				$uri = isset( $_SERVER['REQUEST_URI'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REQUEST_URI'] ) ) : '';
+				if ( false !== strpos( $uri, '/tc-agents/v1/chat' ) || false !== strpos( $uri, '/tc-agents/v1/lead-capture' ) || false !== strpos( $uri, '/tc-agents/v1/conversations' ) ) {
+					return true;
+				}
+			}
+			return $result;
+		}, 9 );
+
 		// 1. Chat Endpoint (Widget, Mobile & Console)
 		register_rest_route(
 			self::NAMESPACE,
@@ -269,7 +280,7 @@ class TC_Agents_REST {
 
 		// Support both JSON body and form-encoded data
 		$params  = array_merge( (array) $request->get_params(), (array) $request->get_json_params() );
-		$message = sanitize_text_field( $params['message'] ?? $params['transcript'] ?? '' );
+		$message = sanitize_textarea_field( $params['message'] ?? $params['transcript'] ?? '' );
 		$session = sanitize_text_field( $params['session_id'] ?? '' );
 		$channel = sanitize_text_field( $params['channel'] ?? 'web' );
 		$agent   = sanitize_text_field( $params['agent_slug'] ?? 'tripcosmos-guide' );
@@ -288,6 +299,23 @@ class TC_Agents_REST {
 		// Check if frontend chatbot is disabled for public web visitors
 		if ( 'web' === $channel && '1' !== (string) get_option( 'tc_agents_widget_enabled', '1' ) ) {
 			return new WP_REST_Response( array( 'error' => __( 'The website chatbot is currently disabled.', 'tripcosmos-agents' ) ), 503 );
+		}
+
+		// Guardrails check: kill switch & hourly message rate limit per session/IP
+		if ( 'admin' !== $channel && class_exists( 'TC_Agents_Guardrails' ) ) {
+			$guard_id = ! empty( $session ) ? $session : sanitize_text_field( $_SERVER['REMOTE_ADDR'] ?? '' );
+			$guard    = TC_Agents_Guardrails::check_permission( $channel, $guard_id, 'conversational' );
+			if ( is_wp_error( $guard ) ) {
+				$status_code = $guard->get_error_data()['status'] ?? 429;
+				return new WP_REST_Response(
+					array(
+						'success' => false,
+						'error'   => $guard->get_error_message(),
+						'code'    => $guard->get_error_code(),
+					),
+					$status_code
+				);
+			}
 		}
 
 		// Security: Admin console requests must verify nonce
@@ -462,18 +490,34 @@ class TC_Agents_REST {
 		$table_convo = $wpdb->prefix . 'tc_agent_conversations';
 		$table_msg   = $wpdb->prefix . 'tc_agent_messages';
 
-		$convo = $wpdb->get_row( $wpdb->prepare( "SELECT id, status, channel FROM $table_convo WHERE session_id = %s LIMIT 1", $session_id ), ARRAY_A );
-		if ( ! $convo ) {
+		// Session ID is the only credential for public polling: require an unguessable id and never expose non-web channels
+		if ( strlen( $session_id ) < 20 && ! current_user_can( 'manage_options' ) ) {
 			return new WP_REST_Response( array( 'session_id' => $session_id, 'messages' => array(), 'status' => 'active', 'human_active' => false ), 200 );
 		}
 
-		$sql = "SELECT id, role, content, provider_used, created_at FROM $table_msg WHERE conversation_id = %d AND role IN ('user', 'assistant', 'agent') AND content != ''";
-		if ( $after_id > 0 ) {
-			$sql .= $wpdb->prepare( " AND id > %d", $after_id );
+		$convo = $wpdb->get_row( $wpdb->prepare( "SELECT id, status, channel FROM $table_convo WHERE session_id = %s LIMIT 1", $session_id ), ARRAY_A );
+		if ( ! $convo || ( 'web' !== $convo['channel'] && ! current_user_can( 'manage_options' ) ) ) {
+			return new WP_REST_Response( array( 'session_id' => $session_id, 'messages' => array(), 'status' => 'active', 'human_active' => false ), 200 );
 		}
-		$sql .= " ORDER BY id ASC LIMIT 20";
 
-		$rows = $wpdb->get_results( $wpdb->prepare( $sql, (int) $convo['id'] ), ARRAY_A ) ?: array();
+		if ( $after_id > 0 ) {
+			$rows = $wpdb->get_results(
+				$wpdb->prepare(
+					"SELECT id, role, content, provider_used, created_at FROM $table_msg WHERE conversation_id = %d AND id > %d AND role IN ('user', 'assistant', 'agent') AND content != '' ORDER BY id ASC LIMIT 20",
+					(int) $convo['id'],
+					$after_id
+				),
+				ARRAY_A
+			) ?: array();
+		} else {
+			$rows = $wpdb->get_results(
+				$wpdb->prepare(
+					"SELECT id, role, content, provider_used, created_at FROM $table_msg WHERE conversation_id = %d AND role IN ('user', 'assistant', 'agent') AND content != '' ORDER BY id ASC LIMIT 20",
+					(int) $convo['id']
+				),
+				ARRAY_A
+			) ?: array();
+		}
 
 		$messages = array();
 		foreach ( $rows as $r ) {
@@ -533,14 +577,27 @@ class TC_Agents_REST {
 			return;
 		}
 
-		// Stream tokens/words smoothly
+		// Stream tokens/chunks rapidly without sluggish artificial delay
 		$reply_text = $result['reply'] ?? '';
 		$words      = preg_split( '/(\s+)/', $reply_text, -1, PREG_SPLIT_DELIM_CAPTURE );
+		$buffer     = '';
+		$count      = 0;
 
 		foreach ( $words as $chunk ) {
-			echo 'data: ' . wp_json_encode( array( 'type' => 'chunk', 'text' => $chunk ) ) . "\n\n";
+			$buffer .= $chunk;
+			$count++;
+			// Flush every 4 tokens or punctuation boundary for rapid, responsive cadence
+			if ( $count >= 4 || preg_match( '/[.!?\n]$/', $chunk ) ) {
+				echo 'data: ' . wp_json_encode( array( 'type' => 'chunk', 'text' => $buffer ) ) . "\n\n";
+				flush();
+				$buffer = '';
+				$count  = 0;
+				usleep( 4000 ); // Micro 4ms flush cadence (smooth & immediate)
+			}
+		}
+		if ( '' !== $buffer ) {
+			echo 'data: ' . wp_json_encode( array( 'type' => 'chunk', 'text' => $buffer ) ) . "\n\n";
 			flush();
-			usleep( 25000 ); // 25ms delay for human-like natural typewriter cadence
 		}
 
 		// Send final metadata
