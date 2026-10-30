@@ -335,18 +335,11 @@ class TC_Agent_Tools {
 		$destination = sanitize_text_field( $args['destination'] ?? '' );
 		$limit       = min( 3, max( 1, (int) ( $args['max_results'] ?? 2 ) ) );
 
-		// Query togo_trip custom post type if registered, otherwise fallback to standard posts/products
-		$post_types = array( 'togo_trip', 'product', 'trip', 'post' );
-		$valid_type = 'post';
-		foreach ( $post_types as $pt ) {
-			if ( post_type_exists( $pt ) ) {
-				$valid_type = $pt;
-				break;
-			}
-		}
+		// Query live custom post types for trips, events (festivals), products, and posts
+		$searchable_types = array_filter( array( 'togo_trip', 'event', 'product', 'post' ), 'post_type_exists' );
 
 		$query_args = array(
-			'post_type'      => $valid_type,
+			'post_type'      => ! empty( $searchable_types ) ? array_values( $searchable_types ) : 'any',
 			'post_status'    => 'publish',
 			'posts_per_page' => $limit,
 			's'              => $query_str,
@@ -705,6 +698,39 @@ class TC_Agent_Tools {
 				)
 			);
 			$results['sheets'] = $s_res ? 'appended' : 'skipped';
+		}
+
+		// 4. Automated Instant WhatsApp Traveler Confirmation & Operations Alert
+		if ( ! empty( $phone ) && class_exists( 'TC_Integration_Evolution' ) && TC_Integration_Evolution::is_active_mode() ) {
+			$clean_ph = preg_replace( '/[^0-9]/', '', (string) $phone );
+			if ( strlen( $clean_ph ) === 10 ) {
+				$clean_ph = '91' . $clean_ph;
+			}
+			if ( strlen( $clean_ph ) >= 11 ) {
+				$t_name = ! empty( $name ) && 'Traveler' !== $name ? $name : 'Traveler';
+				$wa_msg = "Namaste {$t_name} Ji 🙏 Har Har Mahadev!\n\n" .
+					"Thank you for contacting TripCosmos (Varanasi Pilgrimage & Tour Desk).\n" .
+					( ! empty( $destination ) ? "📍 Inquired Destination: *{$destination}*\n" : '' ) .
+					( ! empty( $month ) ? "🗓️ Travel Dates: *{$month}*\n" : '' ) .
+					( ! empty( $group_size ) ? "👥 Group Size: *{$group_size}*\n\n" : "\n" ) .
+					"Our Varanasi tour specialist has received your inquiry. We are holding your dates and vehicle allocation.\n\n" .
+					"💬 Feel free to reply right here with any darshan, hotel, or vehicle questions!";
+
+				TC_Integration_Evolution::send_message( $clean_ph, $wa_msg, 'conversational' );
+
+				// Notify Operations Desk on WhatsApp
+				$desk_num = preg_replace( '/[^0-9]/', '', (string) get_option( 'tc_agents_human_whatsapp_number', '919336116210' ) );
+				if ( ! empty( $desk_num ) && $desk_num !== $clean_ph ) {
+					$staff_alert = "🚨 *NEW LEAD CAPTURED ON WEBSITE*\n" .
+						"👤 Name: {$t_name}\n" .
+						"📞 Phone: +{$clean_ph}\n" .
+						( ! empty( $destination ) ? "📍 Route/Tour: {$destination}\n" : '' ) .
+						( ! empty( $month ) ? "🗓️ Dates: {$month}\n" : '' ) .
+						( ! empty( $group_size ) ? "👥 Pax: {$group_size}\n" : '' ) .
+						"🌐 Source: Web Chat ({$session_id})";
+					TC_Integration_Evolution::send_message( $desk_num, $staff_alert, 'staff_alert' );
+				}
+			}
 		}
 
 		// 5. Automated Follow-Up Sequence enrollment for new inquiry

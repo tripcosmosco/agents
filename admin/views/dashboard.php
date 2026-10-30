@@ -452,6 +452,7 @@ $widget_enabled = '1' === (string) get_option( 'tc_agents_widget_enabled', '1' )
 					<li><a href="<?php echo esc_url( admin_url( 'admin.php?page=tripcosmos-agents' ) ); ?>" class="button button-secondary" style="width: 100%; text-align: left;">💬 Master AI Agent Test Console</a></li>
 					<li><a href="<?php echo esc_url( admin_url( 'admin.php?page=tc-agents-leads' ) ); ?>" class="button button-secondary" style="width: 100%; text-align: left;">📊 Leads & Deals Kanban Pipeline</a></li>
 					<li><a href="<?php echo esc_url( admin_url( 'admin.php?page=tc-agents-integrations' ) ); ?>" class="button button-secondary" style="width: 100%; text-align: left;">🔌 CRM & Telephony Integrations</a></li>
+					<li><a href="<?php echo esc_url( admin_url( 'admin.php?page=tc-agents-finance' ) ); ?>" class="button button-secondary" style="width: 100%; text-align: left; font-weight: 700; color: #b45309; border-color: #fcd34d; background: #fffbeb;">💰 Financial Intelligence Hub (SBI, Zoho, ROI)</a></li>
 					<li><a href="<?php echo esc_url( admin_url( 'admin.php?page=tc-agents-knowledge' ) ); ?>" class="button button-secondary" style="width: 100%; text-align: left;">📚 Temple Timings & Tariff Knowledge</a></li>
 				</ul>
 			</div>

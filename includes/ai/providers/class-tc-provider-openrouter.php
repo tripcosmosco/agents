@@ -172,14 +172,22 @@ class TC_Provider_OpenRouter implements TC_AI_Provider_Interface {
 		$code = wp_remote_retrieve_response_code( $response );
 		$body = json_decode( wp_remote_retrieve_body( $response ), true );
 
-		if ( $code >= 400 ) {
-			$msg = $body['error']['message'] ?? "OpenRouter HTTP {$code}";
+		if ( $code >= 400 || ! empty( $body['error'] ) ) {
+			$err_obj = $body['error'] ?? array();
+			$msg = is_array( $err_obj ) ? ( $err_obj['message'] ?? wp_json_encode( $err_obj ) ) : (string) $err_obj;
+			if ( empty( $msg ) ) {
+				$msg = "OpenRouter HTTP {$code}";
+			}
 			return new WP_Error( 'openrouter_api_error', $msg, array( 'latency_ms' => $latency ) );
 		}
 
 		$choice     = $body['choices'][0]['message'] ?? array();
 		$content    = $choice['content'] ?? '';
 		$tool_calls = $choice['tool_calls'] ?? array();
+
+		if ( '' === trim( $content ) && empty( $tool_calls ) ) {
+			return new WP_Error( 'openrouter_empty_response', __( 'OpenRouter returned an empty response.', 'tripcosmos-agents' ), array( 'latency_ms' => $latency ) );
+		}
 
 		return array(
 			'content'           => $content,

@@ -144,6 +144,16 @@ class TC_Agents_Admin {
 			array( __CLASS__, 'render_integrations_page' )
 		);
 
+		// 9.5. Financial Intelligence Hub (SBI, Zoho Books, Unit Economics & ROI)
+		add_submenu_page(
+			'tripcosmos-agents',
+			__( 'Financial Intelligence Hub (SBI, Zoho, ROI)', 'tripcosmos-agents' ),
+			__( 'Finance Hub', 'tripcosmos-agents' ),
+			'manage_options',
+			'tc-agents-finance',
+			array( __CLASS__, 'render_finance_page' )
+		);
+
 		// 10. AI Analytics & Cost Telemetry
 		add_submenu_page(
 			'tripcosmos-agents',
@@ -296,6 +306,13 @@ class TC_Agents_Admin {
 	}
 
 	/**
+	 * Render Finance Hub page (SBI, Zoho, Unit Economics & ROI).
+	 */
+	public static function render_finance_page() {
+		require_once TC_AGENTS_PATH . 'admin/views/finance.php';
+	}
+
+	/**
 	 * Render AI Analytics page.
 	 */
 	public static function render_analytics_page() {
@@ -330,11 +347,12 @@ class TC_Agents_Admin {
 		check_ajax_referer( 'tc_get_lead_memory', '_nonce' );
 
 		$contact_id = absint( $_GET['contact_id'] ?? 0 );
-		if ( ! TC_CRM_Access::can_edit( TC_Contact_Service::get( $contact_id ) ) ) {
-			wp_send_json_error( array( 'message' => 'Unauthorized' ), 403 );
-		}
 		if ( ! $contact_id ) {
 			wp_send_json_error( array( 'message' => 'Missing contact ID' ), 400 );
+		}
+		$contact = TC_Contact_Service::get( $contact_id );
+		if ( ! $contact || ! TC_CRM_Access::can_edit( $contact ) ) {
+			wp_send_json_error( array( 'message' => 'Unauthorized' ), 403 );
 		}
 
 		$mem = TC_Agent_Memory::get_memory( $contact_id );
@@ -891,6 +909,43 @@ class TC_Agents_Admin {
 			}
 			if ( isset( $_POST['zoho_datacenter'] ) ) {
 				update_option( 'tc_agents_zoho_datacenter', sanitize_text_field( $_POST['zoho_datacenter'] ) );
+			}
+
+			// Google Ads API v17 & Offline Conversion Tracking
+			if ( isset( $_POST['gads_customer_id'] ) ) {
+				update_option( 'tc_agents_gads_customer_id', sanitize_text_field( $_POST['gads_customer_id'] ) );
+			}
+			if ( isset( $_POST['gads_conversion_id'] ) ) {
+				update_option( 'tc_agents_gads_conversion_id', sanitize_text_field( $_POST['gads_conversion_id'] ) );
+			}
+			if ( isset( $_POST['gads_conversion_label'] ) ) {
+				update_option( 'tc_agents_gads_conversion_label', sanitize_text_field( $_POST['gads_conversion_label'] ) );
+			}
+			if ( isset( $_POST['gads_developer_token'] ) ) {
+				update_option( 'tc_agents_gads_developer_token', sanitize_text_field( $_POST['gads_developer_token'] ) );
+			}
+			if ( isset( $_POST['gads_client_id'] ) ) {
+				update_option( 'tc_agents_gads_client_id', sanitize_text_field( $_POST['gads_client_id'] ) );
+			}
+			if ( ! empty( $_POST['gads_client_secret'] ) ) {
+				if ( class_exists( 'TC_Agents_Vault' ) ) {
+					TC_Agents_Vault::put( 'gads_client_secret', sanitize_text_field( $_POST['gads_client_secret'] ) );
+				} else {
+					update_option( 'tc_agents_gads_client_secret', sanitize_text_field( $_POST['gads_client_secret'] ) );
+				}
+			}
+			if ( ! empty( $_POST['gads_refresh_token'] ) ) {
+				if ( class_exists( 'TC_Agents_Vault' ) ) {
+					TC_Agents_Vault::put( 'gads_refresh_token', sanitize_text_field( $_POST['gads_refresh_token'] ) );
+				} else {
+					update_option( 'tc_agents_gads_refresh_token', sanitize_text_field( $_POST['gads_refresh_token'] ) );
+				}
+			}
+			if ( isset( $_POST['gads_conversion_action_id'] ) ) {
+				update_option( 'tc_agents_gads_conversion_action_id', sanitize_text_field( $_POST['gads_conversion_action_id'] ) );
+			}
+			if ( ! empty( $_POST['sync_gads_now'] ) && class_exists( 'TC_Integration_Google_Ads' ) ) {
+				TC_Integration_Google_Ads::sync_campaigns();
 			}
 
 			// Voice & Multi-Mode Telephony settings

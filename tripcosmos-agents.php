@@ -3,7 +3,7 @@
  * Plugin Name: TripCosmos Agents
  * Plugin URI: https://tripcosmos.co
  * Description: Unified multi-provider AI conversational agent layer for TripCosmos.co, featuring customer chat widget, master control console, automated CRM/WhatsApp plumbings, and failover safety guardrails.
- * Version: 2.3.2
+ * Version: 2.4.0
  * Author: TripCosmos Team
  * Author URI: https://tripcosmos.co
  * Text Domain: tripcosmos-agents
@@ -19,7 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // 1. Plugin Constants
-define( 'TC_AGENTS_VERSION', '2.3.2' );
+define( 'TC_AGENTS_VERSION', '2.4.0' );
 define( 'TC_AGENTS_FILE', __FILE__ );
 define( 'TC_AGENTS_PATH', plugin_dir_path( __FILE__ ) );
 define( 'TC_AGENTS_URL', plugin_dir_url( __FILE__ ) );
@@ -47,6 +47,7 @@ require_once TC_AGENTS_PATH . 'includes/class-tc-agents-link-silo.php';
 require_once TC_AGENTS_PATH . 'includes/class-tc-agents-instant-indexing.php';
 require_once TC_AGENTS_PATH . 'includes/class-tc-inventory-service.php';
 require_once TC_AGENTS_PATH . 'includes/class-tc-feedback-service.php';
+require_once TC_AGENTS_PATH . 'includes/class-tc-agents-payroll-service.php';
 require_once TC_AGENTS_PATH . 'public/class-tc-quote-page.php';
 
 // 3. AI Layer Includes
@@ -58,6 +59,7 @@ require_once TC_AGENTS_PATH . 'includes/ai/providers/class-tc-provider-vmstudio.
 require_once TC_AGENTS_PATH . 'includes/ai/providers/class-tc-provider-gateway.php';
 require_once TC_AGENTS_PATH . 'includes/ai/providers/class-tc-provider-gemini.php';
 require_once TC_AGENTS_PATH . 'includes/ai/class-tc-ai-router.php';
+require_once TC_AGENTS_PATH . 'includes/ai/class-tc-master-ai-assistant.php';
 
 // 4. Orchestrator & Tools Includes
 require_once TC_AGENTS_PATH . 'includes/orchestrator/class-tc-agent-chunker.php';
@@ -81,6 +83,7 @@ require_once TC_AGENTS_PATH . 'includes/integrations/class-tc-integration-google
 require_once TC_AGENTS_PATH . 'includes/integrations/class-tc-integration-sheets.php';
 require_once TC_AGENTS_PATH . 'includes/integrations/class-tc-integration-voice.php';
 require_once TC_AGENTS_PATH . 'includes/integrations/class-tc-integration-zoho.php';
+require_once TC_AGENTS_PATH . 'includes/integrations/class-tc-integration-google-ads.php';
 
 // 6. API Includes
 require_once TC_AGENTS_PATH . 'includes/api/class-tc-agents-rest.php';

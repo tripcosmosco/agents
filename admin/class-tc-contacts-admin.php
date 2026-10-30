@@ -792,4 +792,132 @@ class TC_Contacts_Admin {
 
 		wp_send_json_success( array( 'message' => __( 'Sequence paused successfully', 'tripcosmos-agents' ) ) );
 	}
+
+	/**
+	 * AJAX endpoint: AI Suggest Reply for a contact.
+	 */
+	public static function ajax_ai_suggest_reply() {
+		check_ajax_referer( self::NONCE, 'nonce' );
+		if ( ! TC_CRM_Access::can_access() ) {
+			wp_send_json_error( array( 'message' => __( 'Unauthorized', 'tripcosmos-agents' ) ), 403 );
+		}
+		$contact_id = absint( $_POST['contact_id'] ?? 0 );
+		$c          = TC_Contact_Service::get( $contact_id );
+		if ( ! $c || ! TC_CRM_Access::can_edit( $c ) ) {
+			wp_send_json_error( array( 'message' => __( 'Unauthorized contact access', 'tripcosmos-agents' ) ), 403 );
+		}
+
+		$prompt = sanitize_textarea_field( $_POST['prompt'] ?? '' );
+		if ( empty( $prompt ) ) {
+			$name        = $c['name'] ?: 'Traveler';
+			$dest        = $c['destination'] ?: 'Varanasi pilgrimage';
+			$stage       = $c['stage'] ?: 'inquiry';
+			$prompt      = sprintf(
+				'Generate a warm, professional, and helpful WhatsApp sales reply in English and Hindi for traveler %s interested in %s (current stage: %s). Include a gentle call to action.',
+				$name,
+				$dest,
+				$stage
+			);
+		}
+
+		$session_id = 'lead_' . $contact_id . '_admin_ai';
+		$result     = TC_Agent_Orchestrator::handle_message(
+			$prompt,
+			$session_id,
+			'crm_admin',
+			'tripcosmos-guide',
+			array( 'contact_id' => $contact_id )
+		);
+
+		if ( is_wp_error( $result ) ) {
+			wp_send_json_error( array( 'message' => $result->get_error_message() ) );
+		}
+
+		wp_send_json_success( array(
+			'reply'          => $result['reply'] ?? '',
+			'provider_used'  => $result['provider_used'] ?? '',
+		) );
+	}
+
+	/**
+	 * AJAX endpoint: Manual Call Log from CRM.
+	 */
+	public static function ajax_log_call() {
+		check_ajax_referer( self::NONCE, 'nonce' );
+		if ( ! TC_CRM_Access::can_access() ) {
+			wp_send_json_error( array( 'message' => __( 'Unauthorized', 'tripcosmos-agents' ) ), 403 );
+		}
+		$contact_id = absint( $_POST['contact_id'] ?? 0 );
+		$c          = TC_Contact_Service::get( $contact_id );
+		if ( ! $c || ! TC_CRM_Access::can_edit( $c ) ) {
+			wp_send_json_error( array( 'message' => __( 'Unauthorized contact access', 'tripcosmos-agents' ) ), 403 );
+		}
+
+		$direction = sanitize_key( $_POST['direction'] ?? 'outbound' );
+		$duration  = absint( $_POST['duration'] ?? 0 );
+		$notes     = sanitize_textarea_field( $_POST['notes'] ?? '' );
+
+		TC_Contact_Service::add_activity(
+			$contact_id,
+			'call',
+			sprintf(
+				__( '📞 %s call logged (%s). Notes: %s', 'tripcosmos-agents' ),
+				ucfirst( $direction ),
+				$duration > 0 ? gmdate( 'i:s', $duration ) : 'No duration',
+				$notes ?: 'None'
+			)
+		);
+
+		if ( class_exists( 'TC_Agents_Logger' ) ) {
+			TC_Agents_Logger::log(
+				'mobile_call_logged',
+				'info',
+				array(
+					'contact_id'       => $contact_id,
+					'phone'            => $c['phone'],
+					'direction'        => $direction,
+					'duration_seconds' => $duration,
+					'notes'            => $notes,
+					'logged_by'        => get_current_user_id(),
+				),
+				'',
+				'crm'
+			);
+		}
+
+		wp_send_json_success( array( 'message' => __( 'Call logged successfully', 'tripcosmos-agents' ) ) );
+	}
+
+	/**
+	 * AJAX endpoint: Dispatch Mobile / Outbound Call.
+	 */
+	public static function ajax_dispatch_mobile_call() {
+		check_ajax_referer( self::NONCE, 'nonce' );
+		if ( ! TC_CRM_Access::can_access() ) {
+			wp_send_json_error( array( 'message' => __( 'Unauthorized', 'tripcosmos-agents' ) ), 403 );
+		}
+		$contact_id = absint( $_POST['contact_id'] ?? 0 );
+		$c          = TC_Contact_Service::get( $contact_id );
+		if ( ! $c || ! TC_CRM_Access::can_edit( $c ) ) {
+			wp_send_json_error( array( 'message' => __( 'Unauthorized contact access', 'tripcosmos-agents' ) ), 403 );
+		}
+
+		if ( empty( $c['phone'] ) ) {
+			wp_send_json_error( array( 'message' => __( 'Contact has no phone number on file', 'tripcosmos-agents' ) ), 400 );
+		}
+
+		$reason = sanitize_text_field( $_POST['reason'] ?? 'Pilgrimage and Tour inquiry follow-up' );
+		if ( class_exists( 'TC_Integration_Voice' ) ) {
+			$res = TC_Integration_Voice::place_call( $c['phone'], $c['name'] ?: 'Traveler', $reason );
+			if ( is_wp_error( $res ) ) {
+				wp_send_json_error( array( 'message' => $res->get_error_message() ) );
+			}
+			wp_send_json_success( array(
+				'message' => __( 'Call dispatched successfully!', 'tripcosmos-agents' ),
+				'details' => $res,
+			) );
+		}
+
+		wp_send_json_error( array( 'message' => __( 'Voice integration unavailable', 'tripcosmos-agents' ) ), 500 );
+	}
 }

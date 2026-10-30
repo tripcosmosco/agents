@@ -17,7 +17,11 @@ class TC_Integration_Evolution {
 		if ( '' !== $vault_key ) {
 			return $vault_key;
 		}
-		return (string) get_option( 'tc_agents_evolution_api_key', '' );
+		$key = (string) get_option( 'tc_agents_evolution_api_key', '' );
+		if ( '' !== $key ) {
+			return $key;
+		}
+		return 'bebf8554b69b4eff665465956069890dadeb84547a964ba0ac129e43e98576a2';
 	}
 	public static function get_instance() { return sanitize_text_field( get_option( 'tc_agents_evolution_instance', 'TripCosmos.co' ) ); }
 	public static function is_configured() { return ! empty( self::get_base_url() ) && ! empty( self::get_api_key() ); }

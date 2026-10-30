@@ -128,6 +128,26 @@ class TC_Agents_Security {
 		$id     = strtolower( wp_generate_password( 8, false, false ) );
 		$tokens = self::agent_tokens();
 
+		// Cleanup: prune expired tokens (> 90 days) and cap per-user tokens to 5
+		$now = time();
+		$user_token_ids = array();
+		foreach ( $tokens as $tid => $trow ) {
+			if ( ! empty( $trow['created'] ) && ( $now - (int) $trow['created'] ) > ( 90 * DAY_IN_SECONDS ) ) {
+				unset( $tokens[ $tid ] );
+				continue;
+			}
+			if ( $user_id && isset( $trow['user_id'] ) && (int) $trow['user_id'] === $user_id ) {
+				$user_token_ids[ $tid ] = (int) ( $trow['created'] ?? 0 );
+			}
+		}
+		if ( count( $user_token_ids ) >= 5 ) {
+			asort( $user_token_ids );
+			$oldest_id = array_key_first( $user_token_ids );
+			if ( $oldest_id ) {
+				unset( $tokens[ $oldest_id ] );
+			}
+		}
+
 		$tokens[ $id ] = array(
 			'label'     => $label,
 			'hash'      => hash( 'sha256', $token ),

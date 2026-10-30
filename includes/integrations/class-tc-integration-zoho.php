@@ -607,7 +607,10 @@ class TC_Integration_Zoho {
 			array(
 				'timeout'   => 15,
 				'sslverify' => true,
-				'headers'   => array( 'Accept' => 'application/json' ),
+				'headers'   => array(
+					'Accept'       => 'application/json',
+					'Content-Type' => 'application/x-www-form-urlencoded',
+				),
 				'body'      => array(
 					'code'          => $code,
 					'client_id'     => $client_id,
@@ -622,7 +625,15 @@ class TC_Integration_Zoho {
 			wp_die( '<h1>OAuth Exchange Error</h1><p>' . esc_html( $res->get_error_message() ) . '</p>' );
 		}
 
-		$data = json_decode( wp_remote_retrieve_body( $res ), true );
+		$raw_body = wp_remote_retrieve_body( $res );
+		$data     = json_decode( $raw_body, true );
+
+		if ( ! empty( $data['access_token'] ) ) {
+			update_option( self::OPTION_ACCESS_TOKEN, sanitize_text_field( $data['access_token'] ), false );
+			$expires_in = isset( $data['expires_in'] ) ? (int) $data['expires_in'] : 3600;
+			update_option( self::OPTION_TOKEN_EXPIRES, time() + $expires_in, false );
+		}
+
 		if ( ! empty( $data['refresh_token'] ) ) {
 			$refresh_token = sanitize_text_field( $data['refresh_token'] );
 			if ( class_exists( 'TC_Agents_Vault' ) ) {
@@ -630,31 +641,32 @@ class TC_Integration_Zoho {
 			} else {
 				update_option( self::OPTION_REFRESH_TOKEN, $refresh_token, false );
 			}
+		}
 
-			if ( ! empty( $data['access_token'] ) ) {
-				update_option( self::OPTION_ACCESS_TOKEN, sanitize_text_field( $data['access_token'] ), false );
-				$expires_in = isset( $data['expires_in'] ) ? (int) $data['expires_in'] : 3600;
-				update_option( self::OPTION_TOKEN_EXPIRES, time() + $expires_in, false );
-			}
-
+		if ( ! empty( $data['access_token'] ) || ! empty( $data['refresh_token'] ) ) {
 			// Run sync immediately
 			self::sync();
+
+			$has_rf = ! empty( self::get_refresh_token() );
+			$rf_notice = $has_rf 
+				? 'Your permanent Refresh Token has been securely generated and saved in your encrypted vault.' 
+				: 'Connected with active Access Token. Invoices and organization data are now syncing.';
 
 			wp_die(
 				'<div style="font-family:system-ui,-apple-system,sans-serif;max-width:550px;margin:80px auto;padding:36px;background:#ffffff;border-radius:18px;box-shadow:0 12px 40px rgba(0,0,0,0.1);text-align:center;border-top:6px solid #10b981;">' .
 				'<div style="font-size:48px;margin-bottom:12px;">✅</div>' .
 				'<h1 style="color:#0f172a;font-size:24px;margin:0 0 12px;font-weight:800;">Zoho Books Connected!</h1>' .
-				'<p style="color:#475569;font-size:15px;line-height:1.6;margin:0 0 24px;">Your permanent Refresh Token has been securely generated and saved in your encrypted vault. Invoices and financial ledger metrics are now live in your X-Agents companion app.</p>' .
-				'<a href="' . esc_url( admin_url( 'admin.php?page=tc-agents-integrations' ) ) . '" style="display:inline-block;padding:12px 24px;background:#0f172a;color:#f59e0b;font-weight:700;text-decoration:none;border-radius:10px;">Return to WP Admin</a>' .
+				'<p style="color:#475569;font-size:15px;line-height:1.6;margin:0 0 24px;">' . esc_html( $rf_notice ) . ' Invoices and financial ledger metrics are now live in your X-Agents companion app and WordPress Finance Hub.</p>' .
+				'<a href="' . esc_url( admin_url( 'admin.php?page=tc-agents-finance' ) ) . '" style="display:inline-block;padding:12px 24px;background:#0f172a;color:#f59e0b;font-weight:700;text-decoration:none;border-radius:10px;">Return to Finance Hub</a>' .
 				'</div>',
 				'Zoho Books Connected',
 				array( 'response' => 200 )
 			);
 		}
 
-		$err = $data['error'] ?? 'Unknown Zoho error';
+		$err = $data['error'] ?? ( $data['message'] ?? $raw_body );
 		wp_die(
-			'<h1>Zoho Authorization Notice</h1><p>Code exchange returned: ' . esc_html( $err ) . '</p><p><a href="' . esc_url( admin_url( 'admin.php?page=tc-agents-integrations' ) ) . '">Return to Admin</a></p>'
+			'<h1>Zoho Authorization Notice</h1><p>Code exchange returned: <code>' . esc_html( $err ) . '</code></p><p><a href="' . esc_url( admin_url( 'admin.php?page=tc-agents-integrations' ) ) . '">Return to Admin</a></p>'
 		);
 	}
 }

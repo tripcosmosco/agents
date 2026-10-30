@@ -121,18 +121,28 @@ class TC_Agent_B2B_Campaign {
 
 			$wa_sent    = false;
 			$email_sent = false;
+			$wa_error   = null;
+			$email_error = null;
 
 			// 1. WhatsApp Dispatch (if verified active on WhatsApp)
 			if ( $has_wa && class_exists( 'TC_Integration_Evolution' ) && TC_Integration_Evolution::is_configured() ) {
 				$context = $ignore_quiet ? 'conversational' : 'broadcast';
 				$res_wa  = TC_Integration_Evolution::send_message( $phone_dg, $pitch_text, $context );
-				$wa_sent = ! is_wp_error( $res_wa );
+				if ( is_wp_error( $res_wa ) ) {
+					$wa_error = $res_wa->get_error_message();
+				} else {
+					$wa_sent = true;
+				}
 			}
 
 			// 2. Responsive Email Dispatch via Brevo
 			if ( ! empty( $agency['email'] ) && class_exists( 'TC_Integration_Brevo' ) ) {
 				$res_em     = TC_Integration_Brevo::send_b2b_outreach( $agency );
-				$email_sent = ! is_wp_error( $res_em );
+				if ( is_wp_error( $res_em ) ) {
+					$email_error = $res_em->get_error_message();
+				} else {
+					$email_sent = true;
+				}
 			}
 
 			// 3. Status Update & Sequence Drip Enrollment
@@ -189,12 +199,14 @@ class TC_Agent_B2B_Campaign {
 			}
 
 			$results[] = array(
-				'id'         => $ag_id,
-				'name'       => $agency_name,
-				'city'       => $agency['city'],
-				'whatsapp'   => $wa_sent,
-				'email'      => $email_sent,
-				'has_wa_num' => $has_wa,
+				'id'          => $ag_id,
+				'name'        => $agency_name,
+				'city'        => $agency['city'],
+				'whatsapp'    => $wa_sent,
+				'email'       => $email_sent,
+				'has_wa_num'  => $has_wa,
+				'wa_error'    => $wa_error,
+				'email_error' => $email_error,
 			);
 		}
 

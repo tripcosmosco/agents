@@ -620,6 +620,116 @@ $wa_mode            = get_option( 'tc_agents_whatsapp_mode', 'evolution' );
 					</td>
 				</tr>
 			</table>
+
+			<!-- 1-Click OAuth Authorization Box -->
+			<div style="background: #f0fdf4; border: 1.5px solid #86efac; border-radius: 12px; padding: 18px; margin-top: 18px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px;">
+				<div>
+					<strong style="color: #166534; font-size: 13.5px;">⚡ 1-Click Zoho Books OAuth Authorization</strong>
+					<p style="margin: 4px 0 0; font-size: 12px; color: #15803d; line-height: 1.4;">
+						Click below to authorize your Zoho Books Organization. Ensure your Zoho Developer Console Redirect URI is set to: <code>https://tripcosmos.co</code>
+					</p>
+				</div>
+				<div>
+					<a href="https://accounts.zoho.in/oauth/v2/auth?scope=ZohoBooks.fullaccess.all&client_id=1000.FE6DWV166VF44XWJMWOT6S4L0BMPHV&response_type=code&redirect_uri=https://tripcosmos.co&access_type=offline&prompt=consent" target="_blank" rel="noopener noreferrer" class="button button-primary" style="background: #16a34a; border-color: #15803d; font-weight: 700; height: 36px; display: inline-flex; align-items: center; gap: 6px;">
+						<span>🔑</span> Authorize Zoho Books (1-Click)
+					</a>
+				</div>
+			</div>
+		</div>
+
+		<!-- 7. GOOGLE ADS API & OFFLINE CONVERSIONS (TARGET ROAS) -->
+		<?php
+			$gads_configured = class_exists( 'TC_Integration_Google_Ads' ) && TC_Integration_Google_Ads::is_configured();
+			$gads_summary    = class_exists( 'TC_Integration_Google_Ads' ) ? TC_Integration_Google_Ads::get_summary() : array();
+			$gads_auth_url   = class_exists( 'TC_Integration_Google_Ads' ) ? TC_Integration_Google_Ads::get_auth_url() : '';
+		?>
+		<div class="tc-card-lux" style="border-left: 5px solid #4285f4;">
+			<div class="tc-card-header-flex">
+				<div class="tc-card-title">
+					<span>🎯</span>
+					7. Google Ads API v17 &amp; Offline Conversion Tracking (OCT)
+				</div>
+				<span class="tc-status-pill <?php echo $gads_configured ? 'online' : 'down'; ?>">
+					<span class="tc-status-dot"></span>
+					<?php echo $gads_configured ? 'GOOGLE ADS ACTIVE' : 'NEEDS SETUP'; ?>
+				</span>
+			</div>
+			<p class="tc-card-desc">
+				Connects directly to the Google Ads API v17 to fetch live daily campaign expenditure and push closed SBI bank deposits back to Google Ads via <strong>Offline Conversion Tracking (OCT)</strong>. Google's Smart Bidding AI uses this actual rupee revenue for <strong>Target ROAS</strong> bidding.
+			</p>
+			<table class="form-table">
+				<tr>
+					<th scope="row"><label for="gads_customer_id">Google Ads Customer ID</label></th>
+					<td>
+						<input type="text" name="gads_customer_id" id="gads_customer_id" class="tc-input-lux" value="<?php echo esc_attr( get_option( 'tc_agents_gads_customer_id', '391-398-8878' ) ); ?>" placeholder="e.g. 391-398-8878" />
+						<p class="description">Your 10-digit Google Ads account ID located in the top-right of your Google Ads dashboard.</p>
+					</td>
+				</tr>
+				<tr>
+					<th scope="row"><label for="gads_conversion_id">Conversion Tracking ID</label></th>
+					<td>
+						<input type="text" name="gads_conversion_id" id="gads_conversion_id" class="tc-input-lux" value="<?php echo esc_attr( get_option( 'tc_agents_gads_conversion_id', 'AW-17106475490' ) ); ?>" placeholder="AW-XXXXXXXXX" />
+						<p class="description">Connected to your site via Site Kit &amp; GTM (<code>GTM-W29ZGZ5B</code>). Fires <code>generate_lead</code> conversions for AI chatbot and quote interactions.</p>
+					</td>
+				</tr>
+				<tr>
+					<th scope="row"><label for="gads_conversion_label">Conversion Action Label (Optional)</label></th>
+					<td>
+						<input type="text" name="gads_conversion_label" id="gads_conversion_label" class="tc-input-lux" value="<?php echo esc_attr( get_option( 'tc_agents_gads_conversion_label', '' ) ); ?>" placeholder="e.g. AbC-D_efGHIjKLMnOP" />
+						<p class="description">From Google Ads &rarr; Goals &rarr; Conversions &rarr; Summary &rarr; Click your conversion action &rarr; Tag setup &rarr; Use Google tag &rarr; The alphanumeric string after <code>AW-XXXXXXXXX/</code>.</p>
+					</td>
+				</tr>
+				<tr>
+					<th scope="row"><label for="gads_developer_token">Developer Token (Optional)</label></th>
+					<td>
+						<input type="password" name="gads_developer_token" id="gads_developer_token" class="tc-input-lux" value="<?php echo esc_attr( get_option( 'tc_agents_gads_developer_token', '' ) ); ?>" placeholder="Only needed for Manager (MCC) accounts" autocomplete="new-password" />
+						<p class="description"><strong>Optional:</strong> Developer Tokens only exist in Google Ads Manager (MCC) accounts under Tools &rarr; API Center. Individual advertiser accounts do not have this option—you can directly import campaign performance via the <strong>Finance Hub CSV Importer</strong> without any developer token!</p>
+					</td>
+				</tr>
+				<tr>
+					<th scope="row"><label for="gads_client_id">OAuth Client ID</label></th>
+					<td>
+						<input type="text" name="gads_client_id" id="gads_client_id" class="tc-input-lux" value="<?php echo esc_attr( get_option( 'tc_agents_gads_client_id', '' ) ); ?>" placeholder="e.g. 123456789-xxxx.apps.googleusercontent.com" />
+					</td>
+				</tr>
+				<tr>
+					<th scope="row"><label for="gads_client_secret">OAuth Client Secret</label></th>
+					<td>
+						<input type="password" name="gads_client_secret" id="gads_client_secret" class="tc-input-lux" value="" placeholder="<?php echo esc_attr( TC_Agents_Vault::hint( 'gads_client_secret' ) ?: 'Google OAuth Client Secret' ); ?>" autocomplete="new-password" />
+						<?php if ( TC_Agents_Vault::has( 'gads_client_secret' ) ) : ?><span class="dashicons dashicons-yes-alt" style="color:#10b981; vertical-align: middle;"></span> <small style="color:#10b981; font-weight: 600;">Vault Encrypted</small><?php endif; ?>
+					</td>
+				</tr>
+				<tr>
+					<th scope="row"><label for="gads_refresh_token">OAuth Refresh Token</label></th>
+					<td>
+						<input type="password" name="gads_refresh_token" id="gads_refresh_token" class="tc-input-lux" value="" placeholder="<?php echo esc_attr( TC_Agents_Vault::hint( 'gads_refresh_token' ) ?: '1//04xxxx' ); ?>" autocomplete="new-password" />
+						<?php if ( TC_Agents_Vault::has( 'gads_refresh_token' ) ) : ?><span class="dashicons dashicons-yes-alt" style="color:#10b981; vertical-align: middle;"></span> <small style="color:#10b981; font-weight: 600;">Vault Encrypted</small><?php endif; ?>
+					</td>
+				</tr>
+				<tr>
+					<th scope="row"><label for="gads_conversion_action_id">Conversion Action ID (OCT)</label></th>
+					<td>
+						<input type="text" name="gads_conversion_action_id" id="gads_conversion_action_id" class="tc-input-lux" value="<?php echo esc_attr( get_option( 'tc_agents_gads_conversion_action_id', '' ) ); ?>" placeholder="e.g. 123456789" />
+						<p class="description">From Google Ads &rarr; Goals &rarr; Conversions &rarr; Summary &rarr; (Your Upload Click Conversion Action ID).</p>
+					</td>
+				</tr>
+			</table>
+
+			<?php if ( ! empty( $gads_auth_url ) ) : ?>
+				<div style="background: #eff6ff; border: 1.5px solid #bfdbfe; border-radius: 12px; padding: 18px; margin-top: 18px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px;">
+					<div>
+						<strong style="color: #1e40af; font-size: 13.5px;">⚡ 1-Click Google Ads OAuth Authorization</strong>
+						<p style="margin: 4px 0 0; font-size: 12px; color: #2563eb; line-height: 1.4;">
+							Grant permission for TripCosmos to read live campaign spend and upload offline conversion values. Redirect URI: <code>https://tripcosmos.co</code>
+						</p>
+					</div>
+					<div>
+						<a href="<?php echo esc_url( $gads_auth_url ); ?>" class="button button-primary" style="background: #2563eb; border-color: #1d4ed8; font-weight: 700; height: 36px; display: inline-flex; align-items: center; gap: 6px;">
+							<span>🎯</span> Authorize Google Ads Account
+						</a>
+					</div>
+				</div>
+			<?php endif; ?>
 		</div>
 
 		<!-- 7. VOICE TELEPHONY & MULTI-MODE TELEPHONY ENGINE -->

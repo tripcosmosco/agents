@@ -525,6 +525,58 @@ class TC_Agents_Activator {
 			KEY broadcast_status (broadcast_id,status)
 		) $charset_collate;"
 		);
+
+		// Bank transactions ledger (SBI, UPI, vendor reconciliation)
+		$table_bank = $wpdb->prefix . 'tcfp_bank_transactions';
+		dbDelta(
+			"CREATE TABLE $table_bank (
+			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+			txn_date date NOT NULL,
+			value_date date DEFAULT NULL,
+			description varchar(500) NOT NULL,
+			ref_no varchar(100) DEFAULT '',
+			amount decimal(12,2) NOT NULL DEFAULT 0.00,
+			type enum('credit','debit') NOT NULL,
+			balance decimal(12,2) DEFAULT NULL,
+			bank_name varchar(100) NOT NULL DEFAULT 'State Bank of India (SBI)',
+			account_no varchar(50) DEFAULT '',
+			category varchar(100) NOT NULL DEFAULT 'Uncategorized',
+			reconciled tinyint(1) NOT NULL DEFAULT 0,
+			booking_id bigint(20) unsigned DEFAULT NULL,
+			lead_id bigint(20) unsigned DEFAULT NULL,
+			created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			matched_expense_id bigint(20) unsigned DEFAULT NULL,
+			raw_row text DEFAULT NULL,
+			imported_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY  (id),
+			KEY idx_date (txn_date),
+			KEY idx_type (type),
+			KEY idx_reconciled (reconciled),
+			KEY idx_booking (booking_id)
+		) $charset_collate;"
+		);
+
+		// Customer direct expenses (hotel, cab, boat, guide, puja attached to Zoho invoices)
+		$table_cust_exp = $wpdb->prefix . 'tc_agent_customer_expenses';
+		dbDelta(
+			"CREATE TABLE $table_cust_exp (
+			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+			invoice_no varchar(50) NOT NULL DEFAULT '',
+			customer_name varchar(255) NOT NULL DEFAULT '',
+			category enum('hotel','cab','aarti_boat','guide_temple','meals','other') NOT NULL DEFAULT 'other',
+			vendor_name varchar(255) DEFAULT '',
+			amount decimal(12,2) NOT NULL DEFAULT 0.00,
+			expense_date date NOT NULL,
+			payment_method varchar(50) NOT NULL DEFAULT 'bank_debit',
+			bank_txn_id bigint(20) unsigned DEFAULT NULL,
+			notes text DEFAULT NULL,
+			created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY  (id),
+			KEY idx_invoice (invoice_no),
+			KEY idx_category (category),
+			KEY idx_bank_txn (bank_txn_id)
+		) $charset_collate;"
+		);
 	}
 
 	/**

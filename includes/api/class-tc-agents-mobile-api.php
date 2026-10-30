@@ -559,6 +559,28 @@ class TC_Agents_Mobile_API {
 			)
 		);
 
+		// 46. Master AI Assistant: Conversational Operations & Business Co-Pilot
+		register_rest_route(
+			self::NAMESPACE,
+			'/mobile/master-assistant/chat',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( __CLASS__, 'handle_master_assistant_chat' ),
+				'permission_callback' => array( __CLASS__, 'verify_token' ),
+			)
+		);
+
+		// 47. Master AI Assistant: 1-Click Morning Operations & Sales Briefing
+		register_rest_route(
+			self::NAMESPACE,
+			'/mobile/master-assistant/briefing',
+			array(
+				'methods'             => 'GET',
+				'callback'            => array( __CLASS__, 'handle_master_assistant_briefing' ),
+				'permission_callback' => array( __CLASS__, 'verify_token' ),
+			)
+		);
+
 	}
 
 	/**
@@ -4133,6 +4155,39 @@ class TC_Agents_Mobile_API {
 		$month = sanitize_text_field( $p['month'] ?? date( 'Y-m' ) );
 		$res   = TC_Agents_Payroll_Service::sync_to_zoho_journal( $month );
 		$status = ! empty( $res['success'] ) ? 200 : 400;
+		return new WP_REST_Response( $res, $status );
+	}
+
+	/**
+	 * 46. Master AI Assistant: Conversational Operations & Business Co-Pilot
+	 */
+	public static function handle_master_assistant_chat( WP_REST_Request $request ) {
+		if ( ! class_exists( 'TC_Master_AI_Assistant' ) ) {
+			return new WP_REST_Response( array( 'ok' => false, 'error' => 'Master AI Assistant unavailable' ), 500 );
+		}
+		$p       = $request->get_json_params() ?: $request->get_params();
+		$message = sanitize_text_field( $p['message'] ?? '' );
+		$history = ! empty( $p['history'] ) && is_array( $p['history'] ) ? $p['history'] : array();
+		$context = ! empty( $p['context'] ) && is_array( $p['context'] ) ? $p['context'] : array();
+
+		if ( empty( $message ) ) {
+			return new WP_REST_Response( array( 'ok' => false, 'error' => 'Message is required' ), 400 );
+		}
+
+		$res = TC_Master_AI_Assistant::chat( $message, $history, $context );
+		$status = ! empty( $res['ok'] ) ? 200 : 500;
+		return new WP_REST_Response( $res, $status );
+	}
+
+	/**
+	 * 47. Master AI Assistant: 1-Click Morning Operations & Sales Briefing
+	 */
+	public static function handle_master_assistant_briefing( WP_REST_Request $request ) {
+		if ( ! class_exists( 'TC_Master_AI_Assistant' ) ) {
+			return new WP_REST_Response( array( 'ok' => false, 'error' => 'Master AI Assistant unavailable' ), 500 );
+		}
+		$res = TC_Master_AI_Assistant::generate_daily_briefing();
+		$status = ! empty( $res['ok'] ) ? 200 : 500;
 		return new WP_REST_Response( $res, $status );
 	}
 

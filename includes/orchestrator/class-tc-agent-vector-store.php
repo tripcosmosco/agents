@@ -210,7 +210,7 @@ class TC_Agent_Vector_Store {
 
 		$rows = $wpdb->get_results(
 			$wpdb->prepare(
-				"SELECT id, document_id, chunk_index, content, embedding FROM $table WHERE dimensions > 0 LIMIT %d",
+				"SELECT id, document_id, chunk_index, embedding FROM $table WHERE dimensions > 0 LIMIT %d",
 				1500
 			),
 			ARRAY_A
@@ -241,7 +241,21 @@ class TC_Agent_Vector_Store {
 			}
 		);
 
-		return array_slice( $scored, 0, (int) $limit );
+		$top_matches = array_slice( $scored, 0, (int) $limit );
+		if ( ! empty( $top_matches ) ) {
+			$ids = wp_list_pluck( $top_matches, 'id' );
+			$id_placeholders = implode( ',', array_fill( 0, count( $ids ), '%d' ) );
+			$contents = $wpdb->get_results(
+				$wpdb->prepare( "SELECT id, content FROM $table WHERE id IN ($id_placeholders)", ...$ids ),
+				OBJECT_K
+			);
+			foreach ( $top_matches as &$match ) {
+				$match['content'] = isset( $contents[ $match['id'] ] ) ? $contents[ $match['id'] ]->content : '';
+			}
+			unset( $match );
+		}
+
+		return $top_matches;
 	}
 
 	/**

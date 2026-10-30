@@ -83,8 +83,17 @@ class TC_Provider_Gateway implements TC_AI_Provider_Interface {
 		if ( is_wp_error( $res ) ) { return new WP_Error( 'gateway_http_error', $res->get_error_message(), array( 'latency_ms' => $lat ) ); }
 		$code = wp_remote_retrieve_response_code( $res );
 		$body = json_decode( wp_remote_retrieve_body( $res ), true );
-		if ( $code >= 400 ) { $msg = $body['error']['message'] ?? $body['message'] ?? "Gateway HTTP {$code}"; return new WP_Error( 'gateway_api_error', $msg, array( 'latency_ms' => $lat ) ); }
+		if ( $code >= 400 || ! empty( $body['error'] ) ) {
+			$err_obj = $body['error'] ?? array();
+			$msg = is_array( $err_obj ) ? ( $err_obj['message'] ?? wp_json_encode( $err_obj ) ) : (string) ( $body['message'] ?? "Gateway HTTP {$code}" );
+			return new WP_Error( 'gateway_api_error', $msg, array( 'latency_ms' => $lat ) );
+		}
 		$choice = $body['choices'][0]['message'] ?? array();
-		return array( 'content' => $choice['content'] ?? '', 'tool_calls' => $choice['tool_calls'] ?? array(), 'prompt_tokens' => $body['usage']['prompt_tokens'] ?? 0, 'completion_tokens' => $body['usage']['completion_tokens'] ?? 0, 'latency_ms' => $lat );
+		$content = $choice['content'] ?? '';
+		$tool_calls = $choice['tool_calls'] ?? array();
+		if ( '' === trim( $content ) && empty( $tool_calls ) ) {
+			return new WP_Error( 'gateway_empty_response', __( 'Gateway returned an empty response.', 'tripcosmos-agents' ), array( 'latency_ms' => $lat ) );
+		}
+		return array( 'content' => $content, 'tool_calls' => $tool_calls, 'prompt_tokens' => $body['usage']['prompt_tokens'] ?? 0, 'completion_tokens' => $body['usage']['completion_tokens'] ?? 0, 'latency_ms' => $lat );
 	}
 }
