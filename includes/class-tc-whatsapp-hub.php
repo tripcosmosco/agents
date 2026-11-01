@@ -345,6 +345,9 @@ public static function on_customer_message( array $contact, $text, $is_new ) {
 
 	/** Holding reply for voice notes / photos the AI cannot read, at most once an hour per customer. */
 	public static function media_ack( $digits ) {
+		if ( class_exists( 'TC_Agents_Guardrails' ) && TC_Agents_Guardrails::is_automation_disabled() ) {
+			return;
+		}
 		$key = 'tc_wa_media_ack_' . substr( md5( (string) $digits ), 0, 20 );
 		if ( get_transient( $key ) ) {
 			return;

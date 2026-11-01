@@ -639,6 +639,15 @@ class TC_Integration_Voice {
 			return false;
 		}
 
+		// Master Automation Kill Switch: Do not send automated messages if paused
+		if ( class_exists( 'TC_Agents_Guardrails' ) && TC_Agents_Guardrails::is_automation_disabled() ) {
+			TC_Agents_Logger::log( 'missed_call_wa_skipped_automations_disabled', 'info', array( 'phone' => $clean_phone ), '', 'voice' );
+			return false;
+		}
+		if ( '0' === (string) get_option( 'tc_agents_missed_call_auto_reply', '1' ) ) {
+			return false;
+		}
+
 		$auto_text = sprintf(
 			"Namaste %s ji! 🙏\n\nWe missed your call at the TripCosmos Pilgrimage Desk.\n\nOur team is currently assisting guests with Kashi Vishwanath VIP Darshan and Cab bookings. Please reply here with your dates or requirements, or tap below to reconnect:\n👉 %s",
 			esc_html( $customer_name ?: 'Traveler' ),

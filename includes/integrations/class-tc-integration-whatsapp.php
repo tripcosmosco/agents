@@ -99,6 +99,8 @@ class TC_Integration_WhatsApp {
 			$message_text = $norm['text'] ?? '';
 			$sender_name  = ( $norm['name'] ?? '' ) ?: $sender_name;
 			$media        = (string) ( $norm['media'] ?? '' );
+			$media_url    = (string) ( $norm['media_url'] ?? '' );
+			$media_name   = (string) ( $norm['media_name'] ?? '' );
 			$external_id  = (string) ( $norm['id'] ?? '' );
 		}
 		if ( empty( $sender_phone ) || empty( $message_text ) ) {
@@ -181,14 +183,137 @@ class TC_Integration_WhatsApp {
 			TC_CRM_Notify::on_customer_reply( $lead_contact_id, $message_text );
 		}
 
+		// Master Automation Kill Switch: If all automations are disabled (Human-Only Mode), never trigger bots or automated greetings
+		$disable_all_automations = class_exists( 'TC_Agents_Guardrails' )
+			? TC_Agents_Guardrails::is_automation_disabled()
+			: ( '1' === (string) get_option( 'tc_agents_disable_all_automations', '0' ) );
+
+		if ( $disable_all_automations ) {
+			// Save incoming customer message (or media) to conversation history so human sales rep can see it in CRM & X-Agents
+			if ( $conversation ) {
+				TC_Agent_Orchestrator::save_message(
+					array(
+						'conversation_id' => (int) $conversation['id'],
+						'role'            => 'user',
+						'content'         => ! empty( $message_text ) ? $message_text : ( '[' . ucfirst( $media ?: 'media' ) . ' received]' ),
+						'external_id'     => $external_id,
+						'media_type'      => $media,
+						'media_url'       => $media_url,
+						'media_name'      => $media_name,
+					)
+				);
+				TC_Agent_Orchestrator::touch_conversation( (int) $conversation['id'] );
+				TC_WhatsApp_Hub::tag_latest( (int) $conversation['id'], 'user', $external_id );
+			}
+			TC_Agents_Logger::log(
+				'automation_kill_switch_held_inbound',
+				'info',
+				array(
+					'phone'     => $sender_phone,
+					'has_media' => ! empty( $media ),
+					'message'   => mb_substr( $message_text, 0, 100 ),
+					'mode'      => '100% Human-Only Mode (All automations paused)',
+				),
+				'',
+				'whatsapp'
+			);
+			return new WP_REST_Response( array( 'status' => 'stored_for_human_agent', 'auto_reply' => false, 'automations_disabled' => true ), 200 );
+		}
+
 		// Photos, voice notes and documents: the AI cannot read them, so keep them for the agent and acknowledge.
 		if ( '' !== $media && $conversation ) {
-			TC_Agent_Orchestrator::save_message( array( 'conversation_id' => (int) $conversation['id'], 'role' => 'user', 'content' => $message_text, 'external_id' => $external_id ) );
+			TC_Agent_Orchestrator::save_message(
+				array(
+					'conversation_id' => (int) $conversation['id'],
+					'role'            => 'user',
+					'content'         => $message_text,
+					'external_id'     => $external_id,
+					'media_type'      => $media,
+					'media_url'       => $media_url,
+					'media_name'      => $media_name,
+				)
+			);
 			TC_Agent_Orchestrator::touch_conversation( (int) $conversation['id'] );
 			if ( TC_WhatsApp_Hub::ai_enabled( $conversation ) ) {
 				TC_WhatsApp_Hub::media_ack( $sender_phone );
 			}
 			return new WP_REST_Response( array( 'status' => 'stored_for_agent', 'media' => $media ), 200 );
+		}
+
+		// Auto-Reply Guard: Check if AI auto-reply is enabled globally (default: 0 = disabled / Human Only)
+		$auto_reply_enabled = get_option( 'tc_agents_whatsapp_auto_reply', '0' );
+		$is_ai_allowed      = ( '1' === (string) $auto_reply_enabled ) && ( ! $conversation || TC_WhatsApp_Hub::ai_enabled( $conversation ) );
+
+		if ( ! $is_ai_allowed ) {
+			// Save incoming customer message to the conversation history so human agents see it in X-Agents
+			if ( $conversation ) {
+				TC_Agent_Orchestrator::save_message(
+					array(
+						'conversation_id' => (int) $conversation['id'],
+						'role'            => 'user',
+						'content'         => $message_text,
+						'external_id'     => $external_id,
+						'media_type'      => $media,
+						'media_url'       => $media_url,
+						'media_name'      => $media_name,
+					)
+				);
+				TC_Agent_Orchestrator::touch_conversation( (int) $conversation['id'] );
+				TC_WhatsApp_Hub::tag_latest( (int) $conversation['id'], 'user', $external_id );
+			}
+
+			// 1-Touch Deterministic First Greeting (High-Converting Intake Qualification)
+			$first_greet_enabled = get_option( 'tc_agents_whatsapp_first_greeting_enabled', '1' );
+			if ( '1' === (string) $first_greet_enabled && $conversation ) {
+				$greet_key = 'tc_wa_first_greet_' . $sender_phone;
+				if ( ! get_transient( $greet_key ) ) {
+					global $wpdb;
+					$prior_replies = (int) $wpdb->get_var(
+						$wpdb->prepare(
+							"SELECT COUNT(*) FROM {$wpdb->prefix}tc_agent_messages WHERE conversation_id = %d AND role IN ('assistant', 'agent')",
+							(int) $conversation['id']
+						)
+					);
+
+					if ( 0 === $prior_replies || $is_new_lead ) {
+						set_transient( $greet_key, 1, DAY_IN_SECONDS );
+
+						$custom_greet = get_option( 'tc_agents_whatsapp_first_greeting_text', '' );
+						$first_greeting_text = ! empty( $custom_greet ) ? $custom_greet : (
+							"🙏 *Namaste! Welcome to TripCosmos — Varanasi's Premier Pilgrimage & Luxury Fleet Desk.*\n\n"
+							. "We have received your inquiry. Our Varanasi pilgrimage desk (+91 93361 16210) is reviewing your requirements.\n\n"
+							. "To help us share an instant personalized quote, please reply with your choice:\n"
+							. "1️⃣ *Kashi Vishwanath VIP Darshan & Ganga Aarti (3D/2N — Best Seller)*\n"
+							. "2️⃣ *Kashi + Ayodhya Ram Mandir Circuit (4D/3N)*\n"
+							. "3️⃣ *The Holy Trinity: Varanasi - Prayagraj - Ayodhya (5D/4N)*\n"
+							. "4️⃣ *AC Cab Only (Swift Dzire / Innova Crysta / Tempo Traveller)*\n\n"
+							. "📅 *Please also share:*\n"
+							. "• Expected Travel Dates\n"
+							. "• Number of Guests (Adults / Children)\n\n"
+							. "Har Har Mahadev! 🕉️"
+						);
+
+						$sent_id = self::send_message_ex( $sender_phone, $first_greeting_text, 'inbound_reply' );
+
+						TC_Agent_Orchestrator::save_message(
+							array(
+								'conversation_id' => (int) $conversation['id'],
+								'role'            => 'assistant',
+								'content'         => $first_greeting_text,
+								'provider_used'   => 'first_auto_greeting',
+								'external_id'     => is_string( $sent_id ) ? $sent_id : '',
+								'delivery'        => is_string( $sent_id ) ? 'sent' : '',
+							)
+						);
+						TC_Agent_Orchestrator::touch_conversation( (int) $conversation['id'] );
+						TC_WhatsApp_Hub::tag_latest( (int) $conversation['id'], 'assistant', is_string( $sent_id ) ? $sent_id : '' );
+
+						return new WP_REST_Response( array( 'status' => 'first_auto_greeting_sent', 'auto_reply' => true ), 200 );
+					}
+				}
+			}
+
+			return new WP_REST_Response( array( 'status' => 'stored_for_human_agent', 'auto_reply' => false ), 200 );
 		}
 
 		// Real-time Optimization: Mark read & trigger typing presence simulation while AI processes

@@ -206,9 +206,15 @@ class TC_Agents_Mobile_CRM_API {
 		if ( $user_id > 0 ) {
 			$u = get_userdata( $user_id );
 			if ( $u ) {
-				$roles = (array) $u->roles;
-				if ( in_array( 'administrator', $roles, true ) || in_array( 'tcfp_manager', $roles, true ) || in_array( 'tcfp_accountant', $roles, true ) || user_can( $u, 'manage_options' ) ) {
+				if ( user_can( $u, 'manage_options' ) ) {
 					return true;
+				}
+				$roles = (array) $u->roles;
+				foreach ( $roles as $r ) {
+					$perms = self::get_role_permissions( $r );
+					if ( in_array( 'all', $perms, true ) || in_array( 'financial_hub', $perms, true ) ) {
+						return true;
+					}
 				}
 			}
 		}
@@ -355,6 +361,27 @@ class TC_Agents_Mobile_CRM_API {
 			);
 		}
 		$billing = TC_Quote_Service::settings();
+
+		$user_id   = (int) $request->get_param( '_tc_user_id' );
+		$user_data = null;
+		if ( $user_id > 0 ) {
+			$u = get_userdata( $user_id );
+			if ( $u ) {
+				$primary_role = ! empty( $u->roles ) ? reset( $u->roles ) : 'tc_sales_agent';
+				$avatar       = get_user_meta( $u->ID, 'tc_agent_avatar_url', true );
+				$user_data    = array(
+					'id'          => (int) $u->ID,
+					'name'        => (string) $u->display_name,
+					'email'       => (string) $u->user_email,
+					'username'    => (string) $u->user_login,
+					'role'        => $primary_role,
+					'role_label'  => self::get_role_label( $primary_role ),
+					'avatar_url'  => $avatar ?: get_avatar_url( $u->ID ),
+					'permissions' => self::get_user_permissions( $u ),
+				);
+			}
+		}
+
 		return self::ok(
 			array(
 				'agent'          => self::agent( $request ),
@@ -364,6 +391,7 @@ class TC_Agents_Mobile_CRM_API {
 				'stages'         => $stages,
 				'booking_status' => $statuses,
 				'team'           => $team,
+				'user'           => $user_data,
 				'features'       => array(
 					'cashfree' => TC_Payments::cashfree_ready(),
 					'upi'      => '' !== trim( (string) $billing['upi_vpa'] ),
@@ -2750,9 +2778,27 @@ class TC_Agents_Mobile_CRM_API {
 		$name   = ! empty( $body['name'] ) ? sanitize_text_field( $body['name'] ) : '';
 		$avatar = ! empty( $body['picture'] ) ? esc_url_raw( $body['picture'] ) : $avatar;
 
-		// 2. Check if user exists in WordPress
+		// 2. Authorization check: prevent unauthorized public sign-ups
 		$user = get_user_by( 'email', $email );
 		if ( ! $user ) {
+			// Check if email belongs to official company domain or explicit staff whitelist
+			$is_company_domain    = (bool) preg_match( '/@tripcosmos\.co$/i', $email );
+			$allowed_staff_emails = array(
+				'hellonishkarsh@gmail.com',
+				'aditikarna000@gmail.com',
+				'operations@tripcosmos.co',
+				'info@tripcosmos.co',
+				'tripcosmos.co@gmail.com',
+			);
+			$custom_whitelist = (array) get_option( 'tc_agents_allowed_staff_emails', array() );
+			$all_allowed      = array_merge( $allowed_staff_emails, array_map( 'strtolower', array_filter( $custom_whitelist ) ) );
+
+			if ( ! $is_company_domain && ! in_array( strtolower( $email ), $all_allowed, true ) ) {
+				TC_Agents_Logger::log( 'unauthorized_google_login_attempt', 'warning', array( 'email' => $email ), '', 'security' );
+				return self::fail( 'Access restricted: Google account (' . esc_html( $email ) . ') is not authorized for TripCosmos X-Agents. Contact administrator for access.', 403 );
+			}
+
+			// Authorized staff member - proceed with account provisioning
 			$username = sanitize_user( current( explode( '@', $email ) ) );
 			if ( username_exists( $username ) ) {
 				$username = $username . '_' . wp_rand( 100, 999 );
@@ -2821,18 +2867,8 @@ class TC_Agents_Mobile_CRM_API {
 
 		$roles = (array) $user->roles;
 		$primary_role = ! empty( $roles ) ? reset( $roles ) : 'tc_sales_agent';
-		$role_labels = array(
-			'administrator'    => 'Administrator',
-			'tc_sales_manager' => 'Sales Manager',
-			'tc_sales_agent'   => 'Sales Representative',
-			'tcfp_manager'     => 'Finance Manager',
-			'tcfp_accountant'  => 'Accountant',
-			'tc_dispatcher'    => 'Dispatcher & Fleet Ops',
-			'tc_tour_guide'    => 'Tour Guide',
-		);
-		$role_label = $role_labels[ $primary_role ] ?? ucfirst( str_replace( array( 'tc_', '_' ), ' ', $primary_role ) );
-
-		$permissions = self::get_role_permissions( $primary_role );
+		$role_label   = self::get_role_label( $primary_role );
+		$permissions  = self::get_user_permissions( $user );
 
 		return self::ok( array(
 			'token' => $token_row['token'],
@@ -2849,20 +2885,141 @@ class TC_Agents_Mobile_CRM_API {
 		) );
 	}
 
-	private static function get_role_permissions( $role ) {
-		if ( in_array( $role, array( 'administrator', 'editor' ), true ) ) {
-			return array( 'all', 'leads_view', 'leads_edit', 'leads_delete', 'dialer', 'whatsapp', 'ai_agents', 'financial_hub', 'settings', 'driver_dispatch', 'assign_leads' );
+	public static function get_role_label( $role ) {
+		$role_labels = array(
+			'administrator'    => 'Administrator',
+			'tc_sales_manager' => 'Sales Manager',
+			'tc_sales_agent'   => 'Sales Representative',
+			'tcfp_manager'     => 'Finance Manager',
+			'tcfp_accountant'  => 'Accountant',
+			'tc_dispatcher'    => 'Dispatcher & Fleet Ops',
+			'tc_tour_guide'    => 'Tour Guide',
+			'editor'           => 'Editor',
+		);
+		return $role_labels[ $role ] ?? ucfirst( str_replace( array( 'tc_', '_' ), ' ', $role ) );
+	}
+
+	public static function get_all_feature_definitions() {
+		return array(
+			'financial_hub'   => array(
+				'label'       => 'Financial Intelligence Hub',
+				'category'    => 'Financial & Accounting',
+				'description' => 'Zoho Books invoices, Unit tour profit margins, SBI bank feeds, and Payroll management.',
+			),
+			'dialer'          => array(
+				'label'       => 'Frontline Jio SIM Dialer',
+				'category'    => 'Telephony & Sales',
+				'description' => 'Smart caller ID, outbound click-to-call, and call logging.',
+			),
+			'leads_view'      => array(
+				'label'       => 'View CRM Leads',
+				'category'    => 'CRM & Pipeline',
+				'description' => 'Access lead profiles, stage pipelines, and customer travel inquiries.',
+			),
+			'leads_edit'      => array(
+				'label'       => 'Edit CRM Leads',
+				'category'    => 'CRM & Pipeline',
+				'description' => 'Update lead stages, travel dates, passenger counts, and notes.',
+			),
+			'leads_delete'    => array(
+				'label'       => 'Delete CRM Leads',
+				'category'    => 'CRM & Pipeline',
+				'description' => 'Permanently delete leads and customer records.',
+			),
+			'assign_leads'    => array(
+				'label'       => 'Reassign Lead Owners',
+				'category'    => 'CRM & Pipeline',
+				'description' => 'Transfer lead ownership between sales agents.',
+			),
+			'whatsapp'        => array(
+				'label'       => 'WhatsApp Multi-Desk Hub',
+				'category'    => 'Omnichannel & Messaging',
+				'description' => 'Real-time two-way WhatsApp live chat, quick templates, and escalations.',
+			),
+			'ai_agents'       => array(
+				'label'       => 'AI Agents & Personas',
+				'category'    => 'Omnichannel & AI',
+				'description' => 'Manage autonomous AI co-pilots, itinerary generators, and voice bot tools.',
+			),
+			'b2b_hub'         => array(
+				'label'       => 'B2B Wholesale DMC Hub',
+				'category'    => 'Partner Network',
+				'description' => 'Browse B2B agency directory, partner imports, and wholesale quote outreach.',
+			),
+			'blog_seo'        => array(
+				'label'       => 'Blog & VM SEO Brain',
+				'category'    => 'Intelligence & Content',
+				'description' => 'Content silos, RankMath SEO telemetry, and 1-tap WhatsApp guide sharing.',
+			),
+			'social_ai'       => array(
+				'label'       => 'VM Social AI Radar',
+				'category'    => 'Intelligence & Content',
+				'description' => 'Omnichannel social accounts, scheduled campaigns, and audience metrics.',
+			),
+			'reports'         => array(
+				'label'       => 'CRM & Telephony Analytics',
+				'category'    => 'Intelligence & Content',
+				'description' => 'Growth reports, call duration, operator performance, and ROI metrics.',
+			),
+			'quotes'          => array(
+				'label'       => 'Quotation Builder Desk',
+				'category'    => 'Telephony & Sales',
+				'description' => 'Generate dynamic pricing quotes, hotel breakdowns, and package PDFs.',
+			),
+			'advance_link'    => array(
+				'label'       => 'Payment & Advance Links',
+				'category'    => 'Telephony & Sales',
+				'description' => 'Generate UPI / Cashfree instant payment links for traveler bookings.',
+			),
+			'driver_dispatch' => array(
+				'label'       => 'Fleet & Driver Dispatch',
+				'category'    => 'Operations',
+				'description' => 'Assign drivers and dispatch cab duty slips via Brevo SMS and WhatsApp.',
+			),
+			'settings'        => array(
+				'label'       => 'Plugin System Settings',
+				'category'    => 'Administration',
+				'description' => 'Manage API keys, pairing tokens, webhooks, and core plugin settings.',
+			),
+		);
+	}
+
+	public static function get_default_role_permissions() {
+		return array(
+			'administrator'    => array( 'all', 'financial_hub', 'dialer', 'leads_view', 'leads_edit', 'leads_delete', 'assign_leads', 'whatsapp', 'ai_agents', 'b2b_hub', 'blog_seo', 'social_ai', 'reports', 'quotes', 'advance_link', 'driver_dispatch', 'settings' ),
+			'editor'           => array( 'all', 'financial_hub', 'dialer', 'leads_view', 'leads_edit', 'leads_delete', 'assign_leads', 'whatsapp', 'ai_agents', 'b2b_hub', 'blog_seo', 'social_ai', 'reports', 'quotes', 'advance_link', 'driver_dispatch', 'settings' ),
+			'tc_sales_manager' => array( 'dialer', 'leads_view', 'leads_edit', 'assign_leads', 'whatsapp', 'ai_agents', 'b2b_hub', 'blog_seo', 'social_ai', 'reports', 'quotes', 'advance_link', 'driver_dispatch' ),
+			'tc_sales_agent'   => array( 'dialer', 'leads_view', 'leads_edit', 'whatsapp', 'ai_agents', 'b2b_hub', 'blog_seo', 'social_ai', 'quotes', 'advance_link' ),
+			'tcfp_manager'     => array( 'financial_hub', 'leads_view', 'whatsapp', 'reports' ),
+			'tcfp_accountant'  => array( 'financial_hub', 'reports' ),
+			'tc_dispatcher'    => array( 'driver_dispatch', 'leads_view', 'whatsapp', 'reports' ),
+			'tc_tour_guide'    => array( 'leads_view', 'whatsapp' ),
+		);
+	}
+
+	public static function get_role_permissions( $role ) {
+		$all_saved = get_option( 'tc_agents_role_permissions', array() );
+		if ( is_array( $all_saved ) && isset( $all_saved[ $role ] ) && is_array( $all_saved[ $role ] ) ) {
+			return $all_saved[ $role ];
 		}
-		if ( 'tc_sales_manager' === $role ) {
-			return array( 'leads_view', 'leads_edit', 'dialer', 'whatsapp', 'ai_agents', 'quotes', 'reports', 'driver_dispatch', 'assign_leads', 'advance_link' );
+		$defaults = self::get_default_role_permissions();
+		if ( isset( $defaults[ $role ] ) ) {
+			return $defaults[ $role ];
 		}
-		if ( in_array( $role, array( 'tcfp_manager', 'tcfp_accountant' ), true ) ) {
-			return array( 'financial_hub', 'zoho_sync', 'bank_statement', 'reconcile_payments', 'reports' );
+		return array( 'dialer', 'leads_view', 'leads_edit', 'whatsapp', 'ai_agents', 'b2b_hub', 'blog_seo', 'social_ai', 'quotes', 'advance_link' );
+	}
+
+	public static function get_user_permissions( WP_User $user ) {
+		if ( user_can( $user, 'manage_options' ) ) {
+			return array_merge( array( 'all' ), array_keys( self::get_all_feature_definitions() ) );
 		}
-		if ( 'tc_dispatcher' === $role ) {
-			return array( 'driver_dispatch', 'leads_view', 'whatsapp', 'reports' );
+		$roles = (array) $user->roles;
+		$merged = array();
+		foreach ( $roles as $r ) {
+			$perms = self::get_role_permissions( $r );
+			$merged = array_merge( $merged, $perms );
 		}
-		return array( 'leads_view', 'leads_edit', 'dialer', 'whatsapp', 'ai_agents', 'quotes', 'advance_link' );
+		return array_values( array_unique( $merged ) );
 	}
 }
 

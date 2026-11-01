@@ -194,6 +194,16 @@ class TC_Agents_Admin {
 			'tc-agents-gtm',
 			array( __CLASS__, 'render_gtm_page' )
 		);
+
+		// 14. Role Permissions & Feature Access (RBAC Matrix)
+		add_submenu_page(
+			'tripcosmos-agents',
+			__( 'Role Permissions & Access Control', 'tripcosmos-agents' ),
+			__( 'Role Permissions', 'tripcosmos-agents' ),
+			'manage_options',
+			'tc-agents-roles',
+			array( __CLASS__, 'render_roles_page' )
+		);
 	}
 	/**
 	 * Enqueue admin CSS and JS on plugin screens.
@@ -338,6 +348,42 @@ class TC_Agents_Admin {
 	 */
 	public static function render_gtm_page() {
 		require_once TC_AGENTS_PATH . 'admin/views/gtm.php';
+	}
+
+	/**
+	 * Render Role Permissions & Feature Access (RBAC) Page.
+	 */
+	public static function render_roles_page() {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( esc_html__( 'Unauthorized access.', 'tripcosmos-agents' ) );
+		}
+
+		$notice = '';
+		if ( 'POST' === ( $_SERVER['REQUEST_METHOD'] ?? '' ) && check_admin_referer( 'tc_agents_save_roles_action', 'tc_agents_roles_nonce' ) ) {
+			if ( isset( $_POST['tc_agents_reset_defaults'] ) ) {
+				delete_option( 'tc_agents_role_permissions' );
+				$notice = __( 'Permissions reset to secure factory defaults.', 'tripcosmos-agents' );
+			} elseif ( isset( $_POST['tc_agents_roles'] ) && is_array( $_POST['tc_agents_roles'] ) ) {
+				$submitted    = wp_unslash( $_POST['tc_agents_roles'] );
+				$all_features = class_exists( 'TC_Agents_Mobile_CRM_API' ) ? array_keys( TC_Agents_Mobile_CRM_API::get_all_feature_definitions() ) : array();
+				$clean_matrix = array();
+
+				foreach ( $submitted as $role => $features ) {
+					$clean_role = sanitize_key( $role );
+					if ( is_array( $features ) ) {
+						$clean_matrix[ $clean_role ] = array_values( array_intersect( $features, $all_features ) );
+					}
+				}
+
+				// Administrator always retains full access
+				$clean_matrix['administrator'] = array_merge( array( 'all' ), $all_features );
+
+				update_option( 'tc_agents_role_permissions', $clean_matrix );
+				$notice = __( 'Role permissions and feature access matrix saved successfully.', 'tripcosmos-agents' );
+			}
+		}
+
+		require_once TC_AGENTS_PATH . 'admin/views/role-permissions.php';
 	}
 
 	/**

@@ -21,6 +21,16 @@ class TC_Agents_Guardrails {
 	}
 
 	/**
+	 * Check whether all automations are disabled (100% Human-Only Mode).
+	 *
+	 * @return bool True if all automations are disabled or emergency kill switch is engaged.
+	 */
+	public static function is_automation_disabled() {
+		return '1' === (string) get_option( 'tc_agents_disable_all_automations', '0' )
+			|| self::is_kill_switch_active();
+	}
+
+	/**
 	 * Guard: Validate before any agent response or outbound message.
 	 *
 	 * @param string $channel    Channel name: 'web', 'whatsapp', 'voice', 'admin'.

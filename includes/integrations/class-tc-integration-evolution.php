@@ -95,6 +95,95 @@ class TC_Integration_Evolution {
 	 * @param int $delay Milliseconds to simulate typing.
 	 * @return array|WP_Error
 	 */
+	/**
+	 * Send Interactive WhatsApp Action Buttons (Evolution API v2 native).
+	 *
+	 * @param string $to Phone number.
+	 * @param string $title Header title.
+	 * @param string $description Main message body text.
+	 * @param array $buttons Array of button definitions: [['displayText' => '...', 'id' => '...']].
+	 * @param string $footer Optional footer label.
+	 * @return array|WP_Error
+	 */
+	public static function send_buttons( $to, $title, $description, array $buttons, $footer = 'TripCosmos.co • Pilgrimage Desk' ) {
+		$clean = preg_replace( '/[^0-9]/', '', (string) $to );
+		if ( empty( $clean ) ) {
+			return new WP_Error( 'invalid_phone', 'Invalid recipient phone' );
+		}
+
+		$formatted_buttons = array();
+		foreach ( $buttons as $idx => $btn ) {
+			$text = is_array( $btn ) ? ( $btn['displayText'] ?? $btn['text'] ?? "Option " . ( $idx + 1 ) ) : (string) $btn;
+			$id   = is_array( $btn ) ? ( $btn['id'] ?? "btn_" . ( $idx + 1 ) ) : "btn_" . ( $idx + 1 );
+			$formatted_buttons[] = array(
+				'type'        => 'reply',
+				'displayText' => $text,
+				'id'          => $id,
+			);
+		}
+
+		$payload = array(
+			'number'      => $clean,
+			'title'       => $title,
+			'description' => $description,
+			'footer'      => $footer,
+			'buttons'     => $formatted_buttons,
+		);
+
+		$res = self::request( 'POST', self::instance_path( '/message/sendButtons' ), $payload, 15 );
+		if ( is_wp_error( $res ) ) {
+			return $res;
+		}
+		if ( $res['code'] >= 200 && $res['code'] < 300 ) {
+			$id = (string) ( $res['body']['key']['id'] ?? '' );
+			if ( '' !== $id ) {
+				self::remember_outbound( $id );
+			}
+			return array( 'success' => true, 'id' => $id );
+		}
+		return new WP_Error( 'evolution_send_buttons_failed', sprintf( __( 'Evolution buttons error HTTP %d', 'tripcosmos-agents' ), $res['code'] ) );
+	}
+
+	/**
+	 * Retrieve base64 encoded media payload for voice notes, photos, and documents.
+	 *
+	 * @param string $message_id Message ID.
+	 * @return string Base64 string or empty string on failure.
+	 */
+	public static function get_media_base64( $message_id ) {
+		if ( empty( $message_id ) ) {
+			return '';
+		}
+		$payload = array(
+			'message' => array(
+				'key' => array(
+					'id' => $message_id,
+				),
+			),
+			'convertToMp4' => false,
+		);
+		$res = self::request( 'POST', self::instance_path( '/chat/getBase64FromMediaMessage' ), $payload, 15 );
+		if ( ! is_wp_error( $res ) && 200 === (int) ( $res['code'] ?? 0 ) && ! empty( $res['body']['base64'] ) ) {
+			return (string) $res['body']['base64'];
+		}
+		return '';
+	}
+
+	/**
+	 * Self-healing watchdog: checks connection state and auto-reconnects if dropped.
+	 */
+	public static function auto_heal() {
+		$state = self::connection_state();
+		if ( 'open' === $state ) {
+			return true;
+		}
+		if ( class_exists( 'TC_Agents_Logger' ) ) {
+			TC_Agents_Logger::log( 'evolution_auto_heal_triggered', 'warning', array( 'prior_state' => is_wp_error( $state ) ? $state->get_error_message() : $state ), '', 'whatsapp' );
+		}
+		self::restart_instance();
+		return self::connect_qr();
+	}
+
 	public static function send_presence( $to, $presence = 'composing', $delay = 1200 ) {
 		$clean = preg_replace( '/[^0-9]/', '', (string) $to );
 		if ( empty( $clean ) ) {
@@ -308,6 +397,8 @@ class TC_Integration_Evolution {
 				$parsed           = self::message_text( $msg );
 				$out['text']      = $parsed['text'];
 				$out['media']     = $parsed['media'];
+				$out['media_url'] = (string) ( $parsed['media_url'] ?? '' );
+				$out['media_name']= (string) ( $parsed['file_name'] ?? '' );
 				$out['quoted_id'] = (string) ( $d['contextInfo']['stanzaId'] ?? $parsed['quoted_id'] );
 			}
 			return $out;
@@ -368,17 +459,46 @@ class TC_Integration_Evolution {
 			}
 		}
 		if ( isset( $m['imageMessage'] ) ) {
-			return array( 'text' => $cap( '[Photo]', $m['imageMessage']['caption'] ?? '' ), 'media' => 'image', 'quoted_id' => $quoted );
+			$img = $m['imageMessage'];
+			$media_url = ! empty( $img['url'] ) ? (string) $img['url'] : ( ! empty( $img['jpegThumbnail'] ) ? 'data:image/jpeg;base64,' . $img['jpegThumbnail'] : '' );
+			return array(
+				'text'      => $cap( '[Photo]', $img['caption'] ?? '' ),
+				'media'     => 'image',
+				'media_url' => $media_url,
+				'quoted_id' => $quoted,
+			);
 		}
 		if ( isset( $m['videoMessage'] ) ) {
-			return array( 'text' => $cap( '[Video]', $m['videoMessage']['caption'] ?? '' ), 'media' => 'video', 'quoted_id' => $quoted );
+			$vid = $m['videoMessage'];
+			$media_url = ! empty( $vid['url'] ) ? (string) $vid['url'] : '';
+			return array(
+				'text'      => $cap( '[Video]', $vid['caption'] ?? '' ),
+				'media'     => 'video',
+				'media_url' => $media_url,
+				'quoted_id' => $quoted,
+			);
 		}
 		if ( isset( $m['audioMessage'] ) ) {
-			return array( 'text' => ! empty( $m['audioMessage']['ptt'] ) ? '[Voice note]' : '[Audio]', 'media' => 'audio', 'quoted_id' => $quoted );
+			$aud = $m['audioMessage'];
+			$media_url = ! empty( $aud['url'] ) ? (string) $aud['url'] : '';
+			return array(
+				'text'      => ! empty( $aud['ptt'] ) ? '[Voice note]' : '[Audio]',
+				'media'     => 'audio',
+				'media_url' => $media_url,
+				'quoted_id' => $quoted,
+			);
 		}
 		if ( isset( $m['documentMessage'] ) ) {
-			$name = (string) ( $m['documentMessage']['fileName'] ?? $m['documentMessage']['title'] ?? 'file' );
-			return array( 'text' => $cap( '[Document: ' . $name . ']', $m['documentMessage']['caption'] ?? '' ), 'media' => 'document', 'quoted_id' => $quoted );
+			$doc = $m['documentMessage'];
+			$name = (string) ( $doc['fileName'] ?? $doc['title'] ?? 'document' );
+			$media_url = ! empty( $doc['url'] ) ? (string) $doc['url'] : '';
+			return array(
+				'text'      => $cap( '[Document: ' . $name . ']', $doc['caption'] ?? '' ),
+				'media'     => 'document',
+				'media_url' => $media_url,
+				'file_name' => $name,
+				'quoted_id' => $quoted,
+			);
 		}
 		if ( isset( $m['locationMessage'] ) ) {
 			$l    = $m['locationMessage'];
@@ -578,6 +698,8 @@ class TC_Integration_Evolution {
 				'epoch'            => $ts,
 				'status'           => $status,
 				'media'            => (string) ( $parsed['media'] ?? '' ),
+				'media_url'        => (string) ( $parsed['media_url'] ?? '' ),
+				'media_type'       => (string) ( $parsed['media'] ?? '' ),
 				'author_name'      => $from_me ? 'TripCosmos Desk' : (string) ( $rec['pushName'] ?? 'Customer' ),
 			);
 		}
@@ -591,5 +713,26 @@ class TC_Integration_Evolution {
 		);
 
 		return array_slice( $messages, -$limit );
+	}
+
+	/**
+	 * Delete a sent message for everyone on WhatsApp via Evolution API.
+	 */
+	public static function delete_message( $remote_jid, $message_id, $from_me = true ) {
+		if ( empty( $remote_jid ) || empty( $message_id ) ) {
+			return false;
+		}
+		$payload = array(
+			'key' => array(
+				'remoteJid' => $remote_jid,
+				'fromMe'    => (bool) $from_me,
+				'id'        => $message_id,
+			),
+		);
+		$res = self::request( 'DELETE', self::instance_path( '/chat/deleteMessageForEveryone' ), $payload, 15 );
+		if ( is_wp_error( $res ) || 200 !== (int) ( $res['code'] ?? 0 ) ) {
+			$res = self::request( 'POST', self::instance_path( '/chat/deleteMessageForEveryone' ), $payload, 15 );
+		}
+		return ! is_wp_error( $res ) && in_array( (int) ( $res['code'] ?? 0 ), array( 200, 201 ), true );
 	}
 }
