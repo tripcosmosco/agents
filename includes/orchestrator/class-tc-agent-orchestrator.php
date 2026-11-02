@@ -31,8 +31,8 @@ class TC_Agent_Orchestrator {
 
 		// 2. Fetch or Create Conversation Record
 		$conversation = self::get_or_create_conversation( $session_id, $channel, $agent_slug, $metadata );
-		if ( ! $conversation ) {
-			return new WP_Error( 'conversation_error', __( 'Unable to initialize conversation record.', 'tripcosmos-agents' ) );
+		if ( ! $conversation || is_wp_error( $conversation ) ) {
+			return is_wp_error( $conversation ) ? $conversation : new WP_Error( 'conversation_error', __( 'Unable to initialize conversation record.', 'tripcosmos-agents' ) );
 		}
 
 		// 3. Save User Message
