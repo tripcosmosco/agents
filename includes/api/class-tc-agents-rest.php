@@ -23,15 +23,16 @@ class TC_Agents_REST {
 		} );
 
 		// Prevent LiteSpeed / aggressive page cache from rejecting public chat/lead requests due to stale nonces
+		// Must run at priority 101 to run AFTER WordPress core's rest_cookie_check_errors (which runs at priority 100)
 		add_filter( 'rest_authentication_errors', function( $result ) {
-			if ( is_wp_error( $result ) && 'rest_cookie_invalid_nonce' === $result->get_error_code() ) {
+			if ( is_wp_error( $result ) && ( 'rest_cookie_invalid_nonce' === $result->get_error_code() || 'rest_forbidden' === $result->get_error_code() ) ) {
 				$uri = isset( $_SERVER['REQUEST_URI'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REQUEST_URI'] ) ) : '';
 				if ( false !== strpos( $uri, '/tc-agents/v1/chat' ) || false !== strpos( $uri, '/tc-agents/v1/lead-capture' ) || false !== strpos( $uri, '/tc-agents/v1/conversations' ) ) {
 					return true;
 				}
 			}
 			return $result;
-		}, 9 );
+		}, 101 );
 
 		// 1. Chat Endpoint (Widget, Mobile & Console)
 		register_rest_route(

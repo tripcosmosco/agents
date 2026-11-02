@@ -1356,9 +1356,8 @@
 				'Content-Type': 'application/json',
 				'Accept': 'text/event-stream, application/json'
 			};
-			if (cfg.currentUser && cfg.nonce) {
-				requestHeaders['X-WP-Nonce'] = cfg.nonce;
-			}
+			// Public chat endpoint is guarded by session and rate limits; avoid stale REST cookie nonce failures
+			// if (cfg.currentUser && cfg.nonce) { requestHeaders['X-WP-Nonce'] = cfg.nonce; }
 			fetch(restUrl, {
 				method: 'POST',
 				credentials: 'same-origin',
