@@ -675,7 +675,7 @@ $wa_mode            = get_option( 'tc_agents_whatsapp_mode', 'evolution' );
 				<tr>
 					<th scope="row"><label for="gads_conversion_label">Conversion Action Label (Optional)</label></th>
 					<td>
-						<input type="text" name="gads_conversion_label" id="gads_conversion_label" class="tc-input-lux" value="<?php echo esc_attr( get_option( 'tc_agents_gads_conversion_label', '' ) ); ?>" placeholder="e.g. AbC-D_efGHIjKLMnOP" />
+						<input type="text" name="gads_conversion_label" id="gads_conversion_label" class="tc-input-lux" value="<?php echo esc_attr( get_option( 'tc_agents_gads_conversion_label', 'bLh-CM-swOoaEOKzgN0_' ) ); ?>" placeholder="e.g. AbC-D_efGHIjKLMnOP" />
 						<p class="description">From Google Ads &rarr; Goals &rarr; Conversions &rarr; Summary &rarr; Click your conversion action &rarr; Tag setup &rarr; Use Google tag &rarr; The alphanumeric string after <code>AW-XXXXXXXXX/</code>.</p>
 					</td>
 				</tr>

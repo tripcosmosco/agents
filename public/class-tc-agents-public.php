@@ -137,7 +137,7 @@ class TC_Agents_Public {
 				'gtmEnabled'     => '1' === (string) get_option( 'tc_agents_gtm_enabled', '1' ),
 				'leadValue'      => (float) get_option( 'tc_agents_lead_conversion_value', 1500 ),
 				'gadsConversionId' => get_option( 'tc_agents_gads_conversion_id', 'AW-17106475490' ),
-				'gadsConversionLabel' => get_option( 'tc_agents_gads_conversion_label', '' ),
+				'gadsConversionLabel' => get_option( 'tc_agents_gads_conversion_label', 'bLh-CM-swOoaEOKzgN0_' ),
 				'gadsConversionActionId' => get_option( 'tc_agents_gads_conversion_action_id', '' ),
 			)
 		);

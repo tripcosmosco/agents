@@ -337,6 +337,14 @@
 							'phone_number': convPayload.user_data.phone_number || undefined
 						});
 					}
+					if (cfg.gadsConversionId && cfg.gadsConversionLabel) {
+						window.gtag('event', 'conversion', {
+							'send_to': cfg.gadsConversionId + '/' + cfg.gadsConversionLabel,
+							'value': convPayload.value,
+							'currency': convPayload.currency || 'INR',
+							'transaction_id': sessionId
+						});
+					}
 				}
 			}
 
