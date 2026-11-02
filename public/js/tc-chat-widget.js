@@ -1118,9 +1118,9 @@
 				const leadCapUrl = getCfg().leadCaptureUrl || '/wp-json/tc-agents/v1/lead-capture';
 				fetch(leadCapUrl, {
 					method: 'POST',
+					credentials: 'same-origin',
 					headers: {
-						'Content-Type': 'application/json',
-						'X-WP-Nonce': cfg.nonce || ''
+						'Content-Type': 'application/json'
 					},
 					body: JSON.stringify({
 						name: name,
@@ -1139,8 +1139,16 @@
 						page_title: document.title
 					})
 				})
-				.then(function(res) { return res.json(); })
+				.then(function(res) {
+					if (!res.ok) {
+						throw new Error('Server returned HTTP ' + res.status);
+					}
+					return res.json();
+				})
 				.then(function(data) {
+					if (data && data.success === false) {
+						throw new Error(data.error || 'Server error');
+					}
 					if (quoteSuccess) quoteSuccess.style.display = 'block';
 					trackEvent('tc_agent_quote_submitted', {
 						name: name,
