@@ -4349,7 +4349,7 @@ class TC_Agents_Mobile_API {
 			return new WP_REST_Response( array( 'ok' => false, 'error' => 'Master AI Assistant unavailable' ), 500 );
 		}
 		$p        = $request->get_json_params() ?: $request->get_params();
-		$message  = sanitize_text_field( $p['message'] ?? '' );
+		$message  = sanitize_textarea_field( $p['message'] ?? '' );
 		$history  = ! empty( $p['history'] ) && is_array( $p['history'] ) ? $p['history'] : array();
 		$context  = ! empty( $p['context'] ) && is_array( $p['context'] ) ? $p['context'] : array();
 		$is_admin = class_exists( 'TC_Agents_Mobile_CRM_API' ) && TC_Agents_Mobile_CRM_API::is_admin_or_manager( $request );
