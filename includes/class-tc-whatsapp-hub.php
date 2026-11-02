@@ -266,9 +266,12 @@ public static function on_customer_message( array $contact, $text, $is_new ) {
 				}
 				set_transient( $new_lead_key, 1, 60 );
 			}
-			$head = $is_new ? "🟢 *New WhatsApp lead* · #{$id}" : "💬 *{$name}* · #{$id}";
-			$body = $is_new ? "{$head}\n*{$name}* · {$phone}\n{$quote}" : "{$head}\n{$quote}";
-			$body .= "\n\n↩️ Swipe-reply to answer from the TripCosmos number.";
+			$clean_target = preg_replace( '/\D/', '', $phone );
+			$prompt_phone = strlen( $clean_target ) >= 10 ? substr( $clean_target, -10 ) : $phone;
+			$pretty_ph    = self::pretty_phone( $phone );
+			$head = $is_new ? "🟢 *New WhatsApp Lead: {$name}*" : "💬 *{$name}* ({$pretty_ph})";
+			$body = $is_new ? "{$head}\n📱 *{$pretty_ph}*\n{$quote}" : "{$head}\n{$quote}";
+			$body .= "\n\n↩️ Swipe-reply or send: *{$prompt_phone} <message>*";
 			self::alert( $owner, $body, $id );
 			return;
 		}
@@ -278,8 +281,11 @@ public static function on_customer_message( array $contact, $text, $is_new ) {
 
 		if ( ! $already_sent ) {
 			set_transient( $debounced_key, 1, 15 * MINUTE_IN_SECONDS );
+			$clean_target = preg_replace( '/\D/', '', $phone );
+			$prompt_phone = strlen( $clean_target ) >= 10 ? substr( $clean_target, -10 ) : $phone;
+			$pretty_ph    = self::pretty_phone( $phone );
 			foreach ( TC_CRM_Access::team( TC_CRM_Access::CAP_MANAGE ) as $m ) {
-				self::alert( (int) $m->ID, "🟡 *Unassigned WhatsApp lead* · #{$id}\n*{$name}* · {$phone}\n{$quote}\n\n↩️ Reply *CLAIM* to take it, or swipe-reply to answer.", $id );
+				self::alert( (int) $m->ID, "🟡 *Unassigned WhatsApp Lead: {$name}*\n📱 *{$pretty_ph}*\n{$quote}\n\n↩️ Reply *CLAIM* or send: *{$prompt_phone} <message>*", $id );
 			}
 		} else {
 			// Subdued compact snippet throttled so managers aren't pinged for rapid-fire typing
@@ -358,38 +364,129 @@ public static function on_customer_message( array $contact, $text, $is_new ) {
 
 	/* ------------------------------------------------------------------ staff side */
 
-	/** Which lead a staff message is about: the alert it quotes, or an explicit "#123" prefix. Returns [contact_id, text]. */
-	public static function target_of( array $n ) {
-		$text = trim( (string) $n['text'] );
-		if ( '' !== (string) ( $n['quoted_id'] ?? '' ) ) {
+	/**
+	 * Intelligent Contact Targeting: Phone, Email, Name, Quoted Alert, or Active Thread Memory.
+	 * Returns [contact_id, text, target_method].
+	 */
+	public static function target_of( array $n, $staff_user_id = 0 ) {
+		$text       = trim( (string) ( $n['text'] ?? '' ) );
+		$staff_from = preg_replace( '/\D/', '', (string) ( $n['from'] ?? '' ) );
+		$clean_from = substr( $staff_from, -10 );
+
+		// 1. Quoted Message / Swipe-Reply
+		if ( ! empty( $n['quoted_id'] ) ) {
 			$cid = (int) get_transient( 'tc_wa_alert_' . md5( $n['quoted_id'] ) );
 			if ( $cid ) {
-				return array( $cid, $text );
+				return array( $cid, $text, 'quoted_id' );
 			}
 		}
-		// Match "#123 text"
+
+		// Also check quoted_text if transient expired or not cached
+		$quoted_text = (string) ( $n['quoted_text'] ?? '' );
+		if ( ! empty( $quoted_text ) ) {
+			if ( preg_match( '/(\+?91[\s\-]?[0-9]{5}[\s\-]?[0-9]{5}|\+?[0-9]{10,13})/', $quoted_text, $qm ) ) {
+				$found = TC_Contact_Service::find( '', $qm[1] );
+				if ( $found && ! empty( $found['id'] ) ) {
+					return array( (int) $found['id'], $text, 'quoted_phone' );
+				}
+			}
+			if ( preg_match( '/#(\d{1,9})/', $quoted_text, $qm ) ) {
+				return array( (int) $qm[1], $text, 'quoted_id_text' );
+			}
+		}
+
+		// 2. Explicit Phone Number Prefix (e.g. "98433284773 Namaste...", "+9198433284773...", "to: 918433284773...")
+		if ( preg_match( '/^(?:to:\s*)?(\+?[0-9\s\-]{10,16})[:\s\-]+(.*)$/is', $text, $m ) ) {
+			$digits = preg_replace( '/\D/', '', $m[1] );
+			if ( strlen( $digits ) >= 10 ) {
+				$found = TC_Contact_Service::find( '', $digits );
+				if ( $found && ! empty( $found['id'] ) ) {
+					return array( (int) $found['id'], trim( $m[2] ), 'phone' );
+				}
+				// Auto-create contact for new phone so agent can immediately message any customer
+				$e164 = TC_Contact_Service::normalize_phone( $digits );
+				if ( ! empty( $e164 ) ) {
+					$upsert_res = TC_Contact_Service::upsert( array(
+						'phone'          => $e164,
+						'name'           => 'Traveler ' . substr( $digits, -4 ),
+						'stage'          => 'inquiry',
+						'source_channel' => 'whatsapp_staff_relay',
+						'owner_user_id'  => $staff_user_id,
+					) );
+					if ( ! empty( $upsert_res['contact']['id'] ) ) {
+						return array( (int) $upsert_res['contact']['id'], trim( $m[2] ), 'phone_created' );
+					}
+				}
+			}
+		}
+
+		// 3. Explicit Email Prefix (e.g. "client@gmail.com Namaste...", "to: client@gmail.com...")
+		if ( preg_match( '/^(?:to:\s*)?([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})[:\s\-]+(.*)$/is', $text, $m ) ) {
+			$email = sanitize_email( $m[1] );
+			if ( is_email( $email ) ) {
+				$found = TC_Contact_Service::find( $email, '' );
+				if ( $found && ! empty( $found['id'] ) ) {
+					return array( (int) $found['id'], trim( $m[2] ), 'email' );
+				}
+			}
+		}
+
+		// 4. Mention by Name (@Name or to: Name)
+		if ( preg_match( '/^(?:@|to:\s*)([a-zA-Z0-9\s]{3,25})[:\s\-]+(.*)$/is', $text, $m ) ) {
+			$candidate_name = trim( $m[1] );
+			$reserved = array( 'CLAIM', 'STATUS', 'INFO', 'AI', 'STAGE', 'NOTE', 'WON', 'LOST', 'QUOTE', 'STOP', 'HELP', 'LEADS' );
+			if ( ! in_array( strtoupper( $candidate_name ), $reserved, true ) ) {
+				global $wpdb;
+				$table    = TC_Contact_Service::table();
+				$found_id = (int) $wpdb->get_var( $wpdb->prepare(
+					"SELECT id FROM {$table} WHERE name LIKE %s ORDER BY id DESC LIMIT 1",
+					'%' . $wpdb->esc_like( $candidate_name ) . '%'
+				) );
+				if ( $found_id ) {
+					return array( $found_id, trim( $m[2] ), 'name' );
+				}
+			}
+		}
+
+		// 5. Legacy #123 lead number fallback
 		if ( preg_match( '/^#(\d{1,9})\s*(.*)$/s', $text, $m ) ) {
-			return array( (int) $m[1], trim( $m[2] ) );
+			return array( (int) $m[1], trim( $m[2] ), 'lead_id' );
 		}
-		// Match "CLAIM #123" or "CLAIM 123"
+
+		// 6. Match "CLAIM" commands (CLAIM, CLAIM #123, CLAIM 98433284773)
+		if ( preg_match( '/^CLAIM\s*(\+?[0-9\s\-]{10,16})$/i', $text, $m ) ) {
+			$found = TC_Contact_Service::find( '', $m[1] );
+			if ( $found && ! empty( $found['id'] ) ) {
+				return array( (int) $found['id'], 'CLAIM', 'claim_phone' );
+			}
+		}
 		if ( preg_match( '/^CLAIM\s*#?(\d{1,9})$/i', $text, $m ) ) {
-			return array( (int) $m[1], 'CLAIM' );
+			return array( (int) $m[1], 'CLAIM', 'claim' );
 		}
-		// Match plain "CLAIM"
 		if ( 0 === strcasecmp( $text, 'CLAIM' ) ) {
-			$clean_from = substr( preg_replace( '/\D/', '', (string) $n['from'] ), -10 );
-			$last_cid   = (int) get_transient( 'tc_wa_last_alert_' . $clean_from );
+			$last_cid = (int) get_transient( 'tc_wa_last_alert_' . $clean_from );
 			if ( $last_cid ) {
-				return array( $last_cid, 'CLAIM' );
+				return array( $last_cid, 'CLAIM', 'claim' );
 			}
 			global $wpdb;
-			$table = $wpdb->prefix . 'tc_agent_contacts';
+			$table = TC_Contact_Service::table();
 			$recent_unassigned = $wpdb->get_var( "SELECT id FROM {$table} WHERE owner_user_id = 0 ORDER BY id DESC LIMIT 1" );
 			if ( $recent_unassigned ) {
-				return array( (int) $recent_unassigned, 'CLAIM' );
+				return array( (int) $recent_unassigned, 'CLAIM', 'claim' );
 			}
 		}
-		return array( 0, $text );
+
+		// 7. Contextual Active Thread Memory:
+		// If agent was alerted about a lead recently and sends a direct reply without command keywords, route to that lead!
+		if ( ! empty( $clean_from ) ) {
+			$last_cid = (int) get_transient( 'tc_wa_last_alert_' . $clean_from );
+			$is_system_cmd = in_array( strtoupper( $text ), array( 'STATUS', 'INFO', 'HELP', 'COMMANDS', 'LEADS', 'AI ON', 'AI OFF' ), true );
+			if ( $last_cid && ! $is_system_cmd ) {
+				return array( $last_cid, $text, 'active_memory' );
+			}
+		}
+
+		return array( 0, $text, 'none' );
 	}
 
 	public static function handle_staff_message( $user_id, array $n ) {
@@ -398,9 +495,39 @@ public static function on_customer_message( array $contact, $text, $is_new ) {
 			return new WP_REST_Response( array( 'status' => 'staff', 'reply' => $text ), 200 );
 		};
 
-		list( $cid, $text ) = self::target_of( $n );
+		$raw_cmd = strtoupper( trim( (string) ( $n['text'] ?? '' ) ) );
+
+		// Global STATUS / LEADS command: list agent's active traveler leads with phone numbers
+		if ( in_array( $raw_cmd, array( 'STATUS', 'LEADS', 'MY LEADS' ), true ) ) {
+			global $wpdb;
+			$table  = TC_Contact_Service::table();
+			$recent = $wpdb->get_results( $wpdb->prepare(
+				"SELECT id, name, phone, stage, updated_at FROM {$table} WHERE owner_user_id = %d ORDER BY updated_at DESC LIMIT 5",
+				$user_id
+			), ARRAY_A );
+			if ( empty( $recent ) ) {
+				return $reply( "📋 *Your Assigned Traveler Leads:* None active.\n\nSend *CLAIM* to pick up unassigned incoming travelers, or start a chat with: *<phone_number> <message>*." );
+			}
+			$msg = "📋 *Your Active Traveler Leads:*\n";
+			foreach ( $recent as $r ) {
+				$pretty = self::pretty_phone( $r['phone'] );
+				$clean  = substr( preg_replace( '/\D/', '', $r['phone'] ), -10 );
+				$st     = TC_Contact_Service::stages()[ $r['stage'] ] ?? $r['stage'];
+				$msg   .= "• *{$r['name']}* ({$pretty}) · *{$st}*\n  👉 Reply: *{$clean} <message>*\n";
+			}
+			return $reply( $msg );
+		}
+
+		list( $cid, $text, $target_method ) = self::target_of( $n, $user_id );
 		if ( ! $cid ) {
-			return $reply( "To answer a customer, swipe-reply to their alert, or start your message with the lead number, e.g. *#12 Namaste…*" );
+			return $reply( "💬 *How to message a traveler:*\n"
+				. "• *By Phone:* Start message with traveler's phone: e.g. *98433284773 Namaste…*\n"
+				. "• *By Email:* e.g. *client@gmail.com Namaste…*\n"
+				. "• *By Name:* e.g. *@Rahul Namaste…*\n"
+				. "• *Swipe-reply:* Swipe right on the traveler's alert to answer.\n\n"
+				. "⚡ Commands:\n"
+				. "• *STATUS* — View your active leads\n"
+				. "• *CLAIM* — Claim the latest unassigned traveler" );
 		}
 		$contact = TC_Contact_Service::get( $cid );
 		if ( ! $contact || '' === (string) $contact['phone'] ) {
@@ -504,6 +631,19 @@ public static function on_customer_message( array $contact, $text, $is_new ) {
 		$u = get_userdata( $user_id );
 		self::record_agent_message( $contact, $text, (string) $sent, $u ? $u->display_name : 'staff' );
 		TC_Agents_Logger::log( 'whatsapp_relay', 'info', array( 'lead_id' => $cid, 'user_id' => (int) $user_id ), '', 'whatsapp' );
+
+		// Keep active thread memory alive for continuous conversation
+		$staff_clean = substr( preg_replace( '/\D/', '', (string) $n['from'] ), -10 );
+		if ( ! empty( $staff_clean ) ) {
+			set_transient( 'tc_wa_last_alert_' . $staff_clean, (int) $cid, DAY_IN_SECONDS );
+		}
+
+		// When routed via active memory or explicit phone, send friendly confirmation to agent
+		if ( 'active_memory' === $target_method || 'phone_created' === $target_method ) {
+			$pretty_target = self::pretty_phone( $contact['phone'] );
+			TC_Integration_WhatsApp::send_message( $n['from'], "✓ Delivered to *{$name}* ({$pretty_target})" );
+		}
+
 		return new WP_REST_Response( array( 'status' => 'relayed', 'lead_id' => $cid ), 200 );
 	}
 

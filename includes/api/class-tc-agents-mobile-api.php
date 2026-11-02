@@ -339,6 +339,42 @@ class TC_Agents_Mobile_API {
 			)
 		);
 
+		// 26b. Ground Tariffs & Activity Pricing
+		register_rest_route(
+			self::NAMESPACE,
+			'/mobile/tariffs',
+			array(
+				array(
+					'methods'             => 'GET',
+					'callback'            => array( __CLASS__, 'handle_get_tariffs' ),
+					'permission_callback' => array( __CLASS__, 'verify_token' ),
+				),
+				array(
+					'methods'             => 'POST',
+					'callback'            => array( __CLASS__, 'handle_update_tariffs' ),
+					'permission_callback' => array( __CLASS__, 'verify_token' ),
+				),
+			)
+		);
+
+		// 26c. Cab Fleet & Vehicle Tariff Customization
+		register_rest_route(
+			self::NAMESPACE,
+			'/mobile/cabs',
+			array(
+				array(
+					'methods'             => 'GET',
+					'callback'            => array( __CLASS__, 'handle_get_cabs' ),
+					'permission_callback' => array( __CLASS__, 'verify_token' ),
+				),
+				array(
+					'methods'             => 'POST',
+					'callback'            => array( __CLASS__, 'handle_update_cabs' ),
+					'permission_callback' => array( __CLASS__, 'verify_token' ),
+				),
+			)
+		);
+
 		// 27. Superfone Unified Thread Timeline (Real Evolution WhatsApp Messages + Calls + Internal Notes)
 		register_rest_route(
 			self::NAMESPACE,
@@ -948,14 +984,14 @@ class TC_Agents_Mobile_API {
 		$table_audit = $wpdb->prefix . 'tc_agent_audit_log';
 		$limit       = min( 100, max( 1, (int) ( $request->get_param( 'limit' ) ?: 50 ) ) );
 		$offset      = max( 0, (int) $request->get_param( 'offset' ) );
+		$fetch_limit = min( 400, max( 50, ( $limit + $offset ) * 4 ) );
 
 		$rows = $wpdb->get_results(
 			$wpdb->prepare(
 				"SELECT id, event_type, details, channel, created_at FROM {$table_audit} 
 				 WHERE event_type IN ('mobile_call_logged', 'jio_sim_call_status') 
-				 ORDER BY id DESC LIMIT %d OFFSET %d",
-				$limit,
-				$offset
+				 ORDER BY id DESC LIMIT %d",
+				$fetch_limit
 			),
 			ARRAY_A
 		) ?: array();
@@ -996,7 +1032,16 @@ class TC_Agents_Mobile_API {
 			}
 		}
 
-		$calls = array();
+		$status_priority = array(
+			'completed' => 4,
+			'busy'      => 3,
+			'failed'    => 3,
+			'missed'    => 3,
+			'connected' => 2,
+			'dialing'   => 1,
+		);
+
+		$calls_map = array();
 		foreach ( $rows as $row ) {
 			$details = json_decode( (string) ( $row['details'] ?? '' ), true ) ?: array();
 			$phone   = $details['phone'] ?? '';
@@ -1014,9 +1059,9 @@ class TC_Agents_Mobile_API {
 			if ( 'incoming' === $direction ) {
 				$direction = 'inbound';
 			}
-			$status   = $details['status'] ?? 'completed';
+			$status   = strtolower( (string) ( $details['status'] ?? 'completed' ) );
 			$duration = (int) ( $details['duration'] ?? $details['duration_seconds'] ?? 0 );
-			$notes    = $details['notes'] ?? '';
+			$notes    = (string) ( $details['notes'] ?? '' );
 
 			// Name lookup from batch map or staff map
 			$customer_name = 'Traveler';
@@ -1027,24 +1072,68 @@ class TC_Agents_Mobile_API {
 				$customer_name = $my_phones[ $digits ];
 			}
 
-			$calls[] = array(
-				'id'               => (string) ( $details['call_id'] ?? ( 'cl_' . $row['id'] ) ),
-				'phone'            => $phone,
-				'customer_name'    => $customer_name,
-				'direction'        => $direction,
-				'status'           => $status,
-				'timestamp'        => $row['created_at'],
-				'duration_seconds' => $duration,
-				'notes'            => $notes,
-				'ai_qualified'     => ! empty( $details['ai_qualified'] ) || $duration >= 60,
-			);
+			// Deduplication: Cluster call attempts to same phone within 180s (3 min) into a single session
+			$created_ts  = strtotime( (string) $row['created_at'] );
+			$matched_key = null;
+			foreach ( $calls_map as $k => $c ) {
+				$c_digits = substr( preg_replace( '/\D/', '', $c['phone'] ), -10 );
+				if ( $c_digits === $digits ) {
+					$c_ts = strtotime( $c['timestamp'] );
+					if ( abs( $created_ts - $c_ts ) <= 180 ) {
+						$matched_key = $k;
+						break;
+					}
+				}
+			}
+			$raw_call_id = ! empty( $details['call_id'] ) ? (string) $details['call_id'] : '';
+			$minute_key  = substr( (string) $row['created_at'], 0, 16 );
+			$call_key    = $matched_key ?: ( $digits . '_' . $minute_key );
+
+			if ( ! isset( $calls_map[ $call_key ] ) ) {
+				$calls_map[ $call_key ] = array(
+					'id'               => ! empty( $raw_call_id ) ? $raw_call_id : ( 'cl_' . $row['id'] ),
+					'phone'            => $phone,
+					'customer_name'    => $customer_name,
+					'direction'        => $direction,
+					'status'           => $status,
+					'timestamp'        => $row['created_at'],
+					'duration_seconds' => $duration,
+					'notes'            => $notes,
+					'ai_qualified'     => ! empty( $details['ai_qualified'] ) || $duration >= 60,
+				);
+			} else {
+				// Merge to retain the highest-fidelity status and duration
+				$existing = &$calls_map[ $call_key ];
+				$curr_pri = $status_priority[ $existing['status'] ] ?? 0;
+				$new_pri  = $status_priority[ $status ] ?? 0;
+
+				if ( $new_pri > $curr_pri ) {
+					$existing['status'] = $status;
+				}
+				if ( $duration > $existing['duration_seconds'] ) {
+					$existing['duration_seconds'] = $duration;
+				}
+				if ( empty( $existing['notes'] ) && ! empty( $notes ) ) {
+					$existing['notes'] = $notes;
+				}
+				if ( ! empty( $details['ai_qualified'] ) || $existing['duration_seconds'] >= 60 ) {
+					$existing['ai_qualified'] = true;
+				}
+				if ( 'Traveler' === $existing['customer_name'] && 'Traveler' !== $customer_name ) {
+					$existing['customer_name'] = $customer_name;
+				}
+				unset( $existing );
+			}
 		}
+
+		$all_calls = array_values( $calls_map );
+		$sliced    = array_slice( $all_calls, $offset, $limit );
 
 		return new WP_REST_Response(
 			array(
 				'ok'    => true,
-				'count' => count( $calls ),
-				'calls' => $calls,
+				'count' => count( $sliced ),
+				'calls' => $sliced,
 			),
 			200
 		);
@@ -1382,6 +1471,7 @@ class TC_Agents_Mobile_API {
 
 		$unified_threads = array();
 		$seen_suffixes   = array();
+		$seen_contact_ids = array();
 
 		foreach ( $evo_chats as $chat ) {
 			$raw_phone = (string) ( $chat['phone'] ?? '' );
@@ -1397,11 +1487,25 @@ class TC_Agents_Mobile_API {
 			if ( ! $is_admin && ! isset( $contact_by_suffix[ $suffix ] ) ) {
 				continue;
 			}
-			if ( '' !== $suffix ) {
-				$seen_suffixes[ $suffix ] = true;
+
+			// Deduplication: Skip if phone suffix already present in thread list
+			if ( '' !== $suffix && isset( $seen_suffixes[ $suffix ] ) ) {
+				continue;
 			}
 
 			$matched_contact = ( '' !== $suffix && isset( $contact_by_suffix[ $suffix ] ) ) ? $contact_by_suffix[ $suffix ] : null;
+
+			// Skip if contact ID was already added via another channel or LID JID
+			if ( $matched_contact && isset( $seen_contact_ids[ (int) $matched_contact['id'] ] ) ) {
+				continue;
+			}
+
+			if ( '' !== $suffix ) {
+				$seen_suffixes[ $suffix ] = true;
+			}
+			if ( $matched_contact ) {
+				$seen_contact_ids[ (int) $matched_contact['id'] ] = true;
+			}
 			$matched_agency  = ( '' !== $suffix && isset( $agency_by_suffix[ $suffix ] ) ) ? $agency_by_suffix[ $suffix ] : null;
 
 			$meta = $matched_contact ? ( json_decode( (string) ( $matched_contact['meta_data'] ?? '' ), true ) ?: array() ) : array();
@@ -1473,12 +1577,17 @@ class TC_Agents_Mobile_API {
 
 		// 4. Append remaining CRM contacts (Website Chat, Phone Calls, Meta Ads, etc.) not already in Evolution list
 		foreach ( $contacts as $c ) {
+			$cid = (int) $c['id'];
+			if ( isset( $seen_contact_ids[ $cid ] ) ) {
+				continue;
+			}
 			$digits = preg_replace( '/\D/', '', (string) $c['phone'] );
 			$suffix = strlen( $digits ) >= 10 ? substr( $digits, -10 ) : $digits;
 			if ( '' === $suffix || isset( $seen_suffixes[ $suffix ] ) || '9336116210' === $suffix ) {
 				continue;
 			}
 			$seen_suffixes[ $suffix ] = true;
+			$seen_contact_ids[ $cid ] = true;
 
 			$meta        = json_decode( (string) ( $c['meta_data'] ?? '' ), true ) ?: array();
 			$matched_ag  = isset( $agency_by_suffix[ $suffix ] ) ? $agency_by_suffix[ $suffix ] : null;
@@ -3500,10 +3609,10 @@ class TC_Agents_Mobile_API {
 		if ( $contact_id > 0 ) {
 			$wp_msgs = $wpdb->get_results(
 				$wpdb->prepare(
-					"SELECT m.id, m.role, m.content, m.external_id, m.created_at, cv.channel
+					"SELECT m.id, m.role, m.content, m.external_id, m.media_type, m.media_url, m.created_at, cv.channel
 					 FROM {$wpdb->prefix}tc_agent_messages m
 					 INNER JOIN {$wpdb->prefix}tc_agent_conversations cv ON cv.id = m.conversation_id
-					 WHERE cv.contact_id = %d AND m.content <> '' AND m.role IN ('user', 'assistant', 'agent')
+					 WHERE cv.contact_id = %d AND (m.content <> '' OR m.media_url <> '') AND m.role IN ('user', 'assistant', 'agent')
 					 ORDER BY m.id DESC LIMIT 30",
 					$contact_id
 				),
@@ -3529,6 +3638,8 @@ class TC_Agents_Mobile_API {
 					'timestamp'        => gmdate( 'c', $ts ),
 					'epoch'            => $ts,
 					'status'           => 'read',
+					'media_url'        => (string) ( $wm['media_url'] ?? '' ),
+					'media_type'       => (string) ( $wm['media_type'] ?? '' ),
 					'is_internal_note' => false,
 					'is_call_event'    => false,
 					'channel'          => (string) ( $wm['channel'] ?: 'web' ),
@@ -4677,4 +4788,228 @@ class TC_Agents_Mobile_API {
 			'permissions' => $clean_matrix,
 		), 200 );
 	}
+	/**
+	 * Retrieve customizable Ground Tariffs & Activity Pricing.
+	 */
+	public static function handle_get_tariffs( WP_REST_Request $request ) {
+		$defaults = array(
+			array(
+				'id'          => 'sugam_darshan',
+				'title'       => 'Kashi Vishwanath VIP Sugam Darshan Pass',
+				'price'       => 600,
+				'is_per_pax'  => true,
+				'description' => 'Direct priest-assisted priority entry via Gate 4',
+			),
+			array(
+				'id'          => 'aarti_boat',
+				'title'       => 'Dashashwamedh Aarti Reserved Bajra Boat',
+				'price'       => 1500,
+				'is_per_pax'  => false,
+				'description' => 'Reserved deck space opposite Main Ganga Aarti',
+			),
+			array(
+				'id'          => 'airport_pickup',
+				'title'       => 'Varanasi Airport / Station Pickup & Drop',
+				'price'       => 1200,
+				'is_per_pax'  => false,
+				'description' => 'Dedicated AC commercial cab with driver assistance',
+			),
+			array(
+				'id'          => 'subah_e_banaras',
+				'title'       => 'Subah-e-Banaras Morning Boat Ride',
+				'price'       => 500,
+				'is_per_pax'  => true,
+				'description' => 'Sunrise boat ride from Assi to Manikarnika Ghat',
+			),
+			array(
+				'id'          => 'panda_shastri',
+				'title'       => 'Vedic Shastri / Panda Sankalp Pooja',
+				'price'       => 1500,
+				'is_per_pax'  => false,
+				'description' => 'Experienced certified Shastri for family sankalp',
+			),
+		);
+
+		$saved = get_option( 'tc_agents_ground_tariffs', array() );
+		$tariffs = ! empty( $saved ) && is_array( $saved ) ? $saved : $defaults;
+
+		return new WP_REST_Response(
+			array(
+				'success' => true,
+				'tariffs' => $tariffs,
+			),
+			200
+		);
+	}
+
+	/**
+	 * Update customizable Ground Tariffs & Activity Pricing.
+	 */
+	public static function handle_update_tariffs( WP_REST_Request $request ) {
+		$tariffs = $request->get_param( 'tariffs' );
+		if ( ! is_array( $tariffs ) ) {
+			return new WP_REST_Response( array( 'error' => 'Invalid tariffs payload' ), 400 );
+		}
+
+		$clean = array();
+		foreach ( $tariffs as $item ) {
+			if ( empty( $item['id'] ) || empty( $item['title'] ) ) {
+				continue;
+			}
+			$clean[] = array(
+				'id'          => sanitize_key( $item['id'] ),
+				'title'       => sanitize_text_field( $item['title'] ),
+				'price'       => max( 0, (int) ( $item['price'] ?? 0 ) ),
+				'is_per_pax'  => ! empty( $item['is_per_pax'] ),
+				'description' => sanitize_text_field( $item['description'] ?? '' ),
+			);
+		}
+
+		update_option( 'tc_agents_ground_tariffs', $clean );
+
+		return new WP_REST_Response(
+			array(
+				'success' => true,
+				'tariffs' => $clean,
+				'message' => 'Ground activity tariffs updated successfully',
+			),
+			200
+		);
+	}
+
+	/**
+	 * Retrieve customizable Cab Fleet & Vehicle Tariffs.
+	 */
+	public static function handle_get_cabs( WP_REST_Request $request ) {
+		$defaults = array(
+			array(
+				'id'                => 'sedan',
+				'name'              => 'AC Sedan (Swift Dzire / Etios)',
+				'capacity'          => '4 Passengers + Driver',
+				'package_surcharge' => 0,
+				'rate_per_km'       => 12.0,
+				'local_8h80k'       => 1800,
+				'airport_transfer'  => 1100,
+				'driver_da'         => 400,
+				'is_active'         => true,
+			),
+			array(
+				'id'                => 'ertiga',
+				'name'              => 'Maruti Ertiga / XL6 (Budget MUV)',
+				'capacity'          => '6 Passengers + Driver',
+				'package_surcharge' => 1500,
+				'rate_per_km'       => 15.0,
+				'local_8h80k'       => 2400,
+				'airport_transfer'  => 1500,
+				'driver_da'         => 400,
+				'is_active'         => true,
+			),
+			array(
+				'id'                => 'innova',
+				'name'              => 'Toyota Innova Crysta (Luxury SUV)',
+				'capacity'          => '6-7 Passengers + Driver',
+				'package_surcharge' => 3500,
+				'rate_per_km'       => 19.0,
+				'local_8h80k'       => 3000,
+				'airport_transfer'  => 2000,
+				'driver_da'         => 450,
+				'is_active'         => true,
+			),
+			array(
+				'id'                => 'tempo_12',
+				'name'              => 'Force Tempo Traveller (12 Seater)',
+				'capacity'          => '12 Passengers + Chauffeur',
+				'package_surcharge' => 8000,
+				'rate_per_km'       => 25.0,
+				'local_8h80k'       => 4500,
+				'airport_transfer'  => 3000,
+				'driver_da'         => 500,
+				'is_active'         => true,
+			),
+			array(
+				'id'                => 'tempo_17',
+				'name'              => 'Force Tempo Traveller (17/20 Seater)',
+				'capacity'          => '17-20 Passengers + Chauffeur',
+				'package_surcharge' => 12000,
+				'rate_per_km'       => 28.0,
+				'local_8h80k'       => 5500,
+				'airport_transfer'  => 3800,
+				'driver_da'         => 600,
+				'is_active'         => true,
+			),
+			array(
+				'id'                => 'urbania_12',
+				'name'              => 'Force Urbania Luxury (10/12 Seater)',
+				'capacity'          => '10-12 Passengers + Chauffeur',
+				'package_surcharge' => 14000,
+				'rate_per_km'       => 32.0,
+				'local_8h80k'       => 6500,
+				'airport_transfer'  => 4500,
+				'driver_da'         => 600,
+				'is_active'         => true,
+			),
+			array(
+				'id'                => 'coach_26',
+				'name'              => 'Force / Tata Luxury Mini-Bus (26 Seater)',
+				'capacity'          => '26 Passengers + Chauffeur',
+				'package_surcharge' => 18000,
+				'rate_per_km'       => 35.0,
+				'local_8h80k'       => 7500,
+				'airport_transfer'  => 5000,
+				'driver_da'         => 700,
+				'is_active'         => true,
+			),
+		);
+
+		$saved = get_option( 'tc_agents_fleet_tariffs', array() );
+		$cabs  = ! empty( $saved ) && is_array( $saved ) ? $saved : $defaults;
+
+		return new WP_REST_Response(
+			array(
+				'success' => true,
+				'cabs'    => $cabs,
+			),
+			200
+		);
+	}
+
+	/**
+	 * Update customizable Cab Fleet & Vehicle Tariffs.
+	 */
+	public static function handle_update_cabs( WP_REST_Request $request ) {
+		$cabs = $request->get_param( 'cabs' );
+		if ( ! is_array( $cabs ) ) {
+			return new WP_REST_Response( array( 'error' => 'Invalid cabs payload' ), 400 );
+		}
+
+		$clean = array();
+		foreach ( $cabs as $item ) {
+			if ( empty( $item['name'] ) ) {
+				continue;
+			}
+			$clean[] = array(
+				'id'                => ! empty( $item['id'] ) ? sanitize_key( $item['id'] ) : ( 'cab_' . wp_generate_password( 6, false, false ) ),
+				'name'              => sanitize_text_field( $item['name'] ),
+				'capacity'          => sanitize_text_field( $item['capacity'] ?? '4 Pax' ),
+				'package_surcharge' => max( 0, (int) ( $item['package_surcharge'] ?? 0 ) ),
+				'rate_per_km'       => max( 0.0, (float) ( $item['rate_per_km'] ?? 0.0 ) ),
+				'local_8h80k'       => max( 0, (int) ( $item['local_8h80k'] ?? 0 ) ),
+				'airport_transfer'  => max( 0, (int) ( $item['airport_transfer'] ?? 0 ) ),
+				'driver_da'         => max( 0, (int) ( $item['driver_da'] ?? 400 ) ),
+				'is_active'         => ! isset( $item['is_active'] ) || ! empty( $item['is_active'] ),
+			);
+		}
+
+		update_option( 'tc_agents_fleet_tariffs', $clean );
+
+		return new WP_REST_Response(
+			array(
+				'success' => true,
+				'cabs'    => $clean,
+				'message' => 'Cab fleet tariffs updated successfully',
+			),
+			200
+		);
+	}
+
 }

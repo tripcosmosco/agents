@@ -148,9 +148,10 @@ class TC_Integration_Evolution {
 	 * Retrieve base64 encoded media payload for voice notes, photos, and documents.
 	 *
 	 * @param string $message_id Message ID.
+	 * @param bool $convert_mp4 Convert to MP4 if video/audio.
 	 * @return string Base64 string or empty string on failure.
 	 */
-	public static function get_media_base64( $message_id ) {
+	public static function get_media_base64( $message_id, $convert_mp4 = false ) {
 		if ( empty( $message_id ) ) {
 			return '';
 		}
@@ -160,13 +161,62 @@ class TC_Integration_Evolution {
 					'id' => $message_id,
 				),
 			),
-			'convertToMp4' => false,
+			'convertToMp4' => (bool) $convert_mp4,
 		);
 		$res = self::request( 'POST', self::instance_path( '/chat/getBase64FromMediaMessage' ), $payload, 15 );
-		if ( ! is_wp_error( $res ) && 200 === (int) ( $res['code'] ?? 0 ) && ! empty( $res['body']['base64'] ) ) {
+		if ( ! is_wp_error( $res ) && in_array( (int) ( $res['code'] ?? 0 ), array( 200, 201 ), true ) && ! empty( $res['body']['base64'] ) ) {
 			return (string) $res['body']['base64'];
 		}
 		return '';
+	}
+
+	/**
+	 * Resolves an accessible public URL for WhatsApp media (photos, videos, audio, PDFs).
+	 * Caches decrypted media under /wp-content/uploads/tc-media/{message_id}.{ext} to avoid repeat Evolution hits.
+	 */
+	public static function resolve_media_url( $message_id, $media_type = 'image', $existing_url = '' ) {
+		if ( empty( $message_id ) ) {
+			return $existing_url;
+		}
+
+		// If existing_url is already a valid non-encrypted public URL, return it
+		if ( ! empty( $existing_url ) && 0 === strpos( $existing_url, 'http' ) && false === strpos( $existing_url, 'mmg.whatsapp.net' ) && false === strpos( $existing_url, '.enc' ) ) {
+			return $existing_url;
+		}
+
+		$ext_map = array(
+			'image'    => 'jpeg',
+			'photo'    => 'jpeg',
+			'video'    => 'mp4',
+			'audio'    => 'mp3',
+			'document' => 'pdf',
+			'pdf'      => 'pdf',
+		);
+		$ext = $ext_map[ strtolower( $media_type ) ] ?? 'jpeg';
+
+		$upload_dir = wp_upload_dir();
+		$media_dir  = $upload_dir['basedir'] . '/tc-media';
+		$file_path  = $media_dir . '/' . $message_id . '.' . $ext;
+		$public_url = $upload_dir['baseurl'] . '/tc-media/' . $message_id . '.' . $ext;
+
+		if ( file_exists( $file_path ) && filesize( $file_path ) > 0 ) {
+			return $public_url;
+		}
+
+		// Fetch from Evolution API
+		$b64 = self::get_media_base64( $message_id, ( 'video' === $media_type ) );
+		if ( ! empty( $b64 ) ) {
+			if ( ! file_exists( $media_dir ) ) {
+				wp_mkdir_p( $media_dir );
+			}
+			$decoded = base64_decode( $b64 );
+			if ( ! empty( $decoded ) ) {
+				@file_put_contents( $file_path, $decoded );
+				return $public_url;
+			}
+		}
+
+		return $existing_url;
 	}
 
 	/**
@@ -429,10 +479,15 @@ class TC_Integration_Evolution {
 		if ( isset( $m['documentWithCaptionMessage']['message'] ) && is_array( $m['documentWithCaptionMessage']['message'] ) ) {
 			$m = $m['documentWithCaptionMessage']['message'];
 		}
-		$quoted = '';
+		$quoted      = '';
+		$quoted_text = '';
 		foreach ( $m as $part ) {
 			if ( is_array( $part ) && ! empty( $part['contextInfo']['stanzaId'] ) ) {
 				$quoted = (string) $part['contextInfo']['stanzaId'];
+				if ( ! empty( $part['contextInfo']['quotedMessage'] ) ) {
+					$qm          = $part['contextInfo']['quotedMessage'];
+					$quoted_text = (string) ( $qm['conversation'] ?? $qm['extendedTextMessage']['text'] ?? '' );
+				}
 				break;
 			}
 		}
@@ -442,7 +497,7 @@ class TC_Integration_Evolution {
 		};
 
 		if ( isset( $m['conversation'] ) ) {
-			return array( 'text' => (string) $m['conversation'], 'media' => '', 'quoted_id' => $quoted );
+			return array( 'text' => (string) $m['conversation'], 'media' => '', 'quoted_id' => $quoted, 'quoted_text' => $quoted_text );
 		}
 		if ( isset( $m['extendedTextMessage']['text'] ) ) {
 			return array( 'text' => (string) $m['extendedTextMessage']['text'], 'media' => '', 'quoted_id' => $quoted );
@@ -690,6 +745,14 @@ class TC_Integration_Evolution {
 				}
 			}
 
+			$media_type = (string) ( $parsed['media'] ?? '' );
+			$media_url  = (string) ( $parsed['media_url'] ?? '' );
+
+			// Auto-resolve encrypted media (WhatsApp MMG/ENC) into public cached files
+			if ( in_array( $media_type, array( 'image', 'photo', 'video', 'audio', 'document', 'pdf' ), true ) ) {
+				$media_url = self::resolve_media_url( $msg_id, $media_type, $media_url );
+			}
+
 			$messages[] = array(
 				'id'               => $msg_id,
 				'text'             => $text,
@@ -697,9 +760,9 @@ class TC_Integration_Evolution {
 				'timestamp'        => gmdate( 'c', $ts ),
 				'epoch'            => $ts,
 				'status'           => $status,
-				'media'            => (string) ( $parsed['media'] ?? '' ),
-				'media_url'        => (string) ( $parsed['media_url'] ?? '' ),
-				'media_type'       => (string) ( $parsed['media'] ?? '' ),
+				'media'            => $media_type,
+				'media_url'        => $media_url,
+				'media_type'       => $media_type,
 				'author_name'      => $from_me ? 'TripCosmos Desk' : (string) ( $rec['pushName'] ?? 'Customer' ),
 			);
 		}
