@@ -287,7 +287,8 @@
 
 		// 2. Omni-Channel Analytics & DataLayer Tracker
 		function trackEvent(eventName, params) {
-			params = params || {};
+			try {
+				params = params || {};
 			const payload = Object.assign({
 				event: eventName,
 				session_id: sessionId,
@@ -374,6 +375,9 @@
 						})
 					}).catch(function() {});
 				} catch (e) {}
+			}
+			} catch (trackErr) {
+				console.warn("[TC Agents] trackEvent caught error:", trackErr);
 			}
 		}
 
@@ -1158,15 +1162,19 @@
 						throw new Error(data.error || 'Server error');
 					}
 					if (quoteSuccess) quoteSuccess.style.display = 'block';
-					trackEvent('tc_agent_quote_submitted', {
-						name: name,
-						phone: phone,
-						email: email,
-						destination: destination,
-						travel_month: travelMonth,
-						group_size: groupReq
-					});
 					quoteForm.style.display = 'none';
+					try {
+						trackEvent('tc_agent_quote_submitted', {
+							name: name,
+							phone: phone,
+							email: email,
+							destination: destination,
+							travel_month: travelMonth,
+							group_size: groupReq
+						});
+					} catch (tErr) {
+						console.warn("[TC Agents] trackEvent error in quote form:", tErr);
+					}
 
 					// Auto-switch back to Guide chat after 1.2s and ask AI to deliver the full customized itinerary
 					setTimeout(function() {

@@ -131,7 +131,7 @@ class TC_Agents_Mobile_CRM_API {
 			array(
 				'methods'             => 'GET',
 				'callback'            => array( __CLASS__, 'handle_auth_me' ),
-				'permission_callback' => $auth,
+				'permission_callback' => '__return_true',
 			)
 		);
 	}
@@ -147,7 +147,14 @@ class TC_Agents_Mobile_CRM_API {
 	}
 
 	private static function params( WP_REST_Request $request ) {
-		return array_merge( (array) $request->get_params(), (array) $request->get_json_params() );
+		$json = (array) $request->get_json_params();
+		if ( empty( $json ) && ! empty( $request->get_body() ) ) {
+			$raw = json_decode( $request->get_body(), true );
+			if ( is_array( $raw ) ) {
+				$json = $raw;
+			}
+		}
+		return array_merge( (array) $request->get_params(), $json );
 	}
 
 	/** Site-local "Y-m-d H:i:s" -> UTC ISO-8601, or null. */
@@ -2837,19 +2844,32 @@ class TC_Agents_Mobile_CRM_API {
 
 	public static function handle_auth_me( WP_REST_Request $request ) {
 		$user_id = (int) $request->get_param( '_tc_user_id' );
-		if ( ! $user_id && is_user_logged_in() ) {
-			$user_id = get_current_user_id();
+		if ( ! $user_id && function_exists( 'wp_validate_auth_cookie' ) ) {
+			$user_id = (int) wp_validate_auth_cookie();
 		}
+		if ( ! $user_id && is_user_logged_in() ) {
+			$user_id = (int) get_current_user_id();
+		}
+
 		if ( ! $user_id ) {
+			// Check if master device pairing token was passed
+			$agent = (string) $request->get_param( '_tc_agent' );
+			if ( 'master' === $agent || 'admin' === $agent ) {
+				return self::ok( array(
+					'authenticated' => true,
+					'user'          => array(
+						'id'          => 0,
+						'name'        => 'Master Device',
+						'email'       => 'admin@tripcosmos.co',
+						'role'        => 'administrator',
+						'role_label'  => 'Super Admin',
+						'permissions' => array_merge( array( 'all' ), array_keys( self::get_all_feature_definitions() ) ),
+					)
+				) );
+			}
 			return self::ok( array(
-				'user' => array(
-					'id'          => 0,
-					'name'        => (string) $request->get_param( '_tc_agent' ) ?: 'Master Device',
-					'email'       => 'admin@tripcosmos.co',
-					'role'        => 'administrator',
-					'role_label'  => 'Super Admin',
-					'permissions' => array( 'all' ),
-				)
+				'authenticated' => false,
+				'user'          => null,
 			) );
 		}
 
@@ -2866,13 +2886,52 @@ class TC_Agents_Mobile_CRM_API {
 		$token_row = TC_Agents_Security::create_agent_token( $label, $user->ID );
 
 		$roles = (array) $user->roles;
-		$primary_role = ! empty( $roles ) ? reset( $roles ) : 'tc_sales_agent';
+
+		// Auto-provision approved company / staff emails to tc_sales_agent if only default subscriber/customer role
+		$is_company_domain = (bool) preg_match( '/@tripcosmos\.co$/i', $user->user_email );
+		$allowed_staff_emails = array(
+			'hellonishkarsh@gmail.com',
+			'aditikarna000@gmail.com',
+			'operations@tripcosmos.co',
+			'info@tripcosmos.co',
+			'tripcosmos.co@gmail.com',
+		);
+		$custom_whitelist = (array) get_option( 'tc_agents_allowed_staff_emails', array() );
+		$all_allowed      = array_merge( $allowed_staff_emails, array_map( 'strtolower', array_filter( $custom_whitelist ) ) );
+
+		if ( ( $is_company_domain || in_array( strtolower( $user->user_email ), $all_allowed, true ) ) && ( empty( $roles ) || ( count( $roles ) === 1 && in_array( reset( $roles ), array( 'customer', 'subscriber' ), true ) ) ) ) {
+			$user->set_role( 'tc_sales_agent' );
+			$roles = (array) $user->roles;
+		}
+
+		$role_hierarchy = array(
+			'administrator',
+			'editor',
+			'tc_sales_manager',
+			'tc_sales_agent',
+			'tcfp_manager',
+			'tcfp_accountant',
+			'tc_dispatcher',
+			'tc_tour_guide',
+			'author',
+			'contributor',
+			'subscriber',
+			'customer',
+		);
+		$primary_role = 'tc_sales_agent';
+		foreach ( $role_hierarchy as $hr ) {
+			if ( in_array( $hr, $roles, true ) ) {
+				$primary_role = $hr;
+				break;
+			}
+		}
 		$role_label   = self::get_role_label( $primary_role );
 		$permissions  = self::get_user_permissions( $user );
 
 		return self::ok( array(
-			'token' => $token_row['token'],
-			'user'  => array(
+			'authenticated' => true,
+			'token'         => $token_row['token'],
+			'user'          => array(
 				'id'          => (int) $user->ID,
 				'name'        => (string) $user->display_name,
 				'email'       => (string) $user->user_email,

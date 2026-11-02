@@ -16,6 +16,20 @@ class TC_Agents_Mobile_API {
 
 	public static function init() {
 		add_action( 'rest_api_init', array( __CLASS__, 'register_routes' ) );
+		add_action( 'rest_api_init', array( __CLASS__, 'add_cors_support' ) );
+	}
+
+	public static function add_cors_support() {
+		add_filter( 'rest_pre_serve_request', function( $served, $result, $request, $server ) {
+			$origin = get_http_origin();
+			if ( $origin ) {
+				header( 'Access-Control-Allow-Origin: ' . $origin );
+				header( 'Access-Control-Allow-Credentials: true' );
+				header( 'Access-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS' );
+				header( 'Access-Control-Allow-Headers: Authorization, X-WP-Nonce, Content-Type, X-Mobile-Token, x-mobile-token' );
+			}
+			return $served;
+		}, 10, 4 );
 	}
 
 	public static function register_routes() {
@@ -759,6 +773,21 @@ class TC_Agents_Mobile_API {
 				$request->set_param( '_tc_agent', $label );
 				$request->set_param( '_tc_token_id', (string) $row['id'] );
 				$request->set_param( '_tc_user_id', $user ? (int) $user->ID : ( (int) ( $row['user_id'] ?? 0 ) ) );
+				return true;
+			}
+		}
+
+		// 2. Logged-in WordPress user (via Site Kit Google One Click or standard WordPress session)
+		$cookie_user_id = function_exists( 'wp_validate_auth_cookie' ) ? (int) wp_validate_auth_cookie() : 0;
+		if ( ! $cookie_user_id && is_user_logged_in() ) {
+			$cookie_user_id = (int) get_current_user_id();
+		}
+		if ( $cookie_user_id ) {
+			$wp_user = get_userdata( $cookie_user_id );
+			if ( $wp_user ) {
+				wp_set_current_user( $wp_user->ID );
+				$request->set_param( '_tc_agent', $wp_user->display_name ?: $wp_user->user_login );
+				$request->set_param( '_tc_user_id', (int) $wp_user->ID );
 				return true;
 			}
 		}

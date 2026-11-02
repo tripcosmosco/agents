@@ -25,7 +25,7 @@ class TC_Master_AI_Assistant {
 		global $wpdb;
 
 		// 1. Leads & CRM stats
-		$leads_table = $wpdb->prefix . 'tc_agents_contacts';
+		$leads_table = $wpdb->prefix . 'tc_agent_contacts';
 		$leads_summary = array(
 			'total_leads'     => 0,
 			'hot_leads'       => 0,
@@ -35,38 +35,42 @@ class TC_Master_AI_Assistant {
 		if ( $wpdb->get_var( $wpdb->prepare( "SHOW TABLES LIKE %s", $leads_table ) ) === $leads_table ) {
 			$total = (int) $wpdb->get_var( "SELECT COUNT(*) FROM $leads_table" );
 			$hot   = (int) $wpdb->get_var( "SELECT COUNT(*) FROM $leads_table WHERE stage IN ('qualified', 'quoted', 'hot_negotiation', 'negotiation')" );
-			$recent = $wpdb->get_results( "SELECT id, name, phone, stage, deal_value, destination, next_follow_up_at, created_at FROM $leads_table ORDER BY updated_at DESC LIMIT 5", ARRAY_A );
+			$recent_rows = $wpdb->get_results( "SELECT id, name, phone, stage, deal_value, meta_data, next_follow_up_at, created_at FROM $leads_table ORDER BY updated_at DESC LIMIT 5", ARRAY_A );
+			$recent = array();
+			foreach ( (array) $recent_rows as $row ) {
+				$meta = ! empty( $row['meta_data'] ) ? json_decode( $row['meta_data'], true ) : array();
+				$row['destination'] = $meta['destination'] ?? $meta['circuit'] ?? 'Varanasi Circuit';
+				unset( $row['meta_data'] );
+				$recent[] = $row;
+			}
 
 			$leads_summary['total_leads'] = $total;
 			$leads_summary['hot_leads']   = $hot;
-			$leads_summary['recent_inquiries'] = $recent ?: array();
+			$leads_summary['recent_inquiries'] = $recent;
 		}
 
 		// 1b. WhatsApp SLA & Unread stats
-		$whatsapp_table = $wpdb->prefix . 'tc_agent_whatsapp_threads';
+		$conv_table = $wpdb->prefix . 'tc_agent_conversations';
 		$wp_summary = array(
 			'unread_threads' => 0,
 			'sla_breached'   => 0,
 		);
-		if ( $wpdb->get_var( $wpdb->prepare( "SHOW TABLES LIKE %s", $whatsapp_table ) ) === $whatsapp_table ) {
-			$wp_summary['unread_threads'] = (int) $wpdb->get_var( "SELECT COUNT(*) FROM $whatsapp_table WHERE unread_count > 0" );
-			$wp_summary['sla_breached']   = (int) $wpdb->get_var( "SELECT COUNT(*) FROM $whatsapp_table WHERE sla_breached = 1 OR (unread_count > 0 AND TIMESTAMPDIFF(MINUTE, last_message_at, NOW()) > 15)" );
+		if ( $wpdb->get_var( $wpdb->prepare( "SHOW TABLES LIKE %s", $conv_table ) ) === $conv_table ) {
+			$wp_summary['unread_threads'] = (int) $wpdb->get_var( "SELECT COUNT(*) FROM $conv_table WHERE channel = 'whatsapp' AND status = 'active'" );
+			$wp_summary['sla_breached']   = (int) $wpdb->get_var( "SELECT COUNT(*) FROM $conv_table WHERE channel = 'whatsapp' AND status = 'active' AND last_customer_at IS NOT NULL AND last_customer_at < DATE_SUB(NOW(), INTERVAL 15 MINUTE)" );
 		}
 
 		// 1c. Jio SIM Telephony queue
-		$telephony_table = $wpdb->prefix . 'tc_agent_call_dispatch';
+		$jobs_table = $wpdb->prefix . 'tc_agent_jobs';
 		$telephony_summary = array(
 			'pending_calls' => 0,
 		);
-		if ( $wpdb->get_var( $wpdb->prepare( "SHOW TABLES LIKE %s", $telephony_table ) ) === $telephony_table ) {
-			$telephony_summary['pending_calls'] = (int) $wpdb->get_var( "SELECT COUNT(*) FROM $telephony_table WHERE status = 'pending'" );
+		if ( $wpdb->get_var( $wpdb->prepare( "SHOW TABLES LIKE %s", $jobs_table ) ) === $jobs_table ) {
+			$telephony_summary['pending_calls'] = (int) $wpdb->get_var( "SELECT COUNT(*) FROM $jobs_table WHERE status = 'pending' AND job_type LIKE '%call%'" );
 		}
 
 		// 2. B2B Network stats
 		$b2b_table = $wpdb->prefix . 'tc_agent_agencies';
-		if ( $wpdb->get_var( $wpdb->prepare( "SHOW TABLES LIKE %s", $b2b_table ) ) !== $b2b_table ) {
-			$b2b_table = $wpdb->prefix . 'tc_agents_b2b_agencies';
-		}
 		$b2b_summary = array(
 			'total_partners' => 0,
 			'top_cities'     => array(),

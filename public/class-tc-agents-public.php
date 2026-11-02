@@ -19,7 +19,12 @@ class TC_Agents_Public {
 
 		if ( '1' === (string) get_option( 'tc_agents_gtm_enabled', '1' ) ) {
 			$gtm_id = trim( (string) get_option( 'tc_agents_gtm_container_id', '' ) );
-			if ( ! empty( $gtm_id ) ) {
+
+			// Prevent duplicate GTM snippet if Google Site Kit or another plugin is already managing GTM
+			$sitekit_gtm = get_option( 'googlesitekit_tagmanager_settings' );
+			$sitekit_active = is_array( $sitekit_gtm ) && ! empty( $sitekit_gtm['useSnippet'] ) && ! empty( $sitekit_gtm['containerID'] );
+
+			if ( ! empty( $gtm_id ) && ! $sitekit_active ) {
 				add_action( 'wp_head', array( __CLASS__, 'render_gtm_head' ), 1 );
 				add_action( 'wp_body_open', array( __CLASS__, 'render_gtm_body' ), 1 );
 			}
