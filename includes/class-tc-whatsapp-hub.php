@@ -520,14 +520,21 @@ public static function on_customer_message( array $contact, $text, $is_new ) {
 
 		list( $cid, $text, $target_method ) = self::target_of( $n, $user_id );
 		if ( ! $cid ) {
-			return $reply( "💬 *How to message a traveler:*\n"
-				. "• *By Phone:* Start message with traveler's phone: e.g. *98433284773 Namaste…*\n"
-				. "• *By Email:* e.g. *client@gmail.com Namaste…*\n"
-				. "• *By Name:* e.g. *@Rahul Namaste…*\n"
-				. "• *Swipe-reply:* Swipe right on the traveler's alert to answer.\n\n"
-				. "⚡ Commands:\n"
-				. "• *STATUS* — View your active leads\n"
-				. "• *CLAIM* — Claim the latest unassigned traveler" );
+			// If staff sent an explicit help or command keyword, show the guide
+			$is_explicit_help = in_array( $raw_cmd, array( 'HELP', 'COMMANDS', 'GUIDE', 'USAGE' ), true );
+			if ( $is_explicit_help ) {
+				return $reply( "💬 *How to message a traveler:*\n"
+					. "• *By Phone:* Start message with traveler's phone: e.g. *98433284773 Namaste…*\n"
+					. "• *By Email:* e.g. *client@gmail.com Namaste…*\n"
+					. "• *By Name:* e.g. *@Rahul Namaste…*\n"
+					. "• *Swipe-reply:* Swipe right on the traveler's alert to answer.\n\n"
+					. "⚡ Commands:\n"
+					. "• *STATUS* — View your active leads\n"
+					. "• *CLAIM* — Claim the latest unassigned traveler" );
+			}
+			// If not an explicit command and no lead was targeted (e.g. staff testing or natural conversation),
+			// return null so the message flows cleanly to customer handling without loopback.
+			return null;
 		}
 		$contact = TC_Contact_Service::get( $cid );
 		if ( ! $contact || '' === (string) $contact['phone'] ) {

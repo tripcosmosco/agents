@@ -515,7 +515,16 @@ class TC_Integration_Evolution {
 		}
 		if ( isset( $m['imageMessage'] ) ) {
 			$img = $m['imageMessage'];
-			$media_url = ! empty( $img['url'] ) ? (string) $img['url'] : ( ! empty( $img['jpegThumbnail'] ) ? 'data:image/jpeg;base64,' . $img['jpegThumbnail'] : '' );
+			$media_url = '';
+			if ( ! empty( $img['base64'] ) ) {
+				$media_url = 0 === strpos( (string) $img['base64'], 'data:' ) ? (string) $img['base64'] : 'data:image/jpeg;base64,' . $img['base64'];
+			} elseif ( ! empty( $img['jpegThumbnail'] ) ) {
+				$thumb = $img['jpegThumbnail'];
+				$thumb_b64 = is_string( $thumb ) && ( 0 === strpos( $thumb, '/9j/' ) || preg_match( '%^[a-zA-Z0-9/+]*={0,2}$%', substr( $thumb, 0, 50 ) ) ) ? $thumb : base64_encode( (string) $thumb );
+				$media_url = 'data:image/jpeg;base64,' . $thumb_b64;
+			} elseif ( ! empty( $img['url'] ) ) {
+				$media_url = (string) $img['url'];
+			}
 			return array(
 				'text'      => $cap( '[Photo]', $img['caption'] ?? '' ),
 				'media'     => 'image',
