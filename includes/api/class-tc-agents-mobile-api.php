@@ -4637,118 +4637,102 @@ class TC_Agents_Mobile_API {
 	 * 50. VM Social AI & Multi-Platform Intelligence Overview
 	 */
 	public static function handle_get_social_ai_overview( WP_REST_Request $request ) {
-		$vmsai_settings = get_option( 'vmsai_settings', array() );
-		$license        = get_option( 'vmsai_license', array() );
-		$model_sync     = get_option( 'vmsai_model_sync_state', array() );
+		global $wpdb;
 
-		// Channels status
-		$channels = array(
-			array(
-				'id'          => 'instagram',
-				'name'        => 'Instagram',
-				'handle'      => '@tripcosmos.official',
-				'icon'        => 'instagram',
-				'connected'   => true,
-				'status'      => 'Active • Auto-Post On',
-				'followers'   => '14.2K',
-				'impressions' => '68,400',
-				'engagement'  => '4.8%',
-			),
-			array(
-				'id'          => 'facebook',
-				'name'        => 'Facebook Page',
-				'handle'      => 'TripCosmos Varanasi HQ',
-				'icon'        => 'facebook',
-				'connected'   => true,
-				'status'      => 'Active • Page Verified',
-				'followers'   => '8,950',
-				'impressions' => '42,100',
-				'engagement'  => '3.9%',
-			),
-			array(
-				'id'          => 'linkedin',
-				'name'        => 'LinkedIn B2B',
-				'handle'      => 'TripCosmos B2B DMC Network',
-				'icon'        => 'linkedin',
-				'connected'   => true,
-				'status'      => 'Active • Wholesale Deals',
-				'followers'   => '3,120',
-				'impressions' => '18,500',
-				'engagement'  => '6.2%',
-			),
-			array(
-				'id'          => 'youtube',
-				'name'        => 'YouTube Shorts',
-				'handle'      => '@TripCosmosSpiritual',
-				'icon'        => 'youtube',
-				'connected'   => true,
-				'status'      => 'Active • Shorts Pipeline',
-				'followers'   => '5,400',
-				'impressions' => '124,000',
-				'engagement'  => '8.1%',
-			),
-			array(
-				'id'          => 'gbp',
-				'name'        => 'Google Business Profile',
-				'handle'      => 'TripCosmos.co Varanasi HQ',
-				'icon'        => 'google',
-				'connected'   => true,
-				'status'      => 'Verified • 4.9★ (380+ Reviews)',
-				'followers'   => '380 Reviews',
-				'impressions' => '95,200',
-				'engagement'  => '12.4% (Calls)',
-			),
+		$vmsai_settings   = (array) get_option( 'vmsai_settings', array() );
+		$enabled_channels = (array) ( $vmsai_settings['enabled_channels'] ?? array() );
+		$license          = (array) get_option( 'vmsai_license', array() );
+		$model_sync       = (array) get_option( 'vmsai_model_sync_state', array() );
+
+		// 1. Live Connected Channels Status
+		$channel_defs = array(
+			'instagram' => array( 'name' => 'Instagram', 'handle' => '@tripcosmos.official', 'icon' => 'instagram' ),
+			'facebook'  => array( 'name' => 'Facebook Page', 'handle' => 'TripCosmos Varanasi HQ', 'icon' => 'facebook' ),
+			'linkedin'  => array( 'name' => 'LinkedIn B2B', 'handle' => 'TripCosmos B2B DMC Network', 'icon' => 'linkedin' ),
+			'youtube'   => array( 'name' => 'YouTube Shorts', 'handle' => '@TripCosmosSpiritual', 'icon' => 'youtube' ),
+			'gbp'       => array( 'name' => 'Google Business Profile', 'handle' => 'TripCosmos.co Varanasi HQ', 'icon' => 'google' ),
 		);
 
-		// Upcoming Queue / Scheduled Campaign
-		$queue = array(
-			array(
-				'id'         => 'sq_01',
-				'title'      => 'Dev Deepawali 2026: The Million Earthen Lamps Mystery',
-				'pillar'     => 'Story & Heritage',
-				'channel'    => 'instagram',
-				'scheduled'  => gmdate( 'Y-m-d 18:30:00', strtotime( '+1 day' ) ),
-				'caption'    => 'When the gods descend upon the 84 ghats of Kashi... ✨ Every year on Kartik Purnima, over 1 million diyas transform the Ganges into a river of golden fire. Reserve private Bajra deck now! #DevDeepawali #Varanasi #Kashi',
-				'image'      => 'https://tripcosmos.co/wp-content/uploads/2026/10/dev-diwali-varanasi-spiritual-night-deck.jpg',
-				'status'     => 'Scheduled',
-			),
-			array(
-				'id'         => 'sq_02',
-				'title'      => 'Sugam Darshan Secret: How to Enter Kashi Vishwanath in Under 15 Mins',
-				'pillar'     => 'Education & Tips',
-				'channel'    => 'youtube',
-				'scheduled'  => gmdate( 'Y-m-d 11:00:00', strtotime( '+2 days' ) ),
-				'caption'    => 'Never wait 4 hours in the regular queue! Use Gate 4 Sugam Darshan with pre-booked RFID wristband pass. Here is the step-by-step breakdown. #KashiVishwanath #VaranasiGuide',
-				'image'      => 'https://tripcosmos.co/wp-content/uploads/2026/10/kashi-vishwanath-sugam-darshan-gate4.jpg',
-				'status'     => 'Scheduled',
-			),
-			array(
-				'id'         => 'sq_03',
-				'title'      => 'B2B Wholesale Travel Alert: Dev Deepawali Grand Bajra Allotment',
-				'pillar'     => 'B2B & Proof',
-				'channel'    => 'linkedin',
-				'scheduled'  => gmdate( 'Y-m-d 10:15:00', strtotime( '+3 days' ) ),
-				'caption'    => 'Attention Travel Agency Directors & DMC Partners across Mumbai, Gujarat & Delhi: Only 4 private 40-pax double-deck Bajra boats remain for Dev Deepawali 2026. 100% White-label ground execution guaranteed.',
-				'image'      => 'https://tripcosmos.co/wp-content/uploads/2026/10/b2b-dmc-bajra-boat-charter.jpg',
-				'status'     => 'Scheduled',
-			),
-			array(
-				'id'         => 'sq_04',
-				'title'      => 'Assi Ghat Subah-e-Banaras: 5:30 AM Sunrise Aarti & Ragas',
-				'pillar'     => 'Spiritual Immersion',
-				'channel'    => 'facebook',
-				'scheduled'  => gmdate( 'Y-m-d 06:00:00', strtotime( '+4 days' ) ),
-				'caption'    => 'Wake up before dawn and witness Banaras awaken with classical sitar, vedic chants, and morning yajna. A sacred experience you will cherish forever.',
-				'image'      => 'https://tripcosmos.co/wp-content/uploads/2026/10/assi-ghat-subah-e-banaras-sunrise.jpg',
-				'status'     => 'Draft',
-			),
-		);
+		$channels = array();
+		foreach ( $channel_defs as $cid => $info ) {
+			$is_enabled = ! empty( $enabled_channels[ $cid ] );
+			$channels[] = array(
+				'id'          => $cid,
+				'name'        => $info['name'],
+				'handle'      => $info['handle'],
+				'icon'        => $info['icon'],
+				'connected'   => $is_enabled,
+				'status'      => $is_enabled ? 'Active ? Automated Post On' : 'Standby ? Connect in Settings',
+				'followers'   => 'Active',
+				'impressions' => 'Synced',
+				'engagement'  => 'Automated',
+			);
+		}
+
+		// 2. Real Live Queue from wp_vmsai_queue
+		$queue_table = $wpdb->prefix . 'vmsai_queue';
+		$live_rows   = array();
+
+		if ( $wpdb->get_var( "SHOW TABLES LIKE '$queue_table'" ) === $queue_table ) {
+			$live_rows = $wpdb->get_results(
+				"SELECT id, channel, format, title, body, cta, media_url, media_id, scheduled_at, published_at, status, last_error, viral_score, seo_score
+				 FROM `$queue_table`
+				 ORDER BY id DESC
+				 LIMIT 25",
+				ARRAY_A
+			);
+		}
+
+		$queue = array();
+		if ( ! empty( $live_rows ) ) {
+			foreach ( $live_rows as $row ) {
+				$media = (string) ( $row['media_url'] ?? '' );
+				if ( ! $media && ! empty( $row['media_id'] ) ) {
+					$media = (string) wp_get_attachment_url( (int) $row['media_id'] );
+				}
+				if ( ! $media ) {
+					$media = 'https://tripcosmos.co/wp-content/uploads/2026/10/dev-diwali-varanasi-spiritual-night-deck.jpg';
+				}
+
+				$clean_title = ! empty( $row['title'] ) ? $row['title'] : wp_trim_words( wp_strip_all_tags( $row['body'] ), 8, '...' );
+				$clean_body  = wp_trim_words( wp_strip_all_tags( $row['body'] ), 35, '...' );
+
+				$queue[] = array(
+					'id'         => (string) $row['id'],
+					'title'      => $clean_title,
+					'pillar'     => ucfirst( (string) ( $row['format'] ?: 'image' ) ),
+					'channel'    => (string) ( $row['channel'] ?: 'instagram' ),
+					'scheduled'  => ! empty( $row['scheduled_at'] ) ? $row['scheduled_at'] : ( $row['published_at'] ?: gmdate( 'Y-m-d H:i:s' ) ),
+					'caption'    => $clean_body,
+					'image'      => $media,
+					'status'     => ucfirst( (string) ( $row['status'] ?: 'Queued' ) ),
+					'viral_score'=> (int) ( $row['viral_score'] ?? 85 ),
+					'seo_score'  => (int) ( $row['seo_score'] ?? 90 ),
+				);
+			}
+		}
+
+		// 3. Fallback dummy items if queue is completely fresh
+		if ( empty( $queue ) ) {
+			$queue = array(
+				array(
+					'id'        => '1',
+					'title'     => 'Dev Deepawali 2026: Million Lamps on the Ganga Ghats',
+					'pillar'    => 'Short / Reel',
+					'channel'   => 'instagram',
+					'scheduled' => gmdate( 'Y-m-d 18:30:00', strtotime( '+1 day' ) ),
+					'caption'   => 'Over 1 million diyas transform the sacred Ganges into a river of golden fire. Reserve private Bajra deck now!',
+					'image'     => 'https://tripcosmos.co/wp-content/uploads/2026/10/dev-diwali-varanasi-spiritual-night-deck.jpg',
+					'status'    => 'Scheduled',
+				),
+			);
+		}
 
 		return new WP_REST_Response( array(
 			'ok'               => true,
-			'plan'             => $license['plan'] ?? 'Pro Enterprise',
+			'plan'             => 'Elite (Free & Unlimited)',
 			'models_available' => $model_sync['total'] ?? 3658,
-			'ai_engine'        => 'OmniRoute + Gemini 2.0 + Pollinations FLUX',
+			'ai_engine'        => 'Pexels 4K + Cloudflare FLUX.1 + Gemini 3.5 + 1080p Reels Engine',
 			'channels'         => $channels,
 			'queue'            => $queue,
 			'total_scheduled'  => count( $queue ),
@@ -4757,10 +4741,7 @@ class TC_Agents_Mobile_API {
 		), 200 );
 	}
 
-	/**
-	 * 51a. GET Role Permissions Matrix & Feature Definitions
-	 */
-	public static function handle_get_role_permissions( WP_REST_Request $request ) {
+		public static function handle_get_role_permissions( WP_REST_Request $request ) {
 		$roles_to_expose = array(
 			'administrator'    => 'Administrator',
 			'tc_sales_manager' => 'Sales Manager',
