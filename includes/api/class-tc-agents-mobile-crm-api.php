@@ -1126,6 +1126,13 @@ class TC_Agents_Mobile_CRM_API {
 		if ( $limited ) {
 			return $limited;
 		}
+
+		// Idempotency Lock: Prevent duplicate quote dispatches within 30 seconds
+		$quote_lock_key = 'tc_quote_send_lock_' . (int) $q['id'];
+		if ( get_transient( $quote_lock_key ) ) {
+			return self::ok( array( 'url' => TC_Quote_Service::url( $q ), 'deduplicated' => true, 'message' => 'Quote already dispatched recently.' ) );
+		}
+		set_transient( $quote_lock_key, 1, 30 );
 		$name = ! empty( $c['name'] ) ? $c['name'] : 'Traveler';
 		$msg  = sprintf(
 			"Namaste %s! 🙏 Your TripCosmos quotation (₹%s) is ready. View, accept and pay the advance here: %s",
@@ -1256,6 +1263,13 @@ class TC_Agents_Mobile_CRM_API {
 		if ( $limited ) {
 			return $limited;
 		}
+
+		// Idempotency Lock: Prevent duplicate quote dispatches within 30 seconds
+		$quote_lock_key = 'tc_quote_send_lock_' . (int) $q['id'];
+		if ( get_transient( $quote_lock_key ) ) {
+			return self::ok( array( 'url' => TC_Quote_Service::url( $q ), 'deduplicated' => true, 'message' => 'Quote already dispatched recently.' ) );
+		}
+		set_transient( $quote_lock_key, 1, 30 );
 		if ( empty( $c['phone'] ) ) {
 			return self::fail( 'This lead has no phone number.' );
 		}
@@ -2771,10 +2785,13 @@ class TC_Agents_Mobile_CRM_API {
 			return self::fail( 'Google email address is not verified.', 401 );
 		}
 
-		// Validate audience / client ID
-		$allowed_audiences = array(
+		// Validate audience / client ID (synced dynamically from Google Site Kit module settings)
+		$sitekit_settings  = get_option( 'googlesitekit_sign-in-with-google_settings', array() );
+		$sitekit_client_id = ! empty( $sitekit_settings['clientID'] ) ? $sitekit_settings['clientID'] : '';
+		$allowed_audiences = array_filter( array(
+			$sitekit_client_id,
 			'77399722057-6o97tf20jmhjaaid60gks1ajn5k1029s.apps.googleusercontent.com',
-		);
+		) );
 		$aud = (string) ( $body['aud'] ?? '' );
 		if ( ! empty( $allowed_audiences ) && ! in_array( $aud, $allowed_audiences, true ) ) {
 			TC_Agents_Logger::log( 'google_auth_aud_mismatch', 'warning', array( 'aud' => $aud ), '', 'security' );
@@ -2785,10 +2802,10 @@ class TC_Agents_Mobile_CRM_API {
 		$name   = ! empty( $body['name'] ) ? sanitize_text_field( $body['name'] ) : '';
 		$avatar = ! empty( $body['picture'] ) ? esc_url_raw( $body['picture'] ) : $avatar;
 
-		// 2. Authorization check: prevent unauthorized public sign-ups
+		// 2. Authorization check: Any existing WordPress user can log in with their assigned role
 		$user = get_user_by( 'email', $email );
 		if ( ! $user ) {
-			// Check if email belongs to official company domain or explicit staff whitelist
+			// Check if new user registration is allowed, or if email matches company/staff list
 			$is_company_domain    = (bool) preg_match( '/@tripcosmos\.co$/i', $email );
 			$allowed_staff_emails = array(
 				'hellonishkarsh@gmail.com',
@@ -2799,13 +2816,14 @@ class TC_Agents_Mobile_CRM_API {
 			);
 			$custom_whitelist = (array) get_option( 'tc_agents_allowed_staff_emails', array() );
 			$all_allowed      = array_merge( $allowed_staff_emails, array_map( 'strtolower', array_filter( $custom_whitelist ) ) );
+			$can_register     = (bool) get_option( 'users_can_register' ) || $is_company_domain || in_array( strtolower( $email ), $all_allowed, true );
 
-			if ( ! $is_company_domain && ! in_array( strtolower( $email ), $all_allowed, true ) ) {
+			if ( ! $can_register ) {
 				TC_Agents_Logger::log( 'unauthorized_google_login_attempt', 'warning', array( 'email' => $email ), '', 'security' );
-				return self::fail( 'Access restricted: Google account (' . esc_html( $email ) . ') is not authorized for TripCosmos X-Agents. Contact administrator for access.', 403 );
+				return self::fail( 'Access restricted: Google account (' . esc_html( $email ) . ') is not registered on TripCosmos. Please log in with your WordPress account or contact an administrator.', 403 );
 			}
 
-			// Authorized staff member - proceed with account provisioning
+			// Proceed with account provisioning
 			$username = sanitize_user( current( explode( '@', $email ) ) );
 			if ( username_exists( $username ) ) {
 				$username = $username . '_' . wp_rand( 100, 999 );
@@ -2816,7 +2834,8 @@ class TC_Agents_Mobile_CRM_API {
 				return self::fail( 'Could not register user: ' . $user_id->get_error_message(), 500 );
 			}
 			$user = get_userdata( $user_id );
-			$user->set_role( 'tc_sales_agent' );
+			$default_role = get_option( 'default_role', 'tc_sales_agent' );
+			$user->set_role( $default_role );
 			if ( ! empty( $name ) ) {
 				wp_update_user( array( 'ID' => $user_id, 'display_name' => $name, 'first_name' => $name ) );
 			}
@@ -2844,9 +2863,38 @@ class TC_Agents_Mobile_CRM_API {
 
 	public static function handle_auth_me( WP_REST_Request $request ) {
 		$user_id = (int) $request->get_param( '_tc_user_id' );
+
+		// 1. Validate WordPress cookies across all schemes (logged_in and secure_auth)
 		if ( ! $user_id && function_exists( 'wp_validate_auth_cookie' ) ) {
-			$user_id = (int) wp_validate_auth_cookie();
+			$user_id = (int) wp_validate_auth_cookie( '', 'logged_in' );
+			if ( ! $user_id ) {
+				$user_id = (int) wp_validate_auth_cookie( '', 'secure_auth' );
+			}
+			if ( ! $user_id ) {
+				$user_id = (int) wp_validate_auth_cookie();
+			}
 		}
+
+		// 2. Fallback: inspect incoming $_COOKIE array for any valid WordPress session cookie
+		if ( ! $user_id && ! empty( $_COOKIE ) && function_exists( 'wp_validate_auth_cookie' ) ) {
+			foreach ( $_COOKIE as $cname => $cval ) {
+				if ( is_string( $cval ) && strpos( $cname, 'wordpress_logged_in_' ) === 0 ) {
+					$uid = wp_validate_auth_cookie( $cval, 'logged_in' );
+					if ( $uid ) {
+						$user_id = (int) $uid;
+						break;
+					}
+				}
+				if ( is_string( $cval ) && strpos( $cname, 'wordpress_sec_' ) === 0 ) {
+					$uid = wp_validate_auth_cookie( $cval, 'secure_auth' );
+					if ( $uid ) {
+						$user_id = (int) $uid;
+						break;
+					}
+				}
+			}
+		}
+
 		if ( ! $user_id && is_user_logged_in() ) {
 			$user_id = (int) get_current_user_id();
 		}
@@ -2882,6 +2930,14 @@ class TC_Agents_Mobile_CRM_API {
 	}
 
 	private static function respond_with_user_token( WP_User $user, $avatar = '' ) {
+		// Synchronize WordPress session cookie for browser & PWA clients
+		if ( function_exists( 'wp_set_current_user' ) && function_exists( 'wp_set_auth_cookie' ) ) {
+			if ( ! is_user_logged_in() || get_current_user_id() !== $user->ID ) {
+				wp_set_current_user( $user->ID, $user->user_login );
+				wp_set_auth_cookie( $user->ID, true );
+			}
+		}
+
 		$label = $user->display_name ?: $user->user_login;
 		$token_row = TC_Agents_Security::create_agent_token( $label, $user->ID );
 

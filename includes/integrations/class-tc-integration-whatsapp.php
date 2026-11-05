@@ -265,8 +265,13 @@ class TC_Integration_WhatsApp {
 			// 1-Touch Deterministic First Greeting (High-Converting Intake Qualification)
 			$first_greet_enabled = get_option( 'tc_agents_whatsapp_first_greeting_enabled', '1' );
 			if ( '1' === (string) $first_greet_enabled && $conversation ) {
-				$greet_key = 'tc_wa_first_greet_' . $sender_phone;
-				if ( ! get_transient( $greet_key ) ) {
+				$clean_sender_phone = preg_replace( '/\D/', '', $sender_phone );
+				$greet_key          = 'tc_wa_first_greet_' . $clean_sender_phone;
+				$greet_lock_key     = 'tc_wa_first_greet_lock_' . $clean_sender_phone;
+
+				// Atomic deduplication: if already locked or greeted, skip immediately
+				if ( ! get_transient( $greet_key ) && ! get_transient( $greet_lock_key ) ) {
+					set_transient( $greet_lock_key, 1, 60 );
 					global $wpdb;
 					$prior_replies = (int) $wpdb->get_var(
 						$wpdb->prepare(
@@ -275,7 +280,7 @@ class TC_Integration_WhatsApp {
 						)
 					);
 
-					if ( 0 === $prior_replies || $is_new_lead ) {
+					if ( 0 === $prior_replies ) {
 						set_transient( $greet_key, 1, DAY_IN_SECONDS );
 
 						$custom_greet = get_option( 'tc_agents_whatsapp_first_greeting_text', '' );

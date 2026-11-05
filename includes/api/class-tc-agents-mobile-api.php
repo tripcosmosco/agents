@@ -778,7 +778,34 @@ class TC_Agents_Mobile_API {
 		}
 
 		// 2. Logged-in WordPress user (via Site Kit Google One Click or standard WordPress session)
-		$cookie_user_id = function_exists( 'wp_validate_auth_cookie' ) ? (int) wp_validate_auth_cookie() : 0;
+		$cookie_user_id = 0;
+		if ( function_exists( 'wp_validate_auth_cookie' ) ) {
+			$cookie_user_id = (int) wp_validate_auth_cookie( '', 'logged_in' );
+			if ( ! $cookie_user_id ) {
+				$cookie_user_id = (int) wp_validate_auth_cookie( '', 'secure_auth' );
+			}
+			if ( ! $cookie_user_id ) {
+				$cookie_user_id = (int) wp_validate_auth_cookie();
+			}
+			if ( ! $cookie_user_id && ! empty( $_COOKIE ) ) {
+				foreach ( $_COOKIE as $cname => $cval ) {
+					if ( is_string( $cval ) && strpos( $cname, 'wordpress_logged_in_' ) === 0 ) {
+						$uid = wp_validate_auth_cookie( $cval, 'logged_in' );
+						if ( $uid ) {
+							$cookie_user_id = (int) $uid;
+							break;
+						}
+					}
+					if ( is_string( $cval ) && strpos( $cname, 'wordpress_sec_' ) === 0 ) {
+						$uid = wp_validate_auth_cookie( $cval, 'secure_auth' );
+						if ( $uid ) {
+							$cookie_user_id = (int) $uid;
+							break;
+						}
+					}
+				}
+			}
+		}
 		if ( ! $cookie_user_id && is_user_logged_in() ) {
 			$cookie_user_id = (int) get_current_user_id();
 		}
@@ -3075,6 +3102,34 @@ class TC_Agents_Mobile_API {
 			);
 		}
 
+		// Idempotency & Deduplication Guard: Suppress rapid duplicate sends within 12s window
+		$clean_phone = preg_replace( '/\D/', '', $phone );
+		$msg_hash    = md5( trim( $message ) );
+		$dedup_key   = 'tc_wa_out_dedup_' . $clean_phone . '_' . $msg_hash;
+		if ( get_transient( $dedup_key ) ) {
+			TC_Agents_Logger::log(
+				'mobile_whatsapp_dedup_blocked',
+				'info',
+				array(
+					'phone'   => $phone,
+					'message' => substr( $message, 0, 100 ),
+					'reason'  => 'Duplicate outbound message suppressed within 12s window.',
+				),
+				'',
+				0
+			);
+			return new WP_REST_Response(
+				array(
+					'ok'           => true,
+					'success'      => true,
+					'deduplicated' => true,
+					'message'      => 'Message already processed (duplicate suppressed).',
+				),
+				200
+			);
+		}
+		set_transient( $dedup_key, 1, 12 );
+
 		if ( class_exists( 'TC_Agents_Mobile_CRM_API' ) && ! TC_Agents_Mobile_CRM_API::is_admin_or_manager( $request ) ) {
 			global $wpdb;
 			$my_id    = (int) $request->get_param( '_tc_user_id' );
@@ -3815,6 +3870,22 @@ class TC_Agents_Mobile_API {
 		if ( empty( $phone ) || empty( $description ) || empty( $buttons ) ) {
 			return new WP_REST_Response( array( 'success' => false, 'error' => 'Missing phone, description, or buttons' ), 400 );
 		}
+
+		// Idempotency & Deduplication Guard: Suppress rapid duplicate interactive button sends within 15s window
+		$clean_phone = preg_replace( '/\D/', '', $phone );
+		$btn_hash    = md5( $title . '_' . trim( $description ) . '_' . wp_json_encode( $buttons ) );
+		$dedup_key   = 'tc_wa_btn_dedup_' . $clean_phone . '_' . $btn_hash;
+		if ( get_transient( $dedup_key ) ) {
+			return new WP_REST_Response(
+				array(
+					'success'      => true,
+					'deduplicated' => true,
+					'message'      => 'Buttons already dispatched (duplicate suppressed).',
+				),
+				200
+			);
+		}
+		set_transient( $dedup_key, 1, 15 );
 
 		if ( class_exists( 'TC_Integration_Evolution' ) ) {
 			$res = TC_Integration_Evolution::send_buttons( $phone, $title, $description, $buttons, $footer );
