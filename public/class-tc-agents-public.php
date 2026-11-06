@@ -35,6 +35,22 @@ class TC_Agents_Public {
 	 * Enqueue public styles and scripts.
 	 */
 	public static function enqueue_assets() {
+		// Universal Google Ads & GTM Conversion Tracking Bridge (fires across all pages)
+		$bridge_file = TC_AGENTS_PATH . 'public/js/tc-gads-bridge.js';
+		$bridge_ver  = file_exists( $bridge_file ) ? TC_AGENTS_VERSION . '.' . filemtime( $bridge_file ) : TC_AGENTS_VERSION;
+		wp_enqueue_script( 'tc-gads-bridge-js', TC_AGENTS_URL . 'public/js/tc-gads-bridge.js', array(), $bridge_ver, true );
+		wp_localize_script(
+			'tc-gads-bridge-js',
+			'tcGadsConfig',
+			array(
+				'conversionId'  => 'AW-17106475490',
+				'formLabel'     => 'bLh-CM-swOoaEOKzgN0_',
+				'waLabel'       => 'MOptCICRn-caEOKzgN0_',
+				'phoneLabel'    => '7sk4CLrQst4aEOKzgN0_',
+				'purchaseLabel' => 'EEn8CIqNoOcaEOKzgN0_',
+				'leadValue'     => 1500,
+			)
+		);
 		// Only enqueue if widget is enabled
 		if ( '1' !== (string) get_option( 'tc_agents_widget_enabled', '1' ) ) {
 			return;
