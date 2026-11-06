@@ -285,6 +285,51 @@ class TC_Integration_FluentCRM {
 			TC_Agent_Sequences::enroll_contact( $contact_id, 'fluentform_submitted' );
 		}
 
+		// 5. Instant WhatsApp Notification to Operations Team (+91 84332 84773 & Staff)
+		if ( class_exists( 'TC_Integration_Evolution' ) ) {
+			$form_id_str  = is_object( $form ) ? ( $form->id ?? '?' ) : ( $form['id'] ?? '?' );
+			$form_title   = is_object( $form ) ? ( $form->title ?? 'Website Inquiry' ) : ( $form['title'] ?? 'Website Inquiry' );
+			$now_ist      = ( new DateTime( 'now', new DateTimeZone( 'Asia/Kolkata' ) ) )->format( 'd M, h:i A' );
+
+			$inquiry_meta = array();
+			if ( ! empty( $destination ) ) {
+				$inquiry_meta[] = 'Destination: ' . $destination;
+			}
+			if ( ! empty( $requirements ) ) {
+				$inquiry_meta[] = 'Note: ' . wp_trim_words( trim( $requirements ), 20, '...' );
+			}
+			$inquiry_summary = ! empty( $inquiry_meta ) ? implode( ' | ', $inquiry_meta ) : 'General Spiritual Inquiry';
+
+			$alert_text  = "🔔 *NEW WEBSITE INQUIRY LEAD!*\n\n";
+			$alert_text .= "📋 *Form:* " . $form_title . " (#" . $form_id_str . ")\n";
+			$alert_text .= "👤 *Name:* " . ( $name ?: 'Pilgrim / Visitor' ) . "\n";
+			$alert_text .= "📞 *Phone:* " . ( $phone ?: 'Not provided' ) . "\n";
+			$alert_text .= "📧 *Email:* " . ( $email ?: 'Not provided' ) . "\n";
+			$alert_text .= "📍 *Inquiry:* " . $inquiry_summary . "\n";
+			$alert_text .= "⏰ *Received:* " . $now_ist . " IST\n";
+			$alert_text .= "🔗 *CRM Lead:* " . admin_url( 'admin.php?page=tc-agents-contacts&contact=' . $contact_id );
+
+			// Primary recipient: Nishkarsh / Operations Lead
+			$recipients = array( '918433284773' );
+
+			if ( class_exists( 'TC_WhatsApp_Hub' ) ) {
+				$staff = TC_WhatsApp_Hub::staff_numbers();
+				foreach ( array_keys( $staff ) as $s_num ) {
+					$clean = preg_replace( '/\D/', '', (string) $s_num );
+					if ( strlen( $clean ) === 10 ) {
+						$clean = '91' . $clean;
+					}
+					if ( ! in_array( $clean, $recipients, true ) ) {
+						$recipients[] = $clean;
+					}
+				}
+			}
+
+			foreach ( $recipients as $recipient_num ) {
+				TC_Integration_Evolution::send_message( $recipient_num, $alert_text, 'staff_alert' );
+			}
+		}
+
 		TC_Agents_Logger::log(
 			'fluentform_lead_captured',
 			'info',
