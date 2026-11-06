@@ -1,0 +1,6 @@
+*.zip
+*.tar.gz
+*.log
+tripcosmos-agents/
+.DS_Store
+Thumbs.db
