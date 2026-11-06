@@ -1102,58 +1102,65 @@
    9. Fast Itinerary & Cab Quote Panel
    ========================================================================== */
 #tc-agent-widget-root .tc-quote-panel {
-	padding: 20px 18px !important;
+	padding: 14px 16px 14px !important;
 	background: #ffffff !important;
+	overflow-y: hidden !important;
 }
 
 #tc-agent-widget-root .tc-quote-heading h4 {
-	margin: 0 0 5px 0 !important;
+	margin: 0 0 2px 0 !important;
 	font-family: 'Outfit', sans-serif !important;
-	font-size: 16.5px !important;
+	font-size: 15px !important;
 	font-weight: 800 !important;
 	color: #0f172a !important;
 }
 
 #tc-agent-widget-root .tc-quote-heading p {
-	margin: 0 0 16px 0 !important;
-	font-size: 12.5px !important;
+	margin: 0 0 8px 0 !important;
+	font-size: 11.5px !important;
 	color: #64748b !important;
-	line-height: 1.45 !important;
+	line-height: 1.35 !important;
 }
 
 #tc-agent-widget-root .tc-form-field {
-	margin-bottom: 12px !important;
+	margin-bottom: 7px !important;
 }
 
 #tc-agent-widget-root .tc-form-row {
 	display: flex !important;
-	gap: 10px !important;
+	gap: 8px !important;
+	margin-bottom: 7px !important;
 }
 
 #tc-agent-widget-root .tc-form-row .tc-form-field {
-	flex: 1 !important;
+	flex: 1 1 0 !important;
+	min-width: 0 !important;
+	margin-bottom: 0 !important;
 }
 
 #tc-agent-widget-root .tc-form-field label {
 	display: block !important;
-	font-size: 11.5px !important;
+	font-size: 10px !important;
 	font-weight: 700 !important;
-	color: #334155 !important;
-	margin-bottom: 4px !important;
-	letter-spacing: 0.01em !important;
+	color: #475569 !important;
+	margin-bottom: 3px !important;
+	text-transform: uppercase !important;
+	letter-spacing: 0.03em !important;
 }
 
 #tc-agent-widget-root .tc-form-field input,
 #tc-agent-widget-root .tc-form-field select {
 	width: 100% !important;
-	padding: 10px 12px !important;
-	font-size: 13px !important;
+	padding: 7px 10px !important;
+	font-size: 12.5px !important;
 	border: 1.5px solid #e2e8f0 !important;
-	border-radius: 12px !important;
+	border-radius: 9px !important;
 	background: #f8fafc !important;
 	color: #0f172a !important;
 	transition: all 0.2s ease !important;
 	outline: none !important;
+	box-sizing: border-box !important;
+	height: 36px !important;
 }
 
 #tc-agent-widget-root .tc-form-field input:focus,
@@ -1168,24 +1175,25 @@
 	background: var(--tc-g-brand) !important;
 	color: #ffffff !important;
 	font-family: 'Outfit', sans-serif !important;
-	font-size: 14px !important;
+	font-size: 13.5px !important;
 	font-weight: 700 !important;
-	padding: 12px 16px !important;
-	border-radius: 12px !important;
+	padding: 10px 16px !important;
+	border-radius: 10px !important;
 	border: none !important;
 	cursor: pointer !important;
-	box-shadow: 0 8px 22px rgba(234, 88, 12, 0.35) !important;
+	box-shadow: 0 6px 18px rgba(234, 88, 12, 0.35) !important;
 	transition: all 0.3s var(--tc-spring) !important;
 	margin-top: 6px !important;
 	display: flex !important;
 	align-items: center !important;
 	justify-content: center !important;
 	gap: 6px !important;
+	height: 40px !important;
 }
 
 #tc-agent-widget-root .tc-quote-submit-btn:hover {
 	transform: translateY(-2px) !important;
-	box-shadow: 0 12px 28px rgba(234, 88, 12, 0.45) !important;
+	box-shadow: 0 10px 24px rgba(234, 88, 12, 0.45) !important;
 }
 
 /* ==========================================================================
@@ -1746,47 +1754,51 @@
 
 /* Fast Quote Panel */
 #tc-agent-widget-root .tc-quote-panel {
-	padding: 18px 18px 24px !important;
+	padding: 12px 14px 12px !important;
 	background: linear-gradient(180deg, #f8fafc 0%, #fff 100%) !important;
+	overflow-y: auto !important;
 }
 
 #tc-agent-widget-root .tc-quote-heading {
-	margin-bottom: 16px !important;
+	margin-bottom: 6px !important;
 }
 
 #tc-agent-widget-root .tc-quote-heading h4 {
-	margin: 0 0 4px !important;
-	font-size: 15px !important;
+	margin: 0 0 2px !important;
+	font-size: 14.5px !important;
 	font-weight: 700 !important;
 	color: #0f172a !important;
 }
 
 #tc-agent-widget-root .tc-quote-heading p {
 	margin: 0 !important;
-	font-size: 12px !important;
+	font-size: 11px !important;
 	color: #64748b !important;
-	line-height: 1.4 !important;
+	line-height: 1.3 !important;
 }
 
 #tc-agent-widget-root .tc-quote-form .tc-form-field {
-	margin-bottom: 12px !important;
+	margin-bottom: 6px !important;
 }
 
 #tc-agent-widget-root .tc-quote-form .tc-form-row {
 	display: flex !important;
-	gap: 10px !important;
+	gap: 8px !important;
+	margin-bottom: 6px !important;
 }
 
 #tc-agent-widget-root .tc-quote-form .tc-form-row .tc-form-field {
 	flex: 1 1 0 !important;
+	min-width: 0 !important;
+	margin-bottom: 0 !important;
 }
 
 #tc-agent-widget-root .tc-quote-form label {
 	display: block !important;
-	font-size: 11px !important;
+	font-size: 9.5px !important;
 	font-weight: 700 !important;
 	color: #334155 !important;
-	margin-bottom: 4px !important;
+	margin-bottom: 2px !important;
 	text-transform: uppercase !important;
 	letter-spacing: 0.03em !important;
 }
@@ -1794,14 +1806,15 @@
 #tc-agent-widget-root .tc-quote-form input,
 #tc-agent-widget-root .tc-quote-form select {
 	width: 100% !important;
-	padding: 8px 12px !important;
+	padding: 6px 8px !important;
 	border: 1px solid #cbd5e1 !important;
 	border-radius: 8px !important;
-	font-size: 13px !important;
+	font-size: 12px !important;
 	background: #fff !important;
 	color: #0f172a !important;
 	box-sizing: border-box !important;
 	outline: none !important;
+	height: 34px !important;
 	transition: border-color 0.2s, box-shadow 0.2s !important;
 }
 
@@ -1813,17 +1826,18 @@
 
 #tc-agent-widget-root .tc-quote-submit-btn {
 	width: 100% !important;
-	margin-top: 6px !important;
-	padding: 11px 16px !important;
+	margin-top: 5px !important;
+	padding: 9px 14px !important;
 	background: linear-gradient(135deg, #ea580c 0%, #c2410c 100%) !important;
 	color: #fff !important;
 	border: none !important;
-	border-radius: 10px !important;
-	font-size: 13.5px !important;
+	border-radius: 9px !important;
+	font-size: 13px !important;
 	font-weight: 700 !important;
 	cursor: pointer !important;
 	box-shadow: 0 4px 12px rgba(234, 88, 12, 0.3) !important;
 	transition: all 0.2s ease !important;
+	height: 38px !important;
 }
 
 #tc-agent-widget-root .tc-quote-submit-btn:hover {

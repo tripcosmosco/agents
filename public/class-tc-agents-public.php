@@ -380,40 +380,42 @@ class TC_Agents_Public {
 				<div id="tc-widget-quote-panel" class="tc-panel tc-quote-panel">
 					<div class="tc-quote-heading">
 						<h4>Custom Itinerary & Group Quote</h4>
-						<p>Tell us what you are looking for and our Varanasi travel team will personalize your itinerary, cab, and pricing.</p>
+						<p>Get personalized itinerary, VIP darshan passes & cab fare in 15 mins.</p>
 					</div>
 					<form id="tc-quote-form" class="tc-quote-form">
-						<div class="tc-form-field">
-							<label for="tc-q-name">Your Full Name *</label>
-							<input type="text" id="tc-q-name" required placeholder="e.g. Rahul Sharma" autocomplete="name" />
-						</div>
-						<div class="tc-form-field">
-							<label for="tc-q-phone">WhatsApp Number *</label>
-							<input type="tel" id="tc-q-phone" required placeholder="+91 98765 43210" autocomplete="tel" />
-						</div>
-						<div class="tc-form-field">
-							<label for="tc-q-email">Email Address</label>
-							<input type="email" id="tc-q-email" placeholder="rahul@example.com" autocomplete="email" />
+						<div class="tc-form-row">
+							<div class="tc-form-field">
+								<label for="tc-q-name">Your Full Name *</label>
+								<input type="text" id="tc-q-name" required placeholder="e.g. Rahul Sharma" autocomplete="name" />
+							</div>
+							<div class="tc-form-field">
+								<label for="tc-q-phone">WhatsApp Number *</label>
+								<input type="tel" id="tc-q-phone" required placeholder="+91 98765 43210" autocomplete="tel" />
+							</div>
 						</div>
 						<div class="tc-form-row">
 							<div class="tc-form-field">
-								<label for="tc-q-destination">Destination / Circuit</label>
-								<select id="tc-q-destination">
-									<option value="Varanasi (Kashi Darshan &amp; Ganga Aarti)">Varanasi (Kashi Darshan &amp; Ganga Aarti)</option>
-									<option value="Dev Deepawali Special 2026 (Varanasi)" <?php echo $is_dev_diwali ? 'selected' : ''; ?>>Dev Deepawali Special 2026 (Varanasi)</option>
-									<option value="Varanasi - Ayodhya - Prayagraj (3 Holy Cities)">Varanasi - Ayodhya - Prayagraj (3 Holy Cities)</option>
-									<option value="Varanasi - Ayodhya (Ram Janmabhoomi)">Varanasi - Ayodhya (Ram Janmabhoomi)</option>
-									<option value="Varanasi - Prayagraj (Triveni Sangam)">Varanasi - Prayagraj (Triveni Sangam)</option>
-									<option value="Varanasi - Bodhgaya - Gaya (Pind Daan Yatra)">Varanasi - Bodhgaya - Gaya (Pind Daan)</option>
-									<option value="Complete Spiritual Circuit (Kashi-Prayag-Ayodhya-Gaya)">Complete Spiritual Circuit (Kashi-Prayag-Ayodhya-Gaya)</option>
-									<option value="Varanasi Airport &amp; Outstation Cab Rental">Varanasi Airport &amp; Outstation Cab Rental</option>
-									<option value="Custom Itinerary / Other">Custom Itinerary / Other</option>
-								</select>
+								<label for="tc-q-email">Email (Optional)</label>
+								<input type="email" id="tc-q-email" placeholder="rahul@example.com" autocomplete="email" />
 							</div>
 							<div class="tc-form-field">
 								<label for="tc-q-month">Travel Dates / Month</label>
-								<input type="text" id="tc-q-month" placeholder="e.g. Next week / Oct" />
+								<input type="text" id="tc-q-month" placeholder="e.g. Next week / Nov" />
 							</div>
+						</div>
+						<div class="tc-form-field">
+							<label for="tc-q-destination">Destination / Circuit</label>
+							<select id="tc-q-destination">
+								<option value="Varanasi (Kashi Darshan &amp; Ganga Aarti)">Varanasi (Kashi Darshan &amp; Ganga Aarti)</option>
+								<option value="Dev Deepawali Special 2026 (Varanasi)" <?php echo $is_dev_diwali ? 'selected' : ''; ?>>Dev Deepawali Special 2026 (Varanasi)</option>
+								<option value="Varanasi - Ayodhya - Prayagraj (3 Holy Cities)">Varanasi - Ayodhya - Prayagraj (3 Holy Cities)</option>
+								<option value="Varanasi - Ayodhya (Ram Janmabhoomi)">Varanasi - Ayodhya (Ram Janmabhoomi)</option>
+								<option value="Varanasi - Prayagraj (Triveni Sangam)">Varanasi - Prayagraj (Triveni Sangam)</option>
+								<option value="Varanasi - Bodhgaya - Gaya (Pind Daan Yatra)">Varanasi - Bodhgaya - Gaya (Pind Daan)</option>
+								<option value="Complete Spiritual Circuit (Kashi-Prayag-Ayodhya-Gaya)">Complete Spiritual Circuit (Kashi-Prayag-Ayodhya-Gaya)</option>
+								<option value="Varanasi Airport &amp; Outstation Cab Rental">Varanasi Airport &amp; Outstation Cab Rental</option>
+								<option value="Custom Itinerary / Other">Custom Itinerary / Other</option>
+							</select>
 						</div>
 						<div class="tc-form-field">
 							<label for="tc-q-group">Travel Group / Requirement</label>
@@ -426,7 +428,7 @@ class TC_Agents_Public {
 							</select>
 						</div>
 						<button type="submit" id="tc-quote-submit" class="tc-quote-submit-btn">
-							⚡ Get Custom Itinerary & Cab Fare
+							&#9889; Get Custom Itinerary &amp; Cab Fare
 						</button>
 					</form>
 					<div id="tc-quote-success" class="tc-quote-success" style="display: none;">
