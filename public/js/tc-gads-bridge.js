@@ -76,21 +76,24 @@
 			});
 		}
 
-		// 2. Direct Google Ads gtag('event', 'conversion') execution
-		if (typeof window.gtag === 'function') {
-			try {
-				var gadsPayload = {
-					send_to: GADS_ID + '/' + label,
-					value: value || LEAD_VALUE,
-					currency: 'INR'
-				};
-				if (extraData && extraData.transaction_id) {
-					gadsPayload.transaction_id = extraData.transaction_id;
-				}
-				window.gtag('event', 'conversion', gadsPayload);
-			} catch (err) {
-				console.warn('[TripCosmos GAds Bridge] Direct gtag conversion error:', err);
+		// 2. Direct Google Ads gtag('event', 'conversion') execution (Universal Fallback)
+		window.dataLayer = window.dataLayer || [];
+		window.gtag = window.gtag || function() { window.dataLayer.push(arguments); };
+
+		try {
+			var gadsPayload = {
+				send_to: GADS_ID + '/' + label,
+				value: value || LEAD_VALUE,
+				currency: 'INR',
+				transport_type: 'beacon'
+			};
+			if (extraData && extraData.transaction_id) {
+				gadsPayload.transaction_id = extraData.transaction_id;
 			}
+			window.gtag('event', 'conversion', gadsPayload);
+			console.log('[TripCosmos GAds Bridge] ✅ Google Ads conversion dispatched:', type, GADS_ID + '/' + label, gadsPayload);
+		} catch (err) {
+			console.warn('[TripCosmos GAds Bridge] Direct gtag conversion error:', err);
 		}
 
 		// Dispatch custom DOM event for other listeners
