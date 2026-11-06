@@ -2841,46 +2841,95 @@
 
 #tc-agent-widget-root .tc-widget-tabs {
 	display: flex !important;
-	background: #f1f5f9 !important;
-	border-radius: 16px !important;
+	align-items: center !important;
+	justify-content: space-between !important;
+	background: rgba(241, 245, 249, 0.88) !important;
+	backdrop-filter: blur(20px) saturate(180%) !important;
+	-webkit-backdrop-filter: blur(20px) saturate(180%) !important;
+	border-radius: 14px !important;
 	padding: 4px !important;
-	margin: 6px 14px 10px 14px !important;
-	border: 1px solid #e2e8f0 !important;
-	gap: 4px !important;
+	margin: 6px 12px 10px 12px !important;
+	border: 1px solid rgba(226, 232, 240, 0.9) !important;
+	box-shadow: 0 4px 16px -2px rgba(15, 23, 42, 0.06), inset 0 1px 1px rgba(255, 255, 255, 0.9) !important;
+	gap: 3px !important;
 	box-sizing: border-box !important;
+	flex-shrink: 0 !important;
 }
 
 #tc-agent-widget-root .tc-tab-btn {
 	flex: 1 1 0 !important;
-	display: flex !important;
+	display: inline-flex !important;
 	align-items: center !important;
 	justify-content: center !important;
-	padding: 7px 3px !important;
-	border-radius: 12px !important;
-	border: none !important;
+	padding: 7px 5px !important;
+	border-radius: 10px !important;
+	border: 1px solid transparent !important;
 	background: transparent !important;
 	color: #64748b !important;
-	font-size: 10.5px !important;
-	font-weight: 700 !important;
-	transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+	font-family: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+	font-size: 11px !important;
+	font-weight: 600 !important;
+	transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1) !important;
 	cursor: pointer !important;
-	gap: 3px !important;
+	gap: 4.5px !important;
 	white-space: nowrap !important;
+	position: relative !important;
+	outline: none !important;
+	user-select: none !important;
 }
 
 #tc-agent-widget-root .tc-tab-btn .tc-tab-icon {
-	font-size: 13px !important;
-	line-height: 1 !important;
+	display: inline-flex !important;
+	align-items: center !important;
+	justify-content: center !important;
 	flex-shrink: 0 !important;
+	transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), color 0.22s ease !important;
+}
+
+#tc-agent-widget-root .tc-tab-btn .tc-tab-svg {
+	width: 13.5px !important;
+	height: 13.5px !important;
+	display: block !important;
+	transition: stroke 0.22s ease !important;
 }
 
 #tc-agent-widget-root .tc-tab-btn .tc-tab-label {
-	font-size: 10.5px !important;
-	font-weight: 700 !important;
+	font-size: 11px !important;
+	font-weight: 600 !important;
 	letter-spacing: -0.01em !important;
 	white-space: nowrap !important;
 	overflow: hidden !important;
 	text-overflow: ellipsis !important;
+	line-height: 1 !important;
+	transition: color 0.22s ease, font-weight 0.22s ease !important;
+}
+
+#tc-agent-widget-root .tc-tab-btn:hover {
+	color: #0f172a !important;
+	background: rgba(255, 255, 255, 0.65) !important;
+	border-color: rgba(226, 232, 240, 0.5) !important;
+}
+
+#tc-agent-widget-root .tc-tab-btn:hover .tc-tab-icon {
+	transform: translateY(-1px) scale(1.05) !important;
+}
+
+#tc-agent-widget-root .tc-tab-btn.active {
+	background: #ffffff !important;
+	color: #ea580c !important;
+	font-weight: 700 !important;
+	border-color: rgba(255, 255, 255, 0.9) !important;
+	box-shadow: 0 3px 10px rgba(15, 23, 42, 0.08), 0 1px 2px rgba(15, 23, 42, 0.04) !important;
+	transform: translateY(0) !important;
+}
+
+#tc-agent-widget-root .tc-tab-btn.active .tc-tab-svg {
+	stroke: #ea580c !important;
+}
+
+#tc-agent-widget-root .tc-tab-btn.active .tc-tab-label {
+	font-weight: 700 !important;
+	color: #ea580c !important;
 }
 
 @media (max-width: 480px) {
@@ -2888,29 +2937,20 @@
 		margin: 4px 8px 8px 8px !important;
 		padding: 3px !important;
 		gap: 2px !important;
+		border-radius: 12px !important;
 	}
 	#tc-agent-widget-root .tc-tab-btn {
-		padding: 6px 2px !important;
-		gap: 2px !important;
+		padding: 6px 3px !important;
+		gap: 3px !important;
+		border-radius: 9px !important;
 	}
 	#tc-agent-widget-root .tc-tab-btn .tc-tab-label {
-		font-size: 9.5px !important;
+		font-size: 10px !important;
 	}
-	#tc-agent-widget-root .tc-tab-btn .tc-tab-icon {
-		font-size: 11px !important;
+	#tc-agent-widget-root .tc-tab-btn .tc-tab-svg {
+		width: 12.5px !important;
+		height: 12.5px !important;
 	}
-}
-
-#tc-agent-widget-root .tc-tab-btn:hover {
-	color: #0f172a !important;
-	background: rgba(255, 255, 255, 0.6) !important;
-}
-
-#tc-agent-widget-root .tc-tab-btn.active {
-	background: #ffffff !important;
-	color: #ea580c !important;
-	font-weight: 700 !important;
-	box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08) !important;
 }
 
 #tc-agent-widget-root .tc-footer-subtext {
