@@ -286,7 +286,7 @@ class TC_Workspace_Dashboard {
 		}
 
 		// Retrieve channel title
-		$channel_name = 'YouTube Channel';
+		$channel_name = '';
 		$ch_res = wp_remote_get( 'https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true', array(
 			'headers' => array( 'Authorization' => 'Bearer ' . $access_token ),
 			'timeout' => 12,
@@ -294,14 +294,14 @@ class TC_Workspace_Dashboard {
 		if ( ! is_wp_error( $ch_res ) ) {
 			$ch_data = json_decode( wp_remote_retrieve_body( $ch_res ), true );
 			if ( ! empty( $ch_data['items'][0]['snippet']['title'] ) ) {
-				$channel_name = $ch_data['items'][0]['snippet']['title'];
+				$channel_name = (string) $ch_data['items'][0]['snippet']['title'];
 			}
 		}
-		if ( class_exists( 'TC_Agents_Vault' ) ) {
+		if ( ! empty( $channel_name ) && class_exists( 'TC_Agents_Vault' ) ) {
 			TC_Agents_Vault::set( 'youtube_channel_name', $channel_name );
 		}
 
-		wp_safe_redirect( add_query_arg( array( 'youtube' => 'connected', 'channel' => rawurlencode( $channel_name ) ), home_url( '/workspace' ) ) );
+		wp_safe_redirect( add_query_arg( array( 'youtube' => 'connected', 'channel' => rawurlencode( $channel_name ?: 'YouTube' ) ), home_url( '/workspace' ) ) );
 		exit;
 	}
 
@@ -495,8 +495,8 @@ class TC_Workspace_Dashboard {
 		) );
 
 		// YouTube / Google OAuth
-		$has_youtube      = ! empty( $vmsai_creds['google_refresh_token'] ) || ( class_exists( 'TC_Agents_Vault' ) && ! empty( TC_Agents_Vault::get( 'google_refresh_token' ) ) );
-		$youtube_channel  = class_exists( 'TC_Agents_Vault' ) ? TC_Agents_Vault::get( 'youtube_channel_name', 'YouTube Channel' ) : 'YouTube Channel';
+		$youtube_channel  = class_exists( 'TC_Agents_Vault' ) ? (string) TC_Agents_Vault::get( 'youtube_channel_name', '' ) : '';
+		$has_youtube      = ! empty( $youtube_channel ) && ( ! empty( $vmsai_creds['google_refresh_token'] ) || ( class_exists( 'TC_Agents_Vault' ) && ! empty( TC_Agents_Vault::get( 'google_refresh_token' ) ) ) );
 		$google_client_id = self::get_google_client_id();
 		$google_auth_url  = 'https://accounts.google.com/o/oauth2/v2/auth?' . http_build_query( array(
 			'client_id'     => $google_client_id,
@@ -504,7 +504,7 @@ class TC_Workspace_Dashboard {
 			'response_type' => 'code',
 			'scope'         => 'https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly',
 			'access_type'   => 'offline',
-			'prompt'        => 'consent',
+			'prompt'        => 'select_account consent',
 			'state'         => 'google',
 		) );
 
