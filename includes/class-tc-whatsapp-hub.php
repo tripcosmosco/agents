@@ -36,6 +36,84 @@ class TC_WhatsApp_Hub {
 		return '0' !== (string) get_option( 'tc_agents_wa_forward', '1' );
 	}
 
+	public static function staff_alert_mode() {
+		return (string) get_option( 'tc_agents_staff_alert_mode', 'urgent_only' );
+	}
+
+	/**
+	 * Determines whether a message or inquiry qualifies as Urgent or High-Ticket.
+	 * Filters out routine chatter so personal staff WhatsApp numbers (e.g. 8433284773) are never spammed.
+	 */
+	public static function is_urgent_or_high_ticket( $text, $contact = array() ) {
+		$t = mb_strtolower( (string) $text, 'UTF-8' );
+
+		// 1. VIP Pilgrimage & Temple Darshan Keywords
+		$vip_keywords = array(
+			'vip', 'darshan', 'sugam', 'mangla', 'shringaar', 'rudrabhishek',
+			'vip pass', 'vip ticket', 'fast track', 'priority entry', 'kashi vishwanath',
+		);
+		foreach ( $vip_keywords as $kw ) {
+			if ( false !== strpos( $t, $kw ) ) {
+				return true;
+			}
+		}
+
+		// 2. High-Ticket Boat Charters & Dev Diwali
+		$charter_keywords = array(
+			'bajra', 'private boat', 'vip boat', 'motorboat', 'charter',
+			'dev diwali', 'dev deepawali', 'deepavali', 'kartik purnima',
+			'boat booking', 'cruise', 'alaknanda', 'ro-pax',
+		);
+		foreach ( $charter_keywords as $kw ) {
+			if ( false !== strpos( $t, $kw ) ) {
+				return true;
+			}
+		}
+
+		// 3. Luxury Hospitality & High Value Packages
+		$luxury_keywords = array(
+			'luxury', '5 star', 'suite', 'brijrama', 'taj ganges', 'radisson',
+			'gateway', 'ramada', 'naman', 'heritage hotel',
+			'corporate', 'group booking', 'wedding', 'event', 'tempo traveller',
+		);
+		foreach ( $luxury_keywords as $kw ) {
+			if ( false !== strpos( $t, $kw ) ) {
+				return true;
+			}
+		}
+
+		// 4. Urgent / Emergency Escalations & SLA Breaches
+		$urgent_keywords = array(
+			'urgent', 'emergency', 'asap', 'immediately', 'right now',
+			'driver not reached', 'flight delay', 'train late', 'cab not arrived',
+			'refund', 'complaint', 'escalate', 'talk to founder', 'speak to manager',
+			'sla breach', 'unanswered', 'claim',
+		);
+		foreach ( $urgent_keywords as $kw ) {
+			if ( false !== strpos( $t, $kw ) ) {
+				return true;
+			}
+		}
+
+		// 5. Contact Metadata Budget or Priority Check
+		if ( ! empty( $contact ) ) {
+			$meta = is_array( $contact['meta_data'] ?? null )
+				? $contact['meta_data']
+				: ( json_decode( (string) ( $contact['meta_data'] ?? '' ), true ) ?: array() );
+
+			$budget = (float) ( $meta['budget'] ?? $contact['budget'] ?? $meta['deal_value'] ?? 0 );
+			if ( $budget >= 10000 ) {
+				return true;
+			}
+			$priority = strtolower( (string) ( $meta['priority'] ?? $contact['priority'] ?? '' ) );
+			if ( in_array( $priority, array( 'high', 'urgent', 'vip' ), true ) ) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
 	/* ------------------------------------------------------------------ staff numbers */
 
 	/** Team members with a WhatsApp number on their CRM profile: last-10-digits => user id. */
@@ -301,6 +379,18 @@ public static function on_customer_message( array $contact, $text, $is_new ) {
 
 	/** Sends an alert to a staff member's own WhatsApp and remembers which lead it was about. */
 	public static function alert( $user_id, $text, $contact_id ) {
+		$alert_mode = self::staff_alert_mode();
+		if ( 'disabled' === $alert_mode ) {
+			return false;
+		}
+		// Option 2 Guard: When in 'urgent_only' mode, strictly suppress routine chat notifications to personal WhatsApp
+		if ( 'urgent_only' === $alert_mode ) {
+			$contact_data = $contact_id && class_exists( 'TC_Contact_Service' ) ? TC_Contact_Service::get( (int) $contact_id ) : array();
+			if ( ! self::is_urgent_or_high_ticket( $text, $contact_data ) ) {
+				return false; // Suppressed: routine chat belongs in X-Agents app, not personal WhatsApp!
+			}
+		}
+
 		$wa = preg_replace( '/\D/', '', (string) get_user_meta( (int) $user_id, 'tc_crm_whatsapp', true ) );
 		// Ensure Nishkarsh receives alerts on his personal operational number (918433284773)
 		if ( empty( $wa ) && ( (int) $user_id === 73657 || ( ( $u = get_userdata( (int) $user_id ) ) && stripos( $u->user_email, 'nishkarsh' ) !== false ) ) ) {

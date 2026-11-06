@@ -95,13 +95,27 @@ class TC_CRM_Notify {
 
 			// Strictly only send WhatsApp alerts to Nishkarsh (918433284773) or authorized staff members
 			if ( substr( $wa, -10 ) === '8433284773' || in_array( 'administrator', $roles, true ) || in_array( 'tc_sales_manager', $roles, true ) ) {
+				$alert_mode = (string) get_option( 'tc_agents_staff_alert_mode', 'urgent_only' );
+				if ( 'disabled' === $alert_mode ) {
+					return;
+				}
+				if ( 'urgent_only' === $alert_mode ) {
+					$is_urgent_event = ( stripos( $subject, 'SLA' ) !== false || stripos( $subject, 'Urgent' ) !== false || stripos( $subject, 'VIP' ) !== false || stripos( $subject, 'Missed' ) !== false );
+					if ( ! $is_urgent_event && class_exists( 'TC_WhatsApp_Hub' ) ) {
+						$c_obj = $contact_id && class_exists( 'TC_Contact_Service' ) ? TC_Contact_Service::get( (int) $contact_id ) : array();
+						$is_urgent_event = TC_WhatsApp_Hub::is_urgent_or_high_ticket( $subject . ' ' . $text, $c_obj );
+					}
+					if ( ! $is_urgent_event ) {
+						return; // Suppressed: routine notifications belong in X-Agents app!
+					}
+				}
 				// Deduplication: Never send the exact same WhatsApp alert to the same recipient within 10 minutes
 				$alert_dedup_key = 'tc_crm_alert_dedup_' . md5( $wa . '_' . $subject . '_' . (int) $contact_id );
 				if ( get_transient( $alert_dedup_key ) ) {
 					return;
 				}
 				set_transient( $alert_dedup_key, 1, 10 * MINUTE_IN_SECONDS );
-				TC_Integration_WhatsApp::send_message_ex( $wa, "🔔 *{$subject}*\n{$text}\n{$link}", 'staff_alert' );
+				TC_Integration_WhatsApp::send_message_ex( $wa, "*[ALERT]* *{$subject}*\n{$text}\n{$link}", 'staff_alert' );
 			}
 		}
 	}
