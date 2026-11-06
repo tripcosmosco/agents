@@ -88,7 +88,7 @@ class TC_Workspace_Dashboard {
 	}
 
 	/**
-	 * Process OAuth callbacks (e.g. LinkedIn 1-Click Handshake)
+	 * Process OAuth callbacks (e.g. LinkedIn & Google YouTube 1-Click Handshakes)
 	 */
 	private static function maybe_handle_oauth() {
 		if ( ! current_user_can( 'manage_options' ) ) {
@@ -96,8 +96,14 @@ class TC_Workspace_Dashboard {
 		}
 
 		if ( isset( $_GET['code'] ) && ! empty( $_GET['code'] ) ) {
-			$code = sanitize_text_field( wp_unslash( $_GET['code'] ) );
-			self::exchange_linkedin_code( $code );
+			$code  = sanitize_text_field( wp_unslash( $_GET['code'] ) );
+			$state = isset( $_GET['state'] ) ? sanitize_text_field( wp_unslash( $_GET['state'] ) ) : '';
+
+			if ( 'google' === $state || ( isset( $_GET['scope'] ) && false !== strpos( (string) $_GET['scope'], 'googleapis.com' ) ) ) {
+				self::exchange_google_code( $code );
+			} else {
+				self::exchange_linkedin_code( $code );
+			}
 		}
 	}
 
@@ -214,6 +220,119 @@ class TC_Workspace_Dashboard {
 			return class_exists( 'VMSAI_Crypto' ) ? (string) VMSAI_Crypto::decrypt( $vmsai['li_client_secret'] ) : (string) $vmsai['li_client_secret'];
 		}
 		return (string) get_option( 'tc_agents_linkedin_client_secret', '' );
+	}
+
+	/**
+	 * Complete Google YouTube OAuth Code Exchange
+	 */
+	public static function exchange_google_code( $code ) {
+		$client_id     = self::get_google_client_id();
+		$client_secret = self::get_google_client_secret();
+		$redirect_uri  = home_url( '/workspace' );
+
+		if ( empty( $client_id ) || empty( $client_secret ) ) {
+			wp_die( 'Google OAuth Client ID or Client Secret is not configured in Vault.', 'OAuth Error', array( 'back_link' => true ) );
+		}
+
+		$response = wp_remote_post( 'https://oauth2.googleapis.com/token', array(
+			'headers' => array( 'Content-Type' => 'application/x-www-form-urlencoded' ),
+			'body'    => http_build_query( array(
+				'grant_type'    => 'authorization_code',
+				'code'          => $code,
+				'redirect_uri'  => $redirect_uri,
+				'client_id'     => $client_id,
+				'client_secret' => $client_secret,
+			) ),
+			'timeout' => 20,
+		) );
+
+		if ( is_wp_error( $response ) ) {
+			wp_die( 'Google Token Exchange Error: ' . esc_html( $response->get_error_message() ), 'OAuth Error', array( 'back_link' => true ) );
+		}
+
+		$body = json_decode( wp_remote_retrieve_body( $response ), true );
+		if ( empty( $body['access_token'] ) ) {
+			$err_msg = $body['error_description'] ?? ( $body['error'] ?? 'Unknown Google OAuth response' );
+			wp_die( 'Google Token Exchange Failed: ' . esc_html( $err_msg ), 'OAuth Error', array( 'back_link' => true ) );
+		}
+
+		$access_token  = (string) $body['access_token'];
+		$refresh_token = (string) ( $body['refresh_token'] ?? '' );
+
+		if ( class_exists( 'TC_Agents_Vault' ) ) {
+			TC_Agents_Vault::set( 'google_access_token', $access_token );
+			if ( $refresh_token ) {
+				TC_Agents_Vault::set( 'google_refresh_token', $refresh_token );
+			}
+		}
+
+		// Sync with VM Social AI
+		$vmsai = get_option( 'vmsai_credentials', array() );
+		if ( is_array( $vmsai ) ) {
+			if ( class_exists( 'VMSAI_Crypto' ) ) {
+				$vmsai['google_client_id']     = VMSAI_Crypto::encrypt( $client_id );
+				$vmsai['google_client_secret'] = VMSAI_Crypto::encrypt( $client_secret );
+				if ( $refresh_token ) {
+					$vmsai['google_refresh_token'] = VMSAI_Crypto::encrypt( $refresh_token );
+				}
+			} else {
+				$vmsai['google_client_id']     = $client_id;
+				$vmsai['google_client_secret'] = $client_secret;
+				if ( $refresh_token ) {
+					$vmsai['google_refresh_token'] = $refresh_token;
+				}
+			}
+			update_option( 'vmsai_credentials', $vmsai, false );
+		}
+
+		// Retrieve channel title
+		$channel_name = 'YouTube Channel';
+		$ch_res = wp_remote_get( 'https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true', array(
+			'headers' => array( 'Authorization' => 'Bearer ' . $access_token ),
+			'timeout' => 12,
+		) );
+		if ( ! is_wp_error( $ch_res ) ) {
+			$ch_data = json_decode( wp_remote_retrieve_body( $ch_res ), true );
+			if ( ! empty( $ch_data['items'][0]['snippet']['title'] ) ) {
+				$channel_name = $ch_data['items'][0]['snippet']['title'];
+			}
+		}
+		if ( class_exists( 'TC_Agents_Vault' ) ) {
+			TC_Agents_Vault::set( 'youtube_channel_name', $channel_name );
+		}
+
+		wp_safe_redirect( add_query_arg( array( 'youtube' => 'connected', 'channel' => rawurlencode( $channel_name ) ), home_url( '/workspace' ) ) );
+		exit;
+	}
+
+	/**
+	 * Helper: Retrieve Google OAuth Client ID
+	 */
+	public static function get_google_client_id() {
+		$id = class_exists( 'TC_Agents_Vault' ) ? (string) TC_Agents_Vault::get( 'google_client_id', '' ) : '';
+		if ( '' !== $id ) {
+			return $id;
+		}
+		$vmsai = get_option( 'vmsai_credentials', array() );
+		if ( ! empty( $vmsai['google_client_id'] ) ) {
+			return class_exists( 'VMSAI_Crypto' ) ? (string) VMSAI_Crypto::decrypt( $vmsai['google_client_id'] ) : (string) $vmsai['google_client_id'];
+		}
+		return (string) get_option( 'tc_agents_google_client_id', '' );
+	}
+
+	/**
+	 * Helper: Retrieve Google OAuth Client Secret
+	 */
+	public static function get_google_client_secret() {
+		$sec = class_exists( 'TC_Agents_Vault' ) ? (string) TC_Agents_Vault::get( 'google_client_secret', '' ) : '';
+		if ( '' !== $sec ) {
+			return $sec;
+		}
+		$vmsai = get_option( 'vmsai_credentials', array() );
+		if ( ! empty( $vmsai['google_client_secret'] ) ) {
+			return class_exists( 'VMSAI_Crypto' ) ? (string) VMSAI_Crypto::decrypt( $vmsai['google_client_secret'] ) : (string) $vmsai['google_client_secret'];
+		}
+		return (string) get_option( 'tc_agents_google_client_secret', '' );
 	}
 
 	/**
@@ -374,7 +493,27 @@ class TC_Workspace_Dashboard {
 			'redirect_uri'  => home_url( '/workspace' ),
 			'scope'         => 'openid profile email w_member_social',
 		) );
-		$flash_notice = isset( $_GET['linkedin'] ) && 'connected' === $_GET['linkedin'] ? '🎉 LinkedIn successfully linked! Live tokens synced to VM Social AI & Paperclip Agent Fleet.' : '';
+
+		// YouTube / Google OAuth
+		$has_youtube      = ! empty( $vmsai_creds['google_refresh_token'] ) || ( class_exists( 'TC_Agents_Vault' ) && ! empty( TC_Agents_Vault::get( 'google_refresh_token' ) ) );
+		$youtube_channel  = class_exists( 'TC_Agents_Vault' ) ? TC_Agents_Vault::get( 'youtube_channel_name', 'YouTube Channel' ) : 'YouTube Channel';
+		$google_client_id = self::get_google_client_id();
+		$google_auth_url  = 'https://accounts.google.com/o/oauth2/v2/auth?' . http_build_query( array(
+			'client_id'     => $google_client_id,
+			'redirect_uri'  => home_url( '/workspace' ),
+			'response_type' => 'code',
+			'scope'         => 'https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly',
+			'access_type'   => 'offline',
+			'prompt'        => 'consent',
+			'state'         => 'google',
+		) );
+
+		$flash_notice = '';
+		if ( isset( $_GET['linkedin'] ) && 'connected' === $_GET['linkedin'] ) {
+			$flash_notice = '🎉 LinkedIn successfully linked! Live tokens synced to VM Social AI & Paperclip Agent Fleet.';
+		} elseif ( isset( $_GET['youtube'] ) && 'connected' === $_GET['youtube'] ) {
+			$flash_notice = '🎉 YouTube successfully linked as ' . esc_html( $_GET['channel'] ?? 'YouTube Channel' ) . '! Live tokens synced to VM Social AI & Paperclip Swarm.';
+		}
 
 		ob_start();
 		?>
@@ -923,6 +1062,17 @@ class TC_Workspace_Dashboard {
 					<a href="<?php echo esc_url( $linkedin_auth_url ); ?>" class="tc-integ-chip tc-integ-action" title="Click to complete LinkedIn OAuth Handshake">
 						<span class="tc-dot-amber"></span>
 						<span><strong>LinkedIn:</strong> 1-Click Connect &rarr;</span>
+					</a>
+				<?php endif; ?>
+				<?php if ( $has_youtube ) : ?>
+					<div class="tc-integ-chip">
+						<span class="tc-dot-green"></span>
+						<span><strong>YouTube:</strong> Connected (<?php echo esc_html( $youtube_channel ); ?>)</span>
+					</div>
+				<?php else : ?>
+					<a href="<?php echo esc_url( $google_auth_url ); ?>" class="tc-integ-chip tc-integ-action" title="Click to Authorize YouTube Shorts with Google">
+						<span class="tc-dot-amber"></span>
+						<span><strong>YouTube:</strong> 1-Click Connect &rarr;</span>
 					</a>
 				<?php endif; ?>
 			</div>
