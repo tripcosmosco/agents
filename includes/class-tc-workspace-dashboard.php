@@ -440,6 +440,13 @@ class TC_Workspace_Dashboard {
 					font-size: 12px;
 					color: #64748b;
 				}
+				@media (max-width: 480px) {
+					body { padding: 14px; }
+					.lock-card { padding: 28px 18px; border-radius: 16px; }
+					h1 { font-size: 20px; }
+					p { font-size: 13px; margin-bottom: 22px; }
+					.btn-auth { font-size: 14px; padding: 12px 16px; }
+				}
 			</style>
 		</head>
 		<body>
@@ -550,6 +557,9 @@ class TC_Workspace_Dashboard {
 				background-color: var(--bg-base);
 				color: var(--text-primary);
 				min-height: 100vh;
+				width: 100%;
+				max-width: 100%;
+				overflow-x: hidden;
 				padding: 0;
 				margin: 0;
 				box-sizing: border-box;
@@ -997,6 +1007,231 @@ class TC_Workspace_Dashboard {
 				cursor: pointer;
 				font-size: 20px;
 			}
+
+			/* Responsive Tables & Grids */
+			.tc-table-scroll {
+				width: 100%;
+				overflow-x: auto;
+				-webkit-overflow-scrolling: touch;
+			}
+			.tc-table-scroll::-webkit-scrollbar {
+				height: 6px;
+			}
+			.tc-table-scroll::-webkit-scrollbar-thumb {
+				background: rgba(255, 255, 255, 0.15);
+				border-radius: 4px;
+			}
+			.tc-funnel-grid {
+				display: grid;
+				grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+				gap: 16px;
+			}
+			.tc-forecast-cards {
+				display: grid;
+				grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+				gap: 16px;
+				margin-top: 24px;
+			}
+			.tc-gsc-grid {
+				display: grid;
+				grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+				gap: 12px;
+			}
+
+			/* ========================================================
+			   Responsive Breakpoints & Mobile Touch Optimization
+			   ======================================================== */
+			@media (max-width: 1024px) {
+				.tc-container {
+					padding: 20px 20px 50px;
+				}
+				.tc-topbar {
+					padding: 14px 20px;
+				}
+				.tc-integrations-bar {
+					padding: 10px 20px;
+				}
+			}
+
+			@media (max-width: 860px) {
+				.tc-topbar {
+					flex-direction: column;
+					align-items: stretch;
+					gap: 14px;
+					padding: 14px 16px;
+				}
+				.tc-brand {
+					justify-content: flex-start;
+					gap: 12px;
+				}
+				.tc-topbar-actions {
+					display: flex;
+					flex-wrap: wrap;
+					gap: 8px;
+					width: 100%;
+				}
+				.tc-status-pill {
+					width: 100%;
+					justify-content: center;
+					order: -1;
+					padding: 6px 12px;
+				}
+				.tc-topbar-actions .tc-btn {
+					flex: 1 1 calc(50% - 4px);
+					justify-content: center;
+					text-align: center;
+					padding: 9px 12px;
+					font-size: 13px;
+				}
+				.tc-integrations-bar {
+					flex-wrap: nowrap;
+					overflow-x: auto;
+					-webkit-overflow-scrolling: touch;
+					padding: 10px 14px;
+					gap: 8px;
+					scrollbar-width: none;
+				}
+				.tc-integrations-bar::-webkit-scrollbar {
+					display: none;
+				}
+				.tc-integ-chip {
+					flex: 0 0 auto;
+					white-space: nowrap;
+					font-size: 11px;
+					padding: 5px 12px;
+				}
+				.tc-container {
+					padding: 16px 14px 40px;
+				}
+				.tc-nav-tabs {
+					overflow-x: auto;
+					-webkit-overflow-scrolling: touch;
+					scrollbar-width: none;
+					gap: 6px;
+					padding-bottom: 2px;
+					margin-bottom: 20px;
+				}
+				.tc-nav-tabs::-webkit-scrollbar {
+					display: none;
+				}
+				.tc-tab-btn {
+					flex: 0 0 auto;
+					padding: 10px 14px;
+					font-size: 13px;
+				}
+				.tc-kpi-grid {
+					grid-template-columns: repeat(2, 1fr);
+					gap: 12px;
+					margin-bottom: 20px;
+				}
+				.tc-kpi-card {
+					padding: 14px 16px;
+				}
+				.tc-kpi-val {
+					font-size: 22px;
+				}
+				.tc-fleet-grid {
+					grid-template-columns: 1fr;
+					gap: 12px;
+					margin-bottom: 24px;
+				}
+				.tc-table {
+					min-width: 600px;
+				}
+				.tc-table-header {
+					flex-direction: column;
+					align-items: flex-start;
+					gap: 6px;
+					padding: 14px 16px;
+				}
+				.tc-table-header h2 {
+					font-size: 14px;
+				}
+				.tc-table th {
+					padding: 10px 12px;
+					font-size: 10px;
+				}
+				.tc-table td {
+					padding: 12px 12px;
+					font-size: 12px;
+				}
+				.tc-funnel-grid {
+					grid-template-columns: repeat(2, 1fr);
+					gap: 10px;
+				}
+				.tc-forecast-cards {
+					grid-template-columns: 1fr;
+					gap: 12px;
+				}
+				.tc-gsc-grid {
+					grid-template-columns: 1fr;
+					gap: 10px;
+				}
+				.tc-chart-box {
+					padding: 16px 14px;
+					border-radius: 12px;
+					margin-bottom: 20px;
+				}
+				.tc-chart-header {
+					flex-direction: column;
+					align-items: flex-start;
+					gap: 8px;
+					margin-bottom: 14px;
+				}
+				.tc-chart-header h2 {
+					font-size: 15px;
+				}
+				.tc-chart-svg {
+					min-height: 180px;
+					height: auto;
+				}
+				.tc-modal-backdrop {
+					padding: 12px;
+				}
+				.tc-modal {
+					max-width: 100%;
+					max-height: 92vh;
+					border-radius: 12px;
+				}
+				.tc-modal-header {
+					padding: 14px 16px;
+				}
+				.tc-modal-title {
+					font-size: 14px;
+				}
+				.tc-modal-body {
+					padding: 16px 14px;
+					font-size: 12px;
+				}
+			}
+
+			@media (max-width: 480px) {
+				.tc-title-block h1 {
+					font-size: 15px;
+				}
+				.tc-title-block .tc-title-sub {
+					font-size: 11px;
+					line-height: 1.3;
+				}
+				.tc-topbar-actions .tc-btn {
+					flex: 1 1 100%;
+				}
+				.tc-kpi-grid {
+					grid-template-columns: 1fr;
+				}
+				.tc-funnel-grid {
+					grid-template-columns: 1fr;
+				}
+				.tc-agent-details {
+					flex-direction: column;
+					align-items: flex-start;
+					gap: 6px;
+				}
+				.tc-badge-status {
+					font-size: 10px;
+					padding: 2px 6px;
+				}
+			}
 		</style>
 
 		<div id="tc-workspace-root">
@@ -1006,7 +1241,7 @@ class TC_Workspace_Dashboard {
 					<div class="tc-logo-badge">TC</div>
 					<div class="tc-title-block">
 						<h1>TripCosmos Sovereign Command <span>/workspace</span></h1>
-						<span>Fleet: TRI (6 Agents Active) &bull; Enterprise Autonomous Matrix</span>
+						<span class="tc-title-sub">Fleet: TRI (6 Agents Active) &bull; Enterprise Autonomous Matrix</span>
 					</div>
 				</div>
 				<div class="tc-topbar-actions">
@@ -1165,43 +1400,45 @@ class TC_Workspace_Dashboard {
 							<h2>Sovereign Agent Tasks & Issue Matrix (TRI-1 to TRI-7)</h2>
 							<span style="font-size:12px; color:var(--text-muted); font-family:'JetBrains Mono';">Live Paperclip Postgres Sync</span>
 						</div>
-						<table class="tc-table">
-							<thead>
-								<tr>
-									<th>Identifier</th>
-									<th>Task Title & Mission</th>
-									<th>Assignee</th>
-									<th>Status</th>
-									<th>Action</th>
-								</tr>
-							</thead>
-							<tbody>
-								<?php foreach ( $issues_data['issues'] as $issue ) : ?>
+						<div class="tc-table-scroll">
+							<table class="tc-table">
+								<thead>
 									<tr>
-										<td><strong style="color:var(--color-indigo); font-family:'JetBrains Mono';"><?php echo esc_html( $issue['identifier'] ); ?></strong></td>
-										<td>
-											<div style="font-weight:600; color:#fff;"><?php echo esc_html( $issue['title'] ); ?></div>
-											<div style="font-size:12px; color:var(--text-muted); margin-top:2px;"><?php echo esc_html( $issue['summary'] ); ?></div>
-										</td>
-										<td>
-											<span style="font-family:'JetBrains Mono'; font-size:12px; color:var(--text-secondary);"><?php echo esc_html( $issue['assignee_name'] ); ?></span>
-										</td>
-										<td>
-											<?php if ( 'done' === $issue['status'] ) : ?>
-												<span class="tc-badge-status tc-badge-done">RESOLVED</span>
-											<?php else : ?>
-												<span class="tc-badge-status tc-badge-todo">IN BACKLOG</span>
-											<?php endif; ?>
-										</td>
-										<td>
-											<button class="tc-btn" onclick="tcViewDeliverable('<?php echo esc_attr( $issue['identifier'] ); ?>')">
-												Inspect Report
-											</button>
-										</td>
+										<th>Identifier</th>
+										<th>Task Title & Mission</th>
+										<th>Assignee</th>
+										<th>Status</th>
+										<th>Action</th>
 									</tr>
-								<?php endforeach; ?>
-							</tbody>
-						</table>
+								</thead>
+								<tbody>
+									<?php foreach ( $issues_data['issues'] as $issue ) : ?>
+										<tr>
+											<td><strong style="color:var(--color-indigo); font-family:'JetBrains Mono';"><?php echo esc_html( $issue['identifier'] ); ?></strong></td>
+											<td>
+												<div style="font-weight:600; color:#fff;"><?php echo esc_html( $issue['title'] ); ?></div>
+												<div style="font-size:12px; color:var(--text-muted); margin-top:2px;"><?php echo esc_html( $issue['summary'] ); ?></div>
+											</td>
+											<td>
+												<span style="font-family:'JetBrains Mono'; font-size:12px; color:var(--text-secondary);"><?php echo esc_html( $issue['assignee_name'] ); ?></span>
+											</td>
+											<td>
+												<?php if ( 'done' === $issue['status'] ) : ?>
+													<span class="tc-badge-status tc-badge-done">RESOLVED</span>
+												<?php else : ?>
+													<span class="tc-badge-status tc-badge-todo">IN BACKLOG</span>
+												<?php endif; ?>
+											</td>
+											<td>
+												<button class="tc-btn" onclick="tcViewDeliverable('<?php echo esc_attr( $issue['identifier'] ); ?>')">
+													Inspect Report
+												</button>
+											</td>
+										</tr>
+									<?php endforeach; ?>
+								</tbody>
+							</table>
+						</div>
 					</div>
 				</section>
 
@@ -1212,38 +1449,40 @@ class TC_Workspace_Dashboard {
 							<h2>Spiritual Pilgrimage Corridor Velocity (Real-Time Growth Breakdown)</h2>
 							<span style="font-size:12px; color:var(--color-emerald); font-weight:700;">LIVE INQUIRY VELOCITY</span>
 						</div>
-						<table class="tc-table">
-							<thead>
-								<tr>
-									<th>Corridor / Offering</th>
-									<th>Inquiry Volume</th>
-									<th>MoM Velocity</th>
-									<th>Avg Deal Value</th>
-									<th>Fleet Stress</th>
-									<th>Status</th>
-								</tr>
-							</thead>
-							<tbody>
-								<?php foreach ( $growth_data['corridors'] as $corridor ) : ?>
+						<div class="tc-table-scroll">
+							<table class="tc-table">
+								<thead>
 									<tr>
-										<td>
-											<strong style="color:#fff; font-size:14px;"><?php echo esc_html( $corridor['name'] ); ?></strong>
-											<div style="font-size:12px; color:var(--text-muted);"><?php echo esc_html( $corridor['tag'] ); ?></div>
-										</td>
-										<td style="font-family:'JetBrains Mono'; font-weight:700; color:#fff;"><?php echo esc_html( $corridor['volume'] ); ?> Inquiries</td>
-										<td style="font-family:'JetBrains Mono'; font-weight:700; color:var(--color-emerald);"><?php echo esc_html( $corridor['velocity'] ); ?></td>
-										<td style="font-family:'JetBrains Mono'; color:#fff;"><?php echo esc_html( $corridor['deal_value'] ); ?></td>
-										<td>
-											<div style="background:rgba(255,255,255,0.06); border-radius:999px; height:6px; width:100px; overflow:hidden;">
-												<div style="background:<?php echo esc_attr( $corridor['stress_color'] ); ?>; width:<?php echo esc_attr( $corridor['stress_pct'] ); ?>%; height:100%;"></div>
-											</div>
-											<span style="font-size:11px; color:var(--text-muted); font-family:'JetBrains Mono';"><?php echo esc_html( $corridor['stress_pct'] ); ?>% capacity</span>
-										</td>
-										<td><span class="tc-badge-status tc-badge-done"><?php echo esc_html( $corridor['status'] ); ?></span></td>
+										<th>Corridor / Offering</th>
+										<th>Inquiry Volume</th>
+										<th>MoM Velocity</th>
+										<th>Avg Deal Value</th>
+										<th>Fleet Stress</th>
+										<th>Status</th>
 									</tr>
-								<?php endforeach; ?>
-							</tbody>
-						</table>
+								</thead>
+								<tbody>
+									<?php foreach ( $growth_data['corridors'] as $corridor ) : ?>
+										<tr>
+											<td>
+												<strong style="color:#fff; font-size:14px;"><?php echo esc_html( $corridor['name'] ); ?></strong>
+												<div style="font-size:12px; color:var(--text-muted);"><?php echo esc_html( $corridor['tag'] ); ?></div>
+											</td>
+											<td style="font-family:'JetBrains Mono'; font-weight:700; color:#fff;"><?php echo esc_html( $corridor['volume'] ); ?> Inquiries</td>
+											<td style="font-family:'JetBrains Mono'; font-weight:700; color:var(--color-emerald);"><?php echo esc_html( $corridor['velocity'] ); ?></td>
+											<td style="font-family:'JetBrains Mono'; color:#fff;"><?php echo esc_html( $corridor['deal_value'] ); ?></td>
+											<td>
+												<div style="background:rgba(255,255,255,0.06); border-radius:999px; height:6px; width:100px; overflow:hidden;">
+													<div style="background:<?php echo esc_attr( $corridor['stress_color'] ); ?>; width:<?php echo esc_attr( $corridor['stress_pct'] ); ?>%; height:100%;"></div>
+												</div>
+												<span style="font-size:11px; color:var(--text-muted); font-family:'JetBrains Mono';"><?php echo esc_html( $corridor['stress_pct'] ); ?>% capacity</span>
+											</td>
+											<td><span class="tc-badge-status tc-badge-done"><?php echo esc_html( $corridor['status'] ); ?></span></td>
+										</tr>
+									<?php endforeach; ?>
+								</tbody>
+							</table>
+						</div>
 					</div>
 
 					<div class="tc-chart-box">
@@ -1253,7 +1492,7 @@ class TC_Workspace_Dashboard {
 								<p style="font-size:13px; color:var(--text-muted); margin-top:4px;">Aggregated across organic SEO, AI chat sessions, and referral corridors.</p>
 							</div>
 						</div>
-						<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:16px;">
+						<div class="tc-funnel-grid">
 							<div style="background:var(--bg-elevated); padding:16px; border-radius:10px; border:1px solid var(--border-subtle);">
 								<div style="font-size:12px; color:var(--text-muted);">1. Verified Web Visitors (GA4 30D)</div>
 								<div style="font-size:24px; font-weight:800; color:#fff; margin-top:4px; font-family:'JetBrains Mono';"><?php echo number_format( $forecast_data['active_users_30d'] ); ?></div>
@@ -1331,7 +1570,7 @@ class TC_Workspace_Dashboard {
 						</svg>
 
 						<!-- Forecast Breakdown Cards -->
-						<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:16px; margin-top:24px;">
+						<div class="tc-forecast-cards">
 							<div style="background:var(--bg-elevated); padding:18px; border-radius:12px; border:1px solid var(--border-subtle);">
 								<div style="font-size:12px; font-weight:700; color:var(--color-indigo); text-transform:uppercase; margin-bottom:6px;">7-Day Outlook (Immediate Surge)</div>
 								<div style="font-size:22px; font-weight:800; color:#fff; font-family:'JetBrains Mono';">48,200 Visitors</div>
@@ -1355,7 +1594,7 @@ class TC_Workspace_Dashboard {
 								<h3 style="font-size:14px; font-weight:700; color:#fff; margin:0;">Live Google Search Console Telemetry (sc-domain:tripcosmos.co)</h3>
 								<span style="font-size:11px; font-family:'JetBrains Mono'; color:var(--color-emerald); background:rgba(16,185,129,0.15); padding:3px 8px; border-radius:4px;">VERIFIED FULL ACCESS</span>
 							</div>
-							<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:12px;">
+							<div class="tc-gsc-grid">
 								<?php if ( ! empty( $forecast_data['top_queries'] ) ) : ?>
 									<?php foreach ( $forecast_data['top_queries'] as $q ) : ?>
 										<div style="background:rgba(0,0,0,0.3); padding:12px 14px; border-radius:8px; border:1px solid var(--border-subtle); display:flex; justify-content:space-between; align-items:center;">
@@ -1381,42 +1620,44 @@ class TC_Workspace_Dashboard {
 							<h2>Paperclip Autonomous Swarm Routines (6 Active Workflows)</h2>
 							<span style="font-size:12px; color:var(--text-muted); font-family:'JetBrains Mono';">Daemon Scheduler Status: Active</span>
 						</div>
-						<table class="tc-table">
-							<thead>
-								<tr>
-									<th>Workflow / Routine</th>
-									<th>Assigned Swarm Agent</th>
-									<th>Cadence & Priority</th>
-									<th>Last Run</th>
-									<th>Control</th>
-								</tr>
-							</thead>
-							<tbody>
-								<?php foreach ( $routines_data as $routine ) : ?>
+						<div class="tc-table-scroll">
+							<table class="tc-table">
+								<thead>
 									<tr>
-										<td>
-											<strong style="color:#fff;"><?php echo esc_html( $routine['title'] ); ?></strong>
-											<div style="font-size:12px; color:var(--text-muted); margin-top:2px;"><?php echo esc_html( $routine['description'] ); ?></div>
-										</td>
-										<td>
-											<span style="font-family:'JetBrains Mono'; font-size:12px; color:var(--color-indigo); font-weight:600;"><?php echo esc_html( $routine['assignee_name'] ); ?></span>
-										</td>
-										<td>
-											<span class="tc-badge-status tc-badge-active"><?php echo esc_html( strtoupper( $routine['priority'] ) ); ?></span>
-											<span style="font-size:12px; color:var(--text-muted); margin-left:6px;"><?php echo esc_html( $routine['cadence'] ); ?></span>
-										</td>
-										<td style="font-family:'JetBrains Mono'; font-size:12px; color:var(--text-secondary);">
-											<?php echo esc_html( $routine['last_triggered_formatted'] ); ?>
-										</td>
-										<td>
-											<button class="tc-btn tc-btn-primary" onclick="tcTriggerRoutine('<?php echo esc_attr( $routine['id'] ); ?>', this)">
-												Trigger Now
-											</button>
-										</td>
+										<th>Workflow / Routine</th>
+										<th>Assigned Swarm Agent</th>
+										<th>Cadence & Priority</th>
+										<th>Last Run</th>
+										<th>Control</th>
 									</tr>
-								<?php endforeach; ?>
-							</tbody>
-						</table>
+								</thead>
+								<tbody>
+									<?php foreach ( $routines_data as $routine ) : ?>
+										<tr>
+											<td>
+												<strong style="color:#fff;"><?php echo esc_html( $routine['title'] ); ?></strong>
+												<div style="font-size:12px; color:var(--text-muted); margin-top:2px;"><?php echo esc_html( $routine['description'] ); ?></div>
+											</td>
+											<td>
+												<span style="font-family:'JetBrains Mono'; font-size:12px; color:var(--color-indigo); font-weight:600;"><?php echo esc_html( $routine['assignee_name'] ); ?></span>
+											</td>
+											<td>
+												<span class="tc-badge-status tc-badge-active"><?php echo esc_html( strtoupper( $routine['priority'] ) ); ?></span>
+												<span style="font-size:12px; color:var(--text-muted); margin-left:6px;"><?php echo esc_html( $routine['cadence'] ); ?></span>
+											</td>
+											<td style="font-family:'JetBrains Mono'; font-size:12px; color:var(--text-secondary);">
+												<?php echo esc_html( $routine['last_triggered_formatted'] ); ?>
+											</td>
+											<td>
+												<button class="tc-btn tc-btn-primary" onclick="tcTriggerRoutine('<?php echo esc_attr( $routine['id'] ); ?>', this)">
+													Trigger Now
+												</button>
+											</td>
+										</tr>
+									<?php endforeach; ?>
+								</tbody>
+							</table>
+						</div>
 					</div>
 				</section>
 			</div>
