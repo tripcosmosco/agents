@@ -688,9 +688,9 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 					🟢 Online • Replies in &lt; 2 Mins
 				</span>
 			</div>
-			<h3 style="font-size: 19px; font-weight: 800; color: #ffffff; margin: 0 0 8px 0; line-height: 1.35;">
+			<div role="heading" aria-level="3" style="font-size: 19px; font-weight: 800; color: #ffffff; margin: 0 0 8px 0; line-height: 1.35;">
 				' . esc_html( $cta_heading ) . '
-			</h3>
+			</div>
 			<p style="font-size: 14px; color: #cbd5e1; margin: 0 0 18px 0; line-height: 1.6;">
 				' . esc_html( $cta_desc ) . '
 			</p>
@@ -710,6 +710,10 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 			</div>
 		</div>';
 
+		if ( false !== strpos( $content, 'tc-in-post-cta' ) ) {
+			return $content;
+		}
+
 		$parts = preg_split( '/(<\/p>)/i', $content, -1, PREG_SPLIT_DELIM_CAPTURE );
 		if ( count( $parts ) > 6 ) {
 			$new_content = '';
@@ -719,7 +723,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 					$new_content .= $card_html;
 				}
 			}
-			return $new_content . $card_html;
+			return $new_content;
 		}
 
 		return $content . $card_html;
