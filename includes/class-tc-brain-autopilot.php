@@ -302,15 +302,21 @@ class TC_Brain_Autopilot {
 		$now = current_time( 'mysql' );
 
 		// 1. Insert into tc_agents_contacts table
-		$table = $wpdb->prefix . 'tc_agents_contacts';
+		$table = $wpdb->prefix . 'tc_agent_contacts';
 		if ( $wpdb->get_var( $wpdb->prepare( "SHOW TABLES LIKE %s", $table ) ) === $table ) {
 			$wpdb->insert( $table, array(
-				'name'          => $name,
-				'phone'         => $clean_phone,
-				'notes'         => "Voice Inquiry: {$query} | Corridor: {$corridor}",
-				'source'        => $channel,
-				'created_at'    => $now,
-				'updated_at'    => $now,
+				'name'           => $name ?: 'Voice Traveler',
+				'phone'          => $clean_phone,
+				'phone_e164'     => $clean_phone,
+				'source_channel' => $channel ?: 'voice_assistant',
+				'stage'          => 'inquiry',
+				'score'          => 75,
+				'meta_data'      => maybe_serialize( array(
+					'voice_query'       => $query,
+					'detected_corridor' => $corridor,
+				) ),
+				'created_at'     => $now,
+				'updated_at'     => $now,
 			) );
 		}
 	}
