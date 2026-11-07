@@ -22,7 +22,7 @@ class TC_AI_Router {
 	 * Canonical provider slugs (after consolidation).
 	 * aipuffer is its own AIPKit bot-bridge; omniroute/vmstudio are retired aliases of gateway.
 	 */
-	const CANONICAL_SLUGS = array( 'aipuffer', 'openrouter', 'gateway', 'gemini' );
+	const CANONICAL_SLUGS = array( 'gemini', 'aipuffer', 'openrouter', 'gateway' );
 	const RETIRED_SLUGS = array( 'omniroute', 'vmstudio' );
 
 	/**

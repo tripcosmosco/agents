@@ -11,7 +11,7 @@ class TC_Provider_Gemini implements TC_AI_Provider_Interface {
 		if ( class_exists( 'TC_Agents_Vault' ) ) { $v = TC_Agents_Vault::get( 'gemini_api_key', '' ); if ( ! empty( $v ) ) { return $v; } }
 		return get_option( 'tc_agents_gemini_api_key', '' );
 	}
-	public function get_model() { $m = get_option( 'tc_agents_gemini_model', '' ); return ! empty( $m ) ? $m : 'gemini-2.0-flash'; }
+	public function get_model() { $m = get_option( 'tc_agents_gemini_model', '' ); return ! empty( $m ) ? $m : 'gemini-2.5-flash-lite'; }
 	public function is_configured() { return ! empty( $this->get_api_key() ); }
 	public function check_health() {
 		$start = microtime( true );
