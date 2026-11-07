@@ -270,10 +270,39 @@ class TC_Brain_Autopilot {
 			$detected_corridor = 'Dev Deepawali Bajra Charter';
 			$quoted_price = 'Starting ₹35,000 for private double-decker Bajra';
 			$reply = "Har Har Mahadev! Dev Deepawali boat charters range from private wooden boats at ₹15,000 to luxury two-deck Bajras at ₹45,000 with Ganga Aarti view. Shall I reserve a slot for you?";
-		} elseif ( strpos( $q_lower, 'vip' ) !== false || strpos( $q_lower, 'darshan' ) !== false || strpos( $q_lower, 'kashi' ) !== false ) {
+		} elseif ( strpos( $q_lower, 'vip' ) !== false || strpos( $q_lower, 'darshan' ) !== false || strpos( $q_lower, 'kashi' ) !== false || strpos( $q_lower, 'vishwanath' ) !== false ) {
 			$detected_corridor = 'Kashi Vishwanath Sugam Darshan';
 			$quoted_price = '₹4,500 (Pass + Vedic Guide Assistance)';
 			$reply = "Har Har Mahadev! Kashi Vishwanath VIP Sugam Darshan allows direct sanctum access skipping the 4-hour queue. We also arrange Sankat Mochan and Annapurna darshan. What date are you visiting?";
+		} elseif ( strpos( $q_lower, 'prayagraj' ) !== false || strpos( $q_lower, 'sangam' ) !== false || strpos( $q_lower, 'allahabad' ) !== false ) {
+			$detected_corridor = 'Varanasi to Prayagraj Sangam Cab';
+			$quoted_price = '₹4,500 (Dzire Sedan) / ₹6,800 (Innova Crysta)';
+			$reply = "Namaste! Varanasi to Prayagraj Triveni Sangam same-day round-trip cab is {$quoted_price} including boat coordination at Sangam Ghat. When are you traveling?";
+		} elseif ( strpos( $q_lower, 'bodhgaya' ) !== false || strpos( $q_lower, 'gaya' ) !== false ) {
+			$detected_corridor = 'Varanasi to Gaya & Bodhgaya Tour';
+			$quoted_price = '₹7,500 (Dzire Sedan) / ₹11,000 (Innova Crysta)';
+			$reply = "Namaste! Our Varanasi to Bodhgaya and Gaya Pind Daan private cab package is {$quoted_price} for same-day return. Would you like itinerary details?";
+		} elseif ( strpos( $q_lower, 'airport' ) !== false || strpos( $q_lower, 'station' ) !== false || strpos( $q_lower, 'pickup' ) !== false ) {
+			$detected_corridor = 'Varanasi Station / Airport Transfer';
+			$quoted_price = '₹1,200 (Sedan) / ₹1,800 (Ertiga / Innova)';
+			$reply = "Namaste! Varanasi Airport or Cantt Railway Station transfers start at {$quoted_price} with verified driver and luggage assistance. What is your train or flight time?";
+		} elseif ( class_exists( 'TC_Agent_Orchestrator' ) ) {
+			// Leverage Deep RAG Orchestrator
+			$meta = array(
+				'channel'   => 'voice_assistant',
+				'session_id'=> $session_id,
+				'name'      => $name,
+				'phone'     => $phone,
+			);
+			$orchestrator_res = TC_Agent_Orchestrator::handle_message( $query, $session_id, 'voice_assistant', 'tripcosmos-guide', $meta );
+			if ( ! is_wp_error( $orchestrator_res ) && ! empty( $orchestrator_res['reply'] ) ) {
+				$raw_reply = wp_strip_all_tags( $orchestrator_res['reply'] );
+				$clean_reply = preg_replace( '/[\*\#\`\_]/', '', $raw_reply );
+				$clean_reply = preg_replace( '/\s+/', ' ', $clean_reply );
+				$reply = mb_substr( trim( $clean_reply ), 0, 320 );
+			} else {
+				$reply = "Namaste! TripCosmos arranges VIP Kashi Darshan passes, Ganga Aarti boat charters, and AC cabs across Varanasi, Ayodhya, and Prayagraj. Tell me your travel dates to get exact pricing.";
+			}
 		} else {
 			$reply = "Namaste! TripCosmos arranges VIP Kashi Darshan passes, Ganga Aarti boat charters, and AC cabs across Varanasi, Ayodhya, and Prayagraj. Tell me your travel dates to get exact pricing.";
 		}
@@ -294,30 +323,79 @@ class TC_Brain_Autopilot {
 	}
 
 	/**
-	 * Sync Captured Lead to X-Agents CRM
+	 * Sync Captured Lead to X-Agents CRM & Event Radar
 	 */
 	private static function sync_voice_lead_to_crm( $name, $phone, $query, $corridor, $channel ) {
 		global $wpdb;
 		$clean_phone = preg_replace( '/[^0-9+]/', '', $phone );
-		$now = current_time( 'mysql' );
+		if ( empty( $clean_phone ) || strlen( preg_replace( '/\D/', '', $clean_phone ) ) < 10 ) {
+			return;
+		}
 
-		// 1. Insert into tc_agents_contacts table
-		$table = $wpdb->prefix . 'tc_agent_contacts';
-		if ( $wpdb->get_var( $wpdb->prepare( "SHOW TABLES LIKE %s", $table ) ) === $table ) {
-			$wpdb->insert( $table, array(
-				'name'           => $name ?: 'Voice Traveler',
-				'phone'          => $clean_phone,
-				'phone_e164'     => $clean_phone,
-				'source_channel' => $channel ?: 'voice_assistant',
-				'stage'          => 'inquiry',
-				'score'          => 75,
-				'meta_data'      => maybe_serialize( array(
-					'voice_query'       => $query,
-					'detected_corridor' => $corridor,
-				) ),
-				'created_at'     => $now,
-				'updated_at'     => $now,
-			) );
+		$now = current_time( 'mysql' );
+		$table_contacts = $wpdb->prefix . 'tc_agent_contacts';
+		$table_audit    = $wpdb->prefix . 'tc_agent_audit_log';
+		$lead_id = 0;
+
+		$meta = array(
+			'voice_query'       => $query,
+			'detected_corridor' => $corridor,
+			'last_channel'      => $channel ?: 'voice_assistant',
+			'timestamp'         => $now,
+		);
+
+		// 1. Check if contact exists
+		$existing = $wpdb->get_row( $wpdb->prepare(
+			"SELECT id, meta_data, notes FROM {$table_contacts} WHERE phone LIKE %s ORDER BY id DESC LIMIT 1",
+			'%' . substr( preg_replace( '/\D/', '', $clean_phone ), -10 )
+		), ARRAY_A );
+
+		if ( $existing ) {
+			$lead_id = (int) $existing['id'];
+			$wpdb->update(
+				$table_contacts,
+				array(
+					'updated_at' => $now,
+					'meta_data'  => maybe_serialize( $meta ),
+				),
+				array( 'id' => $lead_id )
+			);
+		} else {
+			$wpdb->insert(
+				$table_contacts,
+				array(
+					'name'           => $name ?: 'Voice Traveler',
+					'phone'          => $clean_phone,
+					'phone_e164'     => $clean_phone,
+					'source_channel' => $channel ?: 'voice_assistant',
+					'stage'          => 'inquiry',
+					'score'          => 75,
+					'meta_data'      => maybe_serialize( $meta ),
+					'created_at'     => $now,
+					'updated_at'     => $now,
+				)
+			);
+			$lead_id = (int) $wpdb->insert_id;
+		}
+
+		// 2. Insert high-priority real-time event for X-Agents Radar & Mobile Push
+		if ( $wpdb->get_var( $wpdb->prepare( "SHOW TABLES LIKE %s", $table_audit ) ) === $table_audit ) {
+			$wpdb->insert(
+				$table_audit,
+				array(
+					'event_type' => 'lead_captured',
+					'channel'    => $channel ?: 'voice_assistant',
+					'details'    => wp_json_encode( array(
+						'lead_id'   => $lead_id,
+						'name'      => $name ?: 'Voice Traveler',
+						'phone'     => $clean_phone,
+						'corridor'  => $corridor,
+						'query'     => $query,
+						'source'    => 'TripCosmos Voice Brain',
+					) ),
+					'created_at' => $now,
+				)
+			);
 		}
 	}
 

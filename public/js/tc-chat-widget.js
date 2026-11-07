@@ -899,8 +899,22 @@
 			}
 
 			const cfg = getCfg();
-			const restUrl = cfg.restUrl || '/wp-json/tc-agents/v1/chat';
-			fetch(restUrl, {
+			const voiceUrl = (cfg.restUrl ? cfg.restUrl.replace('/chat', '/voice-brain') : '/wp-json/tc-agents/v1/voice-brain');
+			let userPhone = (directPhoneInput && directPhoneInput.value) || '';
+			if (!userPhone) {
+				try { userPhone = localStorage.getItem('tc_user_phone') || ''; } catch(e) {}
+			}
+			if (!userPhone && cfg.currentUser && cfg.currentUser.phone) {
+				userPhone = cfg.currentUser.phone;
+			}
+			let userName = '';
+			if (cfg.currentUser && cfg.currentUser.name) {
+				userName = cfg.currentUser.name;
+			} else {
+				try { userName = localStorage.getItem('tc_user_name') || ''; } catch(e) {}
+			}
+
+			fetch(voiceUrl, {
 				method: 'POST',
 				credentials: 'same-origin',
 				headers: {
@@ -908,24 +922,29 @@
 					'X-WP-Nonce': cfg.nonce || ''
 				},
 				body: JSON.stringify({
+					query: queryText,
 					message: queryText,
+					phone: userPhone,
+					name: userName,
 					session_id: sessionId,
 					channel: 'web_voice',
 					agent_slug: cfg.agentSlug || 'tripcosmos-guide',
-					stream: false,
-					page_url: window.location.href,
-					page_title: document.title,
-					language: currentLang,
-					currentUser: cfg.currentUser || null
+					language: currentLang
 				})
 			})
 			.then(function(res) { return res.json(); })
 			.then(function(data) {
-				const reply = data.reply || 'Namaste! I am ready to help you plan your Varanasi, Ayodhya, and spiritual tour.';
+				const reply = data.reply || data.speech_text || 'Namaste! I am ready to help you plan your Varanasi, Ayodhya, and spiritual tour.';
 				if (voiceTranscript) {
 					voiceTranscript.textContent = reply.length > 180 ? reply.substring(0, 180) + '...' : reply;
 				}
-				if (voiceStatus) voiceStatus.textContent = 'Speaking...';
+				if (voiceStatus) {
+					if (data.detected_corridor && data.detected_corridor !== 'General Pilgrimage') {
+						voiceStatus.textContent = 'Speaking • ' + data.detected_corridor;
+					} else {
+						voiceStatus.textContent = 'Speaking...';
+					}
+				}
 
 				saveToHistory('user', queryText);
 				saveToHistory('bot', reply);
