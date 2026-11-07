@@ -3,7 +3,7 @@
  * Plugin Name: TripCosmos Agents
  * Plugin URI: https://tripcosmos.co
  * Description: Unified multi-provider AI conversational agent layer for TripCosmos.co, featuring customer chat widget, master control console, automated CRM/WhatsApp plumbings, and failover safety guardrails.
- * Version: 2.7.2
+ * Version: 2.7.3
  * Author: TripCosmos Team
  * Author URI: https://tripcosmos.co
  * Text Domain: tripcosmos-agents
@@ -19,7 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // 1. Plugin Constants
-define( 'TC_AGENTS_VERSION', '2.7.2' );
+define( 'TC_AGENTS_VERSION', '2.7.3' );
 define( 'TC_AGENTS_FILE', __FILE__ );
 define( 'TC_AGENTS_PATH', plugin_dir_path( __FILE__ ) );
 define( 'TC_AGENTS_URL', plugin_dir_url( __FILE__ ) );
@@ -50,6 +50,7 @@ require_once TC_AGENTS_PATH . 'includes/class-tc-feedback-service.php';
 require_once TC_AGENTS_PATH . 'includes/class-tc-agents-payroll-service.php';
 require_once TC_AGENTS_PATH . 'public/class-tc-quote-page.php';
 require_once TC_AGENTS_PATH . 'includes/class-tc-workspace-dashboard.php';
+require_once TC_AGENTS_PATH . 'includes/class-tc-brain-autopilot.php';
 
 // 3. AI Layer Includes
 require_once TC_AGENTS_PATH . 'includes/ai/interface-tc-ai-provider.php';
@@ -125,6 +126,7 @@ add_action( 'plugins_loaded', function() {
 	TC_Agent_Onboarding::init();
 	TC_Quote_Page::init();
 	TC_Workspace_Dashboard::init();
+	TC_Brain_Autopilot::init();
 	TC_Agents_Redirects::init();
 	TC_Agents_Link_Silo::init();
 TC_Agents_Instant_Indexing::init();

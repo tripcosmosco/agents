@@ -1719,10 +1719,15 @@ class TC_Workspace_Dashboard {
 								<h2>B2B Wholesale Campaign Pipeline (3-Day Precision Batches)</h2>
 								<p style="font-size:13px; color:var(--text-muted); margin:4px 0 0;">Wholesale Ground Handling & VIP Dev Deepawali 2026 DMC Tariffs for Outstation Travel Agencies</p>
 							</div>
-							<span class="tc-status-pill">
-								<span class="tc-pulse-dot"></span>
-								Active Dispatch
-							</span>
+							<div style="display:flex; align-items:center; gap:10px;">
+								<span class="tc-status-pill">
+									<span class="tc-pulse-dot"></span>
+									Autopilot Daemon Active
+								</span>
+								<button type="button" class="tc-btn tc-btn-primary" onclick="tcTriggerBrainBatch(2, this)" style="font-size:12px; padding:5px 12px;">
+									âš¡ Dispatch Batch 2 Now
+								</button>
+							</div>
 						</div>
 						<div class="tc-table-scroll">
 							<table class="tc-table">
@@ -1955,6 +1960,40 @@ class TC_Workspace_Dashboard {
 					.catch(err => {
 						body.innerText = 'Network error fetching deliverable: ' + err;
 					});
+			}
+
+			function tcTriggerBrainBatch(batchNum, btn) {
+				if (!confirm('Trigger automated Batch ' + batchNum + ' dispatch immediately via Brevo SMTP?')) return;
+				const oldText = btn.innerText;
+				btn.innerText = 'Dispatching...';
+				btn.disabled = true;
+
+				fetch('<?php echo esc_url( admin_url( 'admin-ajax.php' ) ); ?>', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+					body: new URLSearchParams({
+						action: 'tc_brain_trigger_batch',
+						batch: batchNum,
+						_wpnonce: '<?php echo esc_js( $ajax_nonce ); ?>'
+					})
+				})
+				.then(r => r.json())
+				.then(res => {
+					if (res.success) {
+						btn.innerText = 'Dispatched!';
+						alert(res.data.message || 'Batch dispatched successfully!');
+						setTimeout(() => location.reload(), 1500);
+					} else {
+						alert('Error: ' + (res.data || 'Failed to dispatch'));
+						btn.innerText = oldText;
+						btn.disabled = false;
+					}
+				})
+				.catch(err => {
+					alert('Network error: ' + err);
+					btn.innerText = oldText;
+					btn.disabled = false;
+				});
 			}
 
 			function tcCloseModal() {
