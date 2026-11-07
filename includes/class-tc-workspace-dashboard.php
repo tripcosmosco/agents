@@ -77,11 +77,8 @@ class TC_Workspace_Dashboard {
 	 * Main View Router (Auth Lock Screen vs Full Sovereign Command Center)
 	 */
 	public static function render_view( $is_standalone = false ) {
-		// Enforce strict Administrator privilege or sovereign board access key
-		$auth_key     = isset( $_GET['key'] ) ? sanitize_text_field( wp_unslash( $_GET['key'] ) ) : '';
-		$is_key_valid = ( ! empty( $auth_key ) && ( $auth_key === self::PAPERCLIP_BOARD_KEY || $auth_key === 'tripcosmos2026' ) );
-
-		if ( ! current_user_can( 'manage_options' ) && ! $is_key_valid ) {
+		// Enforce strict Administrator privilege
+		if ( ! current_user_can( 'manage_options' ) ) {
 			return self::render_lock_screen( $is_standalone );
 		}
 
