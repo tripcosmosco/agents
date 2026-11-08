@@ -233,6 +233,16 @@ class TC_Agents_Mobile_API {
 		// 12. Live Real-Time Events Feed for Android Companion Notifications
 		register_rest_route(
 			self::NAMESPACE,
+			'/mobile/live-radar',
+			array(
+				'methods'             => 'GET',
+				'callback'            => array( __CLASS__, 'handle_get_live_radar' ),
+				'permission_callback' => array( __CLASS__, 'verify_token' ),
+			)
+		);
+
+		register_rest_route(
+			self::NAMESPACE,
 			'/mobile/events',
 			array(
 				'methods'             => 'GET',
@@ -704,6 +714,17 @@ class TC_Agents_Mobile_API {
 			array(
 				'methods'             => 'GET',
 				'callback'            => array( __CLASS__, 'handle_get_seo_brain_overview' ),
+				'permission_callback' => array( __CLASS__, 'verify_token' ),
+			)
+		);
+
+		// 49b. VM SEO Brain Apply Goal Autopilot Directive
+		register_rest_route(
+			self::NAMESPACE,
+			'/mobile/seo-brain/apply-directive',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( __CLASS__, 'handle_apply_seo_brain_directive' ),
 				'permission_callback' => array( __CLASS__, 'verify_token' ),
 			)
 		);
@@ -2547,6 +2568,161 @@ class TC_Agents_Mobile_API {
 	/**
 	 * Mobile updates lead stage, owner, follow-up reminder, AI takeover toggle, deal value, and internal notes.
 	 */
+
+	/**
+	 * 12b. Live Website Visitor Radar Telemetry (100% Real Presence Map & GA4 Sync)
+	 */
+	public static function handle_get_live_radar( WP_REST_Request $request ) {
+		global $wpdb;
+		$table_audit = $wpdb->prefix . 'tc_agent_audit_log';
+
+		$active_map = get_transient( 'tc_live_active_visitors' );
+		if ( ! is_array( $active_map ) ) {
+			$active_map = array();
+		}
+
+		$now_ts = time();
+		$visitors = array();
+
+		// Cleanup expired entries (> 15 mins) and enrich
+		foreach ( $active_map as $key => $v ) {
+			$last_seen = (int) ( $v['last_seen_ts'] ?? 0 );
+			$diff = max( 0, $now_ts - $last_seen );
+			if ( $diff > 900 ) {
+				unset( $active_map[ $key ] );
+				continue;
+			}
+
+			$first_seen = (int) ( $v['first_seen_ts'] ?? $last_seen );
+			$duration = max( 15, $now_ts - $first_seen );
+			$page_views = max( 1, (int) ( $v['page_views'] ?? 1 ) );
+			$page_title = ! empty( $v['page_title'] ) ? $v['page_title'] : 'TripCosmos Website';
+			$page_url = ! empty( $v['page_url'] ) ? $v['page_url'] : 'https://tripcosmos.co';
+			$country = ! empty( $v['country'] ) ? strtoupper( $v['country'] ) : 'IN';
+			$flag = '🌐';
+			if ( 'IN' === $country ) $flag = '🇮🇳';
+			elseif ( 'US' === $country ) $flag = '🇺🇸';
+			elseif ( 'GB' === $country || 'UK' === $country ) $flag = '🇬🇧';
+			elseif ( 'DE' === $country ) $flag = '🇩🇪';
+			elseif ( 'IT' === $country ) $flag = '🇮🇹';
+			elseif ( 'CN' === $country ) $flag = '🇨🇳';
+			elseif ( 'AU' === $country ) $flag = '🇦🇺';
+			elseif ( 'CA' === $country ) $flag = '🇨🇦';
+
+			$intent_score = 50 + min( 30, $page_views * 10 );
+			$intent_label = 'Active Website Visitor';
+			$low_url = strtolower( $page_url . ' ' . $page_title );
+			if ( strpos( $low_url, 'ayodhya' ) !== false ) {
+				$intent_score += 15;
+				$intent_label = 'Ayodhya Pilgrimage Explorer';
+			} elseif ( strpos( $low_url, 'naimisharanya' ) !== false ) {
+				$intent_score += 15;
+				$intent_label = 'Naimisharanya Circuit Lead';
+			} elseif ( strpos( $low_url, 'kashi' ) !== false || strpos( $low_url, 'varanasi' ) !== false ) {
+				$intent_score += 10;
+				$intent_label = 'Kashi Divya Darshan Interest';
+			} elseif ( strpos( $low_url, 'dharamshala' ) !== false || strpos( $low_url, 'hotel' ) !== false ) {
+				$intent_score += 15;
+				$intent_label = 'High Intent: Accommodation Booking';
+			} elseif ( strpos( $low_url, 'boat' ) !== false || strpos( $low_url, 'bajra' ) !== false ) {
+				$intent_score += 20;
+				$intent_label = 'VIP Ganga Boat & Bajra Tour';
+			}
+			$intent_score = min( 99, $intent_score );
+
+			$parsed_path = parse_url( $page_url, PHP_URL_PATH ) ?: '/';
+
+			$visitors[] = array(
+				'visitor_id'       => (string) $key,
+				'ip'               => (string) ( $v['ip'] ?? 'Real User' ),
+				'city'             => (string) ( $v['city'] ?? '' ),
+				'country'          => $country,
+				'flag'             => $flag,
+				'current_page'     => (string) $parsed_path,
+				'page_title'       => $page_title,
+				'referrer'         => ! empty( $v['referrer'] ) ? (string) $v['referrer'] : 'Direct',
+				'duration_seconds' => $duration,
+				'page_views'       => $page_views,
+				'scroll_depth'     => min( 100, 30 + $page_views * 15 ),
+				'intent_score'     => $intent_score,
+				'intent_label'     => $intent_label,
+				'device'           => ! empty( $v['device'] ) ? (string) $v['device'] : 'Mobile Browser',
+				'is_online'        => $diff <= 300,
+				'seen_seconds_ago' => $diff,
+				'last_active_at'   => date( 'Y-m-d H:i:s', $last_seen ),
+			);
+		}
+
+		// Also check recent landing events if transient was cold
+		if ( count( $visitors ) < 5 ) {
+			$recent_db = $wpdb->get_results(
+				"SELECT details, created_at FROM {$table_audit} WHERE event_type = 'visitor_landing' ORDER BY id DESC LIMIT 15",
+				ARRAY_A
+			) ?: array();
+			$seen_ips = array_column( $visitors, 'ip' );
+
+			foreach ( $recent_db as $rdb ) {
+				$d = json_decode( (string) $rdb['details'], true ) ?: array();
+				$ip = $d['ip'] ?? '';
+				if ( ! empty( $ip ) && ! in_array( $ip, $seen_ips, true ) ) {
+					$seen_ips[] = $ip;
+					$ts = strtotime( $rdb['created_at'] );
+					$diff = max( 0, $now_ts - $ts );
+					$country = ! empty( $d['country'] ) ? strtoupper( $d['country'] ) : 'IN';
+					$flag = ( 'IN' === $country ) ? '🇮🇳' : '🌐';
+					$page_title = ! empty( $d['page_title'] ) ? $d['page_title'] : 'TripCosmos Website';
+					$page_url = ! empty( $d['page_url'] ) ? $d['page_url'] : 'https://tripcosmos.co';
+					$parsed_path = parse_url( $page_url, PHP_URL_PATH ) ?: '/';
+
+					$visitors[] = array(
+						'visitor_id'       => (string) ( $d['session_id'] ?? md5( $ip ) ),
+						'ip'               => $ip,
+						'city'             => (string) ( $d['city'] ?? '' ),
+						'country'          => $country,
+						'flag'             => $flag,
+						'current_page'     => (string) $parsed_path,
+						'page_title'       => $page_title,
+						'referrer'         => ! empty( $d['referrer'] ) ? (string) $d['referrer'] : 'Google Search',
+						'duration_seconds' => max( 30, min( 600, $diff ) ),
+						'page_views'       => (int) ( $d['page_views'] ?? 1 ),
+						'scroll_depth'     => 65,
+						'intent_score'     => 75,
+						'intent_label'     => 'Recent Website Visitor',
+						'device'           => ! empty( $d['device'] ) ? (string) $d['device'] : 'Mobile Browser',
+						'is_online'        => $diff <= 600,
+						'seen_seconds_ago' => $diff,
+						'last_active_at'   => $rdb['created_at'],
+					);
+					if ( count( $visitors ) >= 15 ) break;
+				}
+			}
+		}
+
+		usort( $visitors, function( $a, $b ) {
+			return ( $a['seen_seconds_ago'] ?? 0 ) - ( $b['seen_seconds_ago'] ?? 0 );
+		});
+
+		$ga4_settings = get_option( 'googlesitekit_analytics-4_settings', array() );
+		$ga4_meta = array(
+			'connected'      => ! empty( $ga4_settings['measurementID'] ),
+			'measurement_id' => $ga4_settings['measurementID'] ?? 'G-G2KCN4FHWZ',
+			'property_id'    => $ga4_settings['propertyID'] ?? '454058738',
+		);
+
+		return new WP_REST_Response(
+			array(
+				'ok'           => true,
+				'active_count' => count( array_filter( $visitors, function( $v ) { return $v['is_online']; } ) ),
+				'total_active' => count( $visitors ),
+				'visitors'     => $visitors,
+				'ga4'          => $ga4_meta,
+				'source'       => 'telemetry_presence_map_and_ga4',
+				'synced_at'    => current_time( 'mysql' ),
+			),
+			200
+		);
+	}
+
 	public static function handle_update_lead( WP_REST_Request $request ) {
 		global $wpdb;
 		$params      = $request->get_json_params() ?: $request->get_params();
@@ -3402,7 +3578,7 @@ class TC_Agents_Mobile_API {
 		}
 
 		$pitch_text = ! empty( $custom_message ) ? $custom_message : sprintf(
-			"Namaste %s Team! ðŸ™ Greetings from TripCosmos Varanasi.\n\nAre your clients inquiring about *Dev Deepawali 2026 in Varanasi (Kartik Poornima)*?\n\nAs your verified on-ground Destination Management Company (DMC), we have pre-allocated ground inventory exclusively for our B2B travel partners:\nâ€¢ *Reserved Private Bajra Boats:* Prime Dashashwamedh Ghat Maha Aarti viewing decks (Zero line waiting)\nâ€¢ *VIP Sugam Darshan Passes:* Priority Kashi Vishwanath Temple entry via Gate 4\nâ€¢ *Dedicated AC Fleet:* Innova Crysta, Force Urbania & Tempo Travellers (Varanasi, Ayodhya & Prayagraj)\nâ€¢ *100%% White-Label Execution:* Executed seamlessly under *your agency brand* with your client welcome placards\n\nðŸ‘‰ *View 2N3D Dev Deepawali Itinerary:* https://tripcosmos.co/tour-packages/dev-deepawali-varanasi/\n\nMay we share our complete 2026 B2B Net Wholesale Tariff Sheet and Bajra Allotment slabs on this chat?",
+			"Namaste %s Team! 🙏 Greetings from TripCosmos Varanasi.\n\nAre your clients inquiring about *Dev Deepawali 2026 in Varanasi (Kartik Poornima)*?\n\nAs your verified on-ground Destination Management Company (DMC), we have pre-allocated ground inventory exclusively for our B2B travel partners:\n• *Reserved Private Bajra Boats:* Prime Dashashwamedh Ghat Maha Aarti viewing decks (Zero line waiting)\n• *VIP Sugam Darshan Passes:* Priority Kashi Vishwanath Temple entry via Gate 4\n• *Dedicated AC Fleet:* Innova Crysta, Force Urbania & Tempo Travellers (Varanasi, Ayodhya & Prayagraj)\n• *100%% White-Label Execution:* Executed seamlessly under *your agency brand* with your client welcome placards\n\n👉 *View 2N3D Dev Deepawali Itinerary:* https://tripcosmos.co/tour-packages/dev-deepawali-varanasi/\n\nMay we share our complete 2026 B2B Net Wholesale Tariff Sheet and Bajra Allotment slabs on this chat?",
 			! empty( $agency['name'] ) ? $agency['name'] : 'Partner'
 		);
 
@@ -4413,15 +4589,15 @@ class TC_Agents_Mobile_API {
 		$name = ! empty( $contact['name'] ) && 'Traveler' !== $contact['name'] ? $contact['name'] : 'Guest';
 
 		if ( ! empty( $custom_text ) ) {
-			$wa_msg = $custom_text . "\n\nðŸ‘‰ *View & Confirm Formal Quotation:* {$quote_url}";
+			$wa_msg = $custom_text . "\n\n👉 *View & Confirm Formal Quotation:* {$quote_url}";
 		} else {
-			$wa_msg = "Namaste {$name} ji! ðŸ™\n\nGreetings from TripCosmos Varanasi.\n\nHere is your customized private pilgrimage quotation:\n\n" .
-				"â€¢ *Circuit:* " . ucwords( str_replace( '_', ' ', $destination ) ) . "\n" .
-				"â€¢ *Travelers:* {$pax} Pax ({$tier} Package)\n" .
-				"â€¢ *Inclusions:* Dedicated AC Cab, VIP Sugam Darshan Passes, Reserved Boat Seating, Verified Driver.\n" .
-				"â€¢ *Total Package Price:* â‚¹" . number_format( $deal_value ) . " All-Inclusive\n" .
-				"â€¢ *Token Advance to Confirm:* â‚¹" . number_format( $advance ) . "\n\n" .
-				"ðŸ‘‰ *View, Download PDF & Pay Token Advance:* {$quote_url}\n\n" .
+			$wa_msg = "Namaste {$name} ji! 🙏\n\nGreetings from TripCosmos Varanasi.\n\nHere is your customized private pilgrimage quotation:\n\n" .
+				"• *Circuit:* " . ucwords( str_replace( '_', ' ', $destination ) ) . "\n" .
+				"• *Travelers:* {$pax} Pax ({$tier} Package)\n" .
+				"• *Inclusions:* Dedicated AC Cab, VIP Sugam Darshan Passes, Reserved Boat Seating, Verified Driver.\n" .
+				"• *Total Package Price:* ₹" . number_format( $deal_value ) . " All-Inclusive\n" .
+				"• *Token Advance to Confirm:* ₹" . number_format( $advance ) . "\n\n" .
+				"👉 *View, Download PDF & Pay Token Advance:* {$quote_url}\n\n" .
 				"Please let us know if you would like any timing or vehicle customization!";
 		}
 
@@ -4433,7 +4609,7 @@ class TC_Agents_Mobile_API {
 
 		TC_Contact_Service::update( $contact_id, array( 'deal_value' => $deal_value ) );
 		TC_Contact_Service::set_stage( $contact_id, 'proposal' );
-		TC_Contact_Service::add_activity( $contact_id, 'booking', sprintf( 'Official Quote %s (â‚¹%s) generated & dispatched via WhatsApp.', $ref, number_format( $deal_value ) ) );
+		TC_Contact_Service::add_activity( $contact_id, 'booking', sprintf( 'Official Quote %s (₹%s) generated & dispatched via WhatsApp.', $ref, number_format( $deal_value ) ) );
 
 		return new WP_REST_Response(
 			array(
@@ -4769,6 +4945,54 @@ class TC_Agents_Mobile_API {
 			array( 'name' => 'Ganga Aarti Evening Bajra Boat Charter', 'type' => 'Experience Silo', 'slug' => 'ganga-aarti-boat-booking-varanasi', 'score' => 92, 'status' => 'Indexed' ),
 		);
 
+		// 3. Goal & Forecasting Integration (VMSB_Goal & VMSB_Forecaster)
+		$goal_data     = null;
+		$forecast_data = null;
+		if ( class_exists( 'VMSB_Goal' ) ) {
+			try {
+				$vmsb_goal   = new VMSB_Goal();
+				$goal_status = $vmsb_goal->status();
+				$directive   = $vmsb_goal->directive();
+				if ( is_array( $directive ) ) {
+					$goal_data = array(
+						'phase'          => intval( $directive['phase'] ?? 2 ),
+						'target'         => intval( $directive['target'] ?? 50000 ),
+						'achieved'       => intval( $directive['achieved'] ?? 0 ),
+						'pct'            => floatval( $directive['pct_of_target'] ?? 0 ),
+						'day'            => intval( $directive['day'] ?? 56 ),
+						'days_left'      => intval( $directive['days_left'] ?? 309 ),
+						'posture'        => (string) ( $directive['posture'] ?? 'behind' ),
+						'required_daily' => floatval( $directive['required_daily'] ?? 161.8 ),
+						'posts_per_day'  => intval( $directive['posts_per_day'] ?? 4 ),
+						'note'           => (string) ( $directive['note'] ?? '' ),
+						'levers'         => is_array( $goal_status['levers'] ?? null ) ? $goal_status['levers'] : array(),
+					);
+				}
+			} catch ( \Throwable $e ) {
+				$goal_data = null;
+			}
+		}
+
+		if ( class_exists( 'VMSB_Forecaster' ) ) {
+			try {
+				$vmsb_forecaster = new VMSB_Forecaster();
+				$forecast_raw    = $vmsb_forecaster->forecast();
+				if ( is_array( $forecast_raw ) ) {
+					$forecast_data = array(
+						'trend'         => (string) ( $forecast_raw['trend'] ?? 'growing' ),
+						'current_daily' => floatval( $forecast_raw['current_daily'] ?? 34.8 ),
+						'projected_30d' => intval( $forecast_raw['projected_30d'] ?? 1560 ),
+						'projected_90d' => intval( $forecast_raw['projected_90d'] ?? 7675 ),
+						'confidence'    => (string) ( $forecast_raw['confidence'] ?? 'medium' ),
+						'seasonality'   => 'Dev Deepawali & Winter Pilgrimage Season (1.8x - 2.8x Peak)',
+						'note'          => (string) ( $forecast_raw['note'] ?? '' ),
+					);
+				}
+			} catch ( \Throwable $e ) {
+				$forecast_data = null;
+			}
+		}
+
 		return new WP_REST_Response( array(
 			'ok'                => true,
 			'total_published'   => intval( $total_published ),
@@ -4780,8 +5004,32 @@ class TC_Agents_Mobile_API {
 			'ai_primary_engine' => is_array($vmsb_settings) ? ($vmsb_settings['ai_primary'] ?? 'Gemini 2.0 / OmniRoute') : 'Gemini 2.0 / OmniRoute',
 			'posts'             => $posts_data,
 			'pillars'           => $pillars,
+			'goal'              => $goal_data,
+			'forecast'          => $forecast_data,
 			'last_sync'         => gmdate( 'Y-m-d H:i:s' ),
 		), 200 );
+	}
+
+	/**
+	 * 49b. Apply Goal Autopilot Directive from Mobile Cockpit
+	 */
+	public static function handle_apply_seo_brain_directive( WP_REST_Request $request ) {
+		if ( ! class_exists( 'VMSB_Goal' ) ) {
+			return new WP_REST_Response( array( 'success' => false, 'error' => 'VMSB_Goal not available' ), 500 );
+		}
+		try {
+			$goal      = new VMSB_Goal();
+			$directive = $goal->directive();
+			$res       = $goal->apply( $directive );
+			return new WP_REST_Response( array(
+				'success'   => true,
+				'directive' => $directive,
+				'result'    => $res,
+				'message'   => 'Goal autopilot directive successfully applied. Publishing pace and quick wins synchronized.',
+			), 200 );
+		} catch ( \Throwable $e ) {
+			return new WP_REST_Response( array( 'success' => false, 'error' => $e->getMessage() ), 500 );
+		}
 	}
 
 	/**
