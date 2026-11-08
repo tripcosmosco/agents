@@ -1,4 +1,4 @@
-/**
+﻿/**
  * TripCosmos Agents Admin JavaScript
  */
 
@@ -696,85 +696,175 @@
 	}
 
 	/**
-	 * GitHub Plugin Updates & 1-Click Upgrade Manager
+	 * TripCosmos GitHub Apps & Releases Ecosystem Hub
 	 */
 	function initGitHubUpdater() {
-		const $checkBtn = $('#tc-check-github-update-btn');
-		const $updateBtn = $('#tc-perform-github-update-btn');
+		const $cards = $('.tc-gh-app-card');
+		const $panelTitle = $('#tc-gh-panel-title');
+		const $panelRepo = $('#tc-gh-panel-repo');
+		const $panelRepoLink = $('#tc-gh-panel-repo-link');
+		const $singleCheckBtn = $('#tc-check-single-app-btn');
+		const $allCheckBtn = $('#tc-check-all-github-apps-btn');
+		const $downloadApkBtn = $('#tc-download-apk-btn');
+		const $pluginUpdateBtn = $('#tc-perform-github-update-btn');
 		const $statusBox = $('#tc-github-update-status-box');
-		const $targetVersion = $('#tc-target-update-version');
 
-		if (!$checkBtn.length) return;
+		const $commitSha = $('#tc-gh-commit-sha');
+		const $commitMsg = $('#tc-gh-commit-msg');
+		const $releaseTag = $('#tc-gh-release-tag');
+		const $releaseTime = $('#tc-gh-release-time');
 
-		$checkBtn.on('click', function(e) {
-			e.preventDefault();
-			const origHtml = $checkBtn.html();
-			$checkBtn.prop('disabled', true).html('<span class="spinner is-active" style="float:none;margin:0 6px 0 0;"></span> Checking GitHub...');
+		if (!$cards.length) return;
+
+		let currentApp = 'x_agents';
+
+		const appConfigs = {
+			x_agents: {
+				title: '<span>ðŸ“±</span> X-Agents Mobile & Telephony',
+				repo: 'tripcosmosco/agents-app',
+				repoUrl: 'https://github.com/tripcosmosco/agents-app',
+				isPlugin: false,
+				apkUrl: tcAgentsAdmin.homeUrl ? (tcAgentsAdmin.homeUrl + '/apps/x-agents-latest.apk') : '/apps/x-agents-latest.apk'
+			},
+			traveler: {
+				title: '<span>ðŸ§³</span> TripCosmos Traveler Super-App',
+				repo: 'tripcosmosco/apps',
+				repoUrl: 'https://github.com/tripcosmosco/apps',
+				isPlugin: false,
+				apkUrl: tcAgentsAdmin.homeUrl ? (tcAgentsAdmin.homeUrl + '/apps/TripCosmos-release.apk') : '/apps/TripCosmos-release.apk'
+			},
+			plugin: {
+				title: '<span>âš™ï¸</span> TripCosmos Agents Core Engine',
+				repo: 'tripcosmosco/agents',
+				repoUrl: 'https://github.com/tripcosmosco/agents',
+				isPlugin: true,
+				apkUrl: ''
+			}
+		};
+
+		// 1. App Card Click -> Switch Active App
+		$cards.on('click', function() {
+			const appKey = $(this).data('app');
+			if (!appKey || !appConfigs[appKey]) return;
+
+			currentApp = appKey;
+			$cards.removeClass('is-active').css('border-color', '#334155');
+			$(this).addClass('is-active').css('border-color', '#f59e0b');
+
+			const cfg = appConfigs[appKey];
+			$panelTitle.html(cfg.title);
+			$panelRepoLink.attr('href', cfg.repoUrl).text('github.com/' + cfg.repo + ' â†—');
+
+			if (cfg.isPlugin) {
+				$downloadApkBtn.hide();
+				$pluginUpdateBtn.show();
+			} else {
+				$downloadApkBtn.show().attr('href', cfg.apkUrl);
+				$pluginUpdateBtn.hide();
+			}
+
 			$statusBox.hide();
+			fetchAppStatus(appKey, false);
+		});
+
+		// 2. Fetch live status for a specific app
+		function fetchAppStatus(appKey, forceRefresh) {
+			const origHtml = $singleCheckBtn.html();
+			$singleCheckBtn.prop('disabled', true).html('<span class="spinner is-active" style="float:none;margin:0 4px 0 0;"></span> Syncing...');
 
 			$.ajax({
 				url: tcAgentsAdmin.ajaxUrl,
 				type: 'POST',
 				dataType: 'json',
 				data: {
-					action: 'tc_agents_check_github_update',
+					action: 'tc_agents_github_check_app',
+					nonce: tcAgentsAdmin.adminNonce,
+					app_key: appKey
+				},
+				success: function(res) {
+					$singleCheckBtn.prop('disabled', false).html(origHtml);
+					if (res.success && res.data) {
+						renderAppStatus(res.data);
+					} else {
+						$commitMsg.text('Could not fetch GitHub status. Ensure token is valid.');
+					}
+				},
+				error: function() {
+					$singleCheckBtn.prop('disabled', false).html(origHtml);
+					$commitMsg.text('Connection error contacting server.');
+				}
+			});
+		}
+
+		function renderAppStatus(data) {
+			if (data.last_commit) {
+				$commitSha.html('<a href="' + data.last_commit.commit_url + '" target="_blank" style="color:#38bdf8;text-decoration:none;">' + data.last_commit.sha + ' â†—</a> (' + data.last_commit.date + ')');
+				$commitMsg.text(data.last_commit.message + ' â€” by ' + data.last_commit.author);
+			} else {
+				$commitSha.text('Branch ' + data.branch);
+				$commitMsg.text('No commit details returned.');
+			}
+
+			if (data.latest_release) {
+				$releaseTag.html('<span style="color:#10b981;">' + data.latest_release.tag + '</span>');
+				$releaseTime.text('Published ' + data.latest_release.published);
+			} else {
+				$releaseTag.text('Latest ' + data.branch + ' build');
+				$releaseTime.text('Synchronized via GitHub Actions');
+			}
+		}
+
+		// 3. Sync button clicked
+		$singleCheckBtn.on('click', function(e) {
+			e.preventDefault();
+			fetchAppStatus(currentApp, true);
+		});
+
+		// 4. Check All Apps button clicked
+		$allCheckBtn.on('click', function(e) {
+			e.preventDefault();
+			const origText = $allCheckBtn.html();
+			$allCheckBtn.prop('disabled', true).html('<span class="spinner is-active" style="float:none;margin:0 4px 0 0;"></span> Checking 3 Apps...');
+
+			$.ajax({
+				url: tcAgentsAdmin.ajaxUrl,
+				type: 'POST',
+				dataType: 'json',
+				data: {
+					action: 'tc_agents_github_get_apps',
 					nonce: tcAgentsAdmin.adminNonce
 				},
 				success: function(res) {
-					$checkBtn.prop('disabled', false).html(origHtml);
-					if (res.success) {
-						const data = res.data;
-						if (data.has_update) {
-							$targetVersion.text('v' + data.latest_version);
-							$updateBtn.show().data('version', data.latest_version);
-							let notes = '';
-							if (data.changelog) {
-								notes = '<div style="margin-top:10px;padding:10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;max-height:160px;overflow-y:auto;font-family:monospace;font-size:12px;white-space:pre-wrap;">' + data.changelog + '</div>';
-							}
-							$statusBox
-								.css({ 'background': '#fef3c7', 'border': '1px solid #f59e0b', 'color': '#92400e' })
-								.html('<strong>🚀 Update Available!</strong> A new release <strong>v' + data.latest_version + '</strong> is available on GitHub (Installed: v' + data.current_version + ').' + notes)
-								.slideDown(200);
-						} else {
-							$updateBtn.hide();
-							$statusBox
-								.css({ 'background': '#f0fdf4', 'border': '1px solid #86efac', 'color': '#166534' })
-								.html('<strong>✅ Up to Date!</strong> You are running the latest version <strong>v' + data.current_version + '</strong> from GitHub.')
-								.slideDown(200);
+					$allCheckBtn.prop('disabled', false).html(origText);
+					if (res.success && res.data) {
+						if (res.data[currentApp]) {
+							renderAppStatus(res.data[currentApp]);
 						}
-					} else {
-						$updateBtn.hide();
 						$statusBox
-							.css({ 'background': '#fef2f2', 'border': '1px solid #fca5a5', 'color': '#991b1b' })
-							.html('<strong>⚠️ Check Notice:</strong> ' + (res.data ? res.data.message : 'Could not contact GitHub API.'))
+							.css({ 'background': '#f0fdf4', 'border': '1px solid #86efac', 'color': '#166534' })
+							.html('<strong>âœ… All 3 TripCosmos Apps Verified on GitHub!</strong> Latest branches and commits are in sync.')
 							.slideDown(200);
 					}
 				},
 				error: function() {
-					$checkBtn.prop('disabled', false).html(origHtml);
-					$updateBtn.hide();
-					$statusBox
-						.css({ 'background': '#fef2f2', 'border': '1px solid #fca5a5', 'color': '#991b1b' })
-						.html('<strong>⚠️ Connection Error:</strong> Unable to reach WordPress server.')
-						.slideDown(200);
+					$allCheckBtn.prop('disabled', false).html(origText);
 				}
 			});
 		});
 
-		$updateBtn.on('click', function(e) {
+		// 5. In-place plugin update handler
+		$pluginUpdateBtn.on('click', function(e) {
 			e.preventDefault();
-			const targetVer = $targetVersion.text() || 'Latest';
-			if (!confirm('Are you sure you want to download and install ' + targetVer + ' directly from GitHub? The plugin will be upgraded in-place.')) {
+			if (!confirm('Are you sure you want to download and install the latest TripCosmos Agents release package directly from GitHub?')) {
 				return;
 			}
 
-			const origHtml = $updateBtn.html();
-			$updateBtn.prop('disabled', true).html('<span class="spinner is-active" style="float:none;margin:0 6px 0 0;"></span> Downloading & Updating...');
-			$checkBtn.prop('disabled', true);
+			const origHtml = $pluginUpdateBtn.html();
+			$pluginUpdateBtn.prop('disabled', true).html('<span class="spinner is-active" style="float:none;margin:0 6px 0 0;"></span> Updating Plugin...');
 
 			$statusBox
 				.css({ 'background': '#eff6ff', 'border': '1px solid #93c5fd', 'color': '#1e40af' })
-				.html('<strong>⏳ Upgrading Plugin:</strong> Downloading release archive from GitHub, extracting, and installing... Please do not close this window.')
+				.html('<strong>â³ Upgrading Plugin:</strong> Downloading release archive from GitHub, extracting, and installing... Please do not close this window.')
 				.slideDown(200);
 
 			$.ajax({
@@ -789,27 +879,28 @@
 					if (res.success) {
 						$statusBox
 							.css({ 'background': '#f0fdf4', 'border': '1px solid #86efac', 'color': '#166534' })
-							.html('<strong>🎉 Update Complete!</strong> ' + res.data.message);
+							.html('<strong>ðŸŽ‰ Update Complete!</strong> ' + res.data.message);
 						setTimeout(function() {
 							window.location.reload();
 						}, 2000);
 					} else {
-						$updateBtn.prop('disabled', false).html(origHtml);
-						$checkBtn.prop('disabled', false);
+						$pluginUpdateBtn.prop('disabled', false).html(origHtml);
 						$statusBox
 							.css({ 'background': '#fef2f2', 'border': '1px solid #fca5a5', 'color': '#991b1b' })
-							.html('<strong>❌ Update Failed:</strong> ' + (res.data ? res.data.message : 'Unknown installation error.'));
+							.html('<strong>âŒ Update Failed:</strong> ' + (res.data ? res.data.message : 'Unknown installation error.'));
 					}
 				},
 				error: function() {
-					$updateBtn.prop('disabled', false).html(origHtml);
-					$checkBtn.prop('disabled', false);
+					$pluginUpdateBtn.prop('disabled', false).html(origHtml);
 					$statusBox
 						.css({ 'background': '#fef2f2', 'border': '1px solid #fca5a5', 'color': '#991b1b' })
-						.html('<strong>❌ Request Timeout or Connection Error:</strong> Check your server logs or update manually.');
+						.html('<strong>âŒ Request Timeout or Connection Error:</strong> Check server logs.');
 				}
 			});
 		});
+
+		// Initial load of current app
+		fetchAppStatus(currentApp, false);
 	}
 
 })(jQuery);

@@ -80,6 +80,15 @@ class TC_Agents_Mobile_API {
 		// 4. Mobile Leads Feed
 		register_rest_route(
 			self::NAMESPACE,
+			'/mobile/github-apps',
+			array(
+				'methods'             => 'GET',
+				'callback'            => array( __CLASS__, 'handle_get_github_apps' ),
+				'permission_callback' => '__return_true',
+			)
+		);
+		register_rest_route(
+			self::NAMESPACE,
 			'/mobile/leads',
 			array(
 				'methods'             => 'GET',
@@ -385,6 +394,30 @@ class TC_Agents_Mobile_API {
 					'methods'             => 'POST',
 					'callback'            => array( __CLASS__, 'handle_update_cabs' ),
 					'permission_callback' => array( __CLASS__, 'verify_token' ),
+				),
+			)
+		);
+
+		// 26d. Live Catalog & Offerings Sync (Published Trips + Real-Time Inventory + Cab Tariffs)
+		register_rest_route(
+			self::NAMESPACE,
+			'/mobile/catalog',
+			array(
+				array(
+					'methods'             => 'GET',
+					'callback'            => array( __CLASS__, 'handle_get_catalog' ),
+					'permission_callback' => '__return_true', // Publicly readable for app catalog sync
+				),
+			)
+		);
+		register_rest_route(
+			self::NAMESPACE,
+			'/catalog',
+			array(
+				array(
+					'methods'             => 'GET',
+					'callback'            => array( __CLASS__, 'handle_get_catalog' ),
+					'permission_callback' => '__return_true', // Publicly readable for app catalog sync
 				),
 			)
 		);
@@ -765,6 +798,18 @@ class TC_Agents_Mobile_API {
 				$label = (string) $row['label'];
 				$user  = $row['user_id'] ? get_userdata( (int) $row['user_id'] ) : null;
 				if ( $user ) {
+					// STRICT ROLE BINDING: Must be Administrator or Sales staff
+					$allowed_roles = array( 'administrator', 'tc_sales_manager', 'tc_sales_agent', 'editor' );
+					$has_role      = false;
+					foreach ( $allowed_roles as $ar ) {
+						if ( in_array( $ar, (array) $user->roles, true ) || user_can( $user, 'manage_options' ) ) {
+							$has_role = true;
+							break;
+						}
+					}
+					if ( ! $has_role ) {
+						return new WP_Error( 'tc_forbidden', 'Access Denied: X-Agents is strictly restricted to Administrators and Sales Personnel.', array( 'status' => 403 ) );
+					}
 					wp_set_current_user( $user->ID );
 					$label = $user->display_name;
 				} elseif ( $row['user_id'] ) {
@@ -812,6 +857,18 @@ class TC_Agents_Mobile_API {
 		if ( $cookie_user_id ) {
 			$wp_user = get_userdata( $cookie_user_id );
 			if ( $wp_user ) {
+				// STRICT ROLE BINDING: Must be Administrator or Sales staff
+				$allowed_roles = array( 'administrator', 'tc_sales_manager', 'tc_sales_agent', 'editor' );
+				$has_role      = false;
+				foreach ( $allowed_roles as $ar ) {
+					if ( in_array( $ar, (array) $wp_user->roles, true ) || user_can( $wp_user, 'manage_options' ) ) {
+						$has_role = true;
+						break;
+					}
+				}
+				if ( ! $has_role ) {
+					return new WP_Error( 'tc_forbidden', 'Access Denied: X-Agents is strictly restricted to Administrators and Sales Personnel.', array( 'status' => 403 ) );
+				}
 				wp_set_current_user( $wp_user->ID );
 				$request->set_param( '_tc_agent', $wp_user->display_name ?: $wp_user->user_login );
 				$request->set_param( '_tc_user_id', (int) $wp_user->ID );
@@ -4256,6 +4313,8 @@ class TC_Agents_Mobile_API {
 	public static function handle_dispatch_quote( WP_REST_Request $request ) {
 		$p = $request->get_json_params() ?: $request->get_params();
 		$contact_id  = (int) ( $p['contact_id'] ?? 0 );
+		$phone_param = sanitize_text_field( $p['phone'] ?? '' );
+		$name_param  = sanitize_text_field( $p['name'] ?? 'Traveler' );
 		$destination = sanitize_text_field( $p['destination'] ?? 'varanasi_3d2n' );
 		$tier        = sanitize_text_field( $p['tier'] ?? 'deluxe' );
 		$pax         = max( 1, (int) ( $p['pax'] ?? 2 ) );
@@ -4263,12 +4322,33 @@ class TC_Agents_Mobile_API {
 		$advance     = isset( $p['advance_amount'] ) ? (float) $p['advance_amount'] : 2500.0;
 		$custom_text = sanitize_textarea_field( $p['message'] ?? '' );
 
-		$contact = class_exists( 'TC_Contact_Service' ) ? TC_Contact_Service::get( $contact_id ) : null;
-		if ( ! $contact ) {
-			return new WP_REST_Response( array( 'ok' => false, 'error' => 'Lead not found' ), 404 );
+		$contact = null;
+		if ( $contact_id > 0 && class_exists( 'TC_Contact_Service' ) ) {
+			$contact = TC_Contact_Service::get( $contact_id );
+		}
+		if ( ! $contact && ! empty( $phone_param ) && class_exists( 'TC_Contact_Service' ) ) {
+			$contact = TC_Contact_Service::find( '', $phone_param );
+			if ( ! $contact ) {
+				$upsert = TC_Contact_Service::upsert( array(
+					'name'           => $name_param,
+					'phone'          => $phone_param,
+					'source_channel' => 'whatsapp',
+					'stage'          => 'proposal',
+				) );
+				if ( ! empty( $upsert['id'] ) ) {
+					$contact_id = (int) $upsert['id'];
+					$contact    = $upsert['contact'] ?: TC_Contact_Service::get( $contact_id );
+				}
+			} else {
+				$contact_id = (int) $contact['id'];
+			}
 		}
 
-		$phone = $contact['phone_e164'] ?: $contact['phone'];
+		if ( ! $contact ) {
+			return new WP_REST_Response( array( 'ok' => false, 'error' => 'Lead not found and no phone provided' ), 404 );
+		}
+
+		$phone = ! empty( $contact['phone_e164'] ) ? $contact['phone_e164'] : ( ! empty( $contact['phone'] ) ? $contact['phone'] : $phone_param );
 		if ( empty( $phone ) ) {
 			return new WP_REST_Response( array( 'ok' => false, 'error' => 'Lead has no phone number' ), 400 );
 		}
@@ -5088,6 +5168,140 @@ class TC_Agents_Mobile_API {
 				'success' => true,
 				'cabs'    => $clean,
 				'message' => 'Cab fleet tariffs updated successfully',
+			),
+			200
+		);
+	}
+
+	/**
+	 * Get live combined catalog (Published Togo Trips + Real-Time Inventory + Cab Fleet Circuits).
+	 * Fully synced for X-Agents and Z-Agents mobile apps.
+	 */
+	public static function handle_get_catalog( WP_REST_Request $request ) {
+		$catalog = array();
+
+		// 1. Ingest all Published Togo Trip Packages (33 circuits)
+		$trips = get_posts( array(
+			'post_type'      => 'togo_trip',
+			'post_status'    => 'publish',
+			'posts_per_page' => 100,
+			'orderby'        => 'menu_order title',
+			'order'          => 'ASC',
+		) );
+
+		foreach ( $trips as $t ) {
+			$dest_terms = wp_get_post_terms( $t->ID, 'togo_trip_destinations', array( 'fields' => 'names' ) );
+			$dest_str   = ! empty( $dest_terms ) && ! is_wp_error( $dest_terms ) ? implode( ', ', $dest_terms ) : 'Varanasi';
+
+			$service_terms = wp_get_post_terms( $t->ID, 'togo_trip_services', array( 'fields' => 'names' ) );
+			$features      = ! empty( $service_terms ) && ! is_wp_error( $service_terms ) ? array_slice( $service_terms, 0, 5 ) : array( 'VIP Darshan', 'AC Cab', 'Hotel Stay' );
+
+			$price = get_post_meta( $t->ID, 'togo_trip_price', true );
+			if ( empty( $price ) ) {
+				$price = get_post_meta( $t->ID, 'togo_trip_price_adult', true );
+			}
+			$price_val = ! empty( $price ) ? floatval( $price ) : 14500.0;
+
+			$duration = get_post_meta( $t->ID, 'trip_duration_nights', true );
+			$badge    = ! empty( $duration ) ? ( $duration . ' Nights Package' ) : 'Popular Tour';
+
+			$img_url = get_the_post_thumbnail_url( $t->ID, 'large' ) ?: '';
+
+			$catalog[] = array(
+				'id'           => (string) $t->ID,
+				'title'        => html_entity_decode( $t->post_title, ENT_QUOTES, 'UTF-8' ),
+				'category'     => 'Spiritual Tour Package',
+				'destination'  => $dest_str,
+				'base_price'   => $price_val,
+				'pricing_unit' => 'per_person',
+				'badge'        => $badge,
+				'description'  => wp_trim_words( wp_strip_all_tags( $t->post_content ), 30, '...' ),
+				'features'     => $features,
+				'image_url'    => $img_url,
+				'is_available' => true,
+			);
+		}
+
+		// 2. Ingest Real-Time Ground Inventory (Bajra Charters, Boats, Tents, VIP Passes)
+		global $wpdb;
+		$t_inv = $wpdb->prefix . 'tc_agent_inventory';
+		if ( $wpdb->get_var( "SHOW TABLES LIKE '$t_inv'" ) === $t_inv ) {
+			$inv_rows = $wpdb->get_results( "SELECT * FROM $t_inv WHERE status != 'sold_out' ORDER BY id ASC", ARRAY_A ) ?: array();
+			foreach ( $inv_rows as $row ) {
+				$meta = json_decode( (string) $row['meta_data'], true ) ?: array();
+				$catalog[] = array(
+					'id'           => 'inv_' . $row['id'],
+					'title'        => $row['item_name'],
+					'category'     => ucwords( str_replace( '_', ' ', $row['item_type'] ) ),
+					'destination'  => 'Varanasi Sacred Ghats',
+					'base_price'   => floatval( $row['base_price'] ),
+					'pricing_unit' => ( false !== stripos( $row['item_type'], 'bajra' ) || false !== stripos( $row['item_type'], 'boat' ) ) ? 'fixed' : 'per_slot',
+					'badge'        => ( 'filling_fast' === $row['status'] ) ? 'Filling Fast' : 'Exclusive',
+					'description'  => ! empty( $meta['highlight'] ) ? $meta['highlight'] : 'Official TripCosmos VIP pilgrimage ground asset.',
+					'features'     => array_values( array_filter( array( ! empty( $meta['urgency'] ) ? $meta['urgency'] : '', 'Instant Ground Allocation', 'Tolls & Taxes Included' ) ) ),
+					'image_url'    => '',
+					'is_available' => true,
+				);
+			}
+		}
+
+		// 3. Ingest Dedicated Cab Fleet Circuits
+		$catalog[] = array(
+			'id'           => 'cab_dzire_triangle',
+			'title'        => 'Swift Dzire Sedan - 3-Day Kashi-Ayodhya-Prayagraj Circuit',
+			'category'     => 'Cab Fleet Circuit',
+			'destination'  => 'Varanasi, Ayodhya, Prayagraj',
+			'base_price'   => 14500.0,
+			'pricing_unit' => 'fixed',
+			'badge'        => 'Sedan All-Inclusive',
+			'description'  => 'Dedicated Swift Dzire AC cab for 3 full days across Varanasi, Ayodhya, and Prayagraj. Includes toll, state tax, and driver allowance.',
+			'features'     => array( 'AC Dzire Sedan', 'Fuel & Driver DA Included', 'All Tolls & State Taxes Paid', '24/7 Ground Support' ),
+			'image_url'    => '',
+			'is_available' => true,
+		);
+
+		$catalog[] = array(
+			'id'           => 'cab_crysta_triangle',
+			'title'        => 'Innova Crysta SUV - 3-Day Kashi-Ayodhya-Prayagraj Circuit',
+			'category'     => 'Cab Fleet Circuit',
+			'destination'  => 'Varanasi, Ayodhya, Prayagraj',
+			'base_price'   => 22500.0,
+			'pricing_unit' => 'fixed',
+			'badge'        => 'Luxury SUV',
+			'description'  => 'Premium Toyota Innova Crysta for 3 days of seamless pilgrimage. Captain bucket seats, dual AC, all tolls, parking, and driver allowance covered.',
+			'features'     => array( 'Innova Crysta 7-Seater', 'Dual AC Comfort', 'All Tolls & State Border Taxes', 'Experienced Pilgrim Chauffeur' ),
+			'image_url'    => '',
+			'is_available' => true,
+		);
+
+		return new WP_REST_Response( $catalog, 200 );
+	}
+
+	/**
+	 * Official TripCosmos Apps & GitHub Ecosystem Registry endpoint.
+	 */
+	public static function handle_get_github_apps( WP_REST_Request $request ) {
+		if ( ! class_exists( 'TC_Agents_GitHub_Updater' ) ) {
+			return new WP_REST_Response( array( 'success' => false, 'error' => 'GitHub module unavailable' ), 500 );
+		}
+
+		$apps  = TC_Agents_GitHub_Updater::get_tripcosmos_apps();
+		$force = (bool) $request->get_param( 'refresh' );
+		$list  = array();
+
+		foreach ( array_keys( $apps ) as $key ) {
+			$status = TC_Agents_GitHub_Updater::get_app_status( $key, $force );
+			if ( $status ) {
+				$list[ $key ] = $status;
+			}
+		}
+
+		return new WP_REST_Response(
+			array(
+				'success' => true,
+				'owner'   => 'tripcosmosco',
+				'count'   => count( $list ),
+				'apps'    => $list,
 			),
 			200
 		);

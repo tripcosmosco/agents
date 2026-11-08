@@ -51,6 +51,8 @@ class TC_Agents_GitHub_Updater {
 		// In-plugin AJAX actions for General Settings GitHub update manager
 		add_action( 'wp_ajax_tc_agents_check_github_update', array( __CLASS__, 'ajax_check_update' ) );
 		add_action( 'wp_ajax_tc_agents_perform_github_update', array( __CLASS__, 'ajax_perform_update' ) );
+		add_action( 'wp_ajax_tc_agents_github_get_apps', array( __CLASS__, 'ajax_get_tripcosmos_apps' ) );
+		add_action( 'wp_ajax_tc_agents_github_check_app', array( __CLASS__, 'ajax_check_app' ) );
 	}
 
 	/**
@@ -580,5 +582,204 @@ class TC_Agents_GitHub_Updater {
 			'version' => $remote_version,
 		) );
 	}
-}
 
+	/* ------------------------------------------------------------------
+	 * Official TripCosmos Apps & GitHub Ecosystem Registry
+	 * ------------------------------------------------------------------ */
+
+	/**
+	 * Strictly registered official TripCosmos apps and repositories.
+	 * Filters out any non-TripCosmos repositories.
+	 *
+	 * @return array
+	 */
+	public static function get_tripcosmos_apps() {
+		return array(
+			'x_agents' => array(
+				'key'          => 'x_agents',
+				'name'         => 'X-Agents Mobile & Telephony',
+				'tagline'      => 'Operations & Field Force App (Flutter Android & Web PWA)',
+				'owner'        => 'tripcosmosco',
+				'repo'         => 'agents-app',
+				'branch'       => 'main',
+				'icon'         => '📱',
+				'badge'        => 'Field Operations Fleet',
+				'type'         => 'mobile_app',
+				'apk_url'      => home_url( '/apps/x-agents-latest.apk' ),
+				'apk_filename' => 'x-agents-latest.apk',
+				'web_pwa_url'  => home_url( '/agents/' ),
+				'portal_url'   => home_url( '/apps/' ),
+				'github_url'   => 'https://github.com/tripcosmosco/agents-app',
+			),
+			'traveler' => array(
+				'key'          => 'traveler',
+				'name'         => 'TripCosmos Traveler Super-App',
+				'tagline'      => 'Pilgrim & Customer Concierge App (co.tripcosmos.app)',
+				'owner'        => 'tripcosmosco',
+				'repo'         => 'apps',
+				'branch'       => 'main',
+				'icon'         => '🧳',
+				'badge'        => 'Consumer Super-App',
+				'type'         => 'mobile_app',
+				'apk_url'      => home_url( '/apps/TripCosmos-release.apk' ),
+				'apk_filename' => 'TripCosmos-release.apk',
+				'web_pwa_url'  => '',
+				'portal_url'   => home_url( '/apps/' ),
+				'github_url'   => 'https://github.com/tripcosmosco/apps',
+			),
+			'plugin'   => array(
+				'key'          => 'plugin',
+				'name'         => 'TripCosmos Agents Core Engine',
+				'tagline'      => 'WordPress AI Router, CRM, WhatsApp Hub & Dynamic Tariffs',
+				'owner'        => 'tripcosmosco',
+				'repo'         => 'agents',
+				'branch'       => 'master',
+				'icon'         => '⚙️',
+				'badge'        => 'Core Backend Engine',
+				'type'         => 'wordpress_plugin',
+				'apk_url'      => '',
+				'apk_filename' => '',
+				'web_pwa_url'  => '',
+				'portal_url'   => admin_url( 'admin.php?page=tc-agents' ),
+				'github_url'   => 'https://github.com/tripcosmosco/agents',
+			),
+		);
+	}
+
+	/**
+	 * Fetch live GitHub status for a registered TripCosmos app.
+	 *
+	 * @param string $app_key App identifier (x_agents, traveler, plugin).
+	 * @param bool   $force   Bypass transient cache.
+	 * @return array|null
+	 */
+	public static function get_app_status( $app_key, $force = false ) {
+		$apps = self::get_tripcosmos_apps();
+		if ( ! isset( $apps[ $app_key ] ) ) {
+			return null;
+		}
+
+		$app       = $apps[ $app_key ];
+		$cache_key = 'tc_gh_app_status_' . $app_key;
+		if ( ! $force ) {
+			$cached = get_transient( $cache_key );
+			if ( false !== $cached && is_array( $cached ) ) {
+				return $cached;
+			}
+		}
+
+		$headers = array(
+			'Accept'     => 'application/vnd.github+json',
+			'User-Agent' => 'TripCosmos-Hub; ' . home_url( '/' ),
+		);
+		$token = class_exists( 'TC_Agents_Vault' ) ? TC_Agents_Vault::get( 'github_token', '' ) : get_option( 'tc_agents_github_token', '' );
+		if ( ! empty( $token ) ) {
+			$headers['Authorization'] = 'Bearer ' . trim( $token );
+		}
+
+		// 1. Fetch Repository Metadata
+		$repo_res  = wp_remote_get(
+			sprintf( 'https://api.github.com/repos/%s/%s', $app['owner'], $app['repo'] ),
+			array( 'timeout' => 12, 'headers' => $headers )
+		);
+		$repo_data = array();
+		if ( ! is_wp_error( $repo_res ) && 200 === wp_remote_retrieve_response_code( $repo_res ) ) {
+			$repo_data = json_decode( wp_remote_retrieve_body( $repo_res ), true ) ?: array();
+		}
+
+		// 2. Fetch Latest Commit on Target Branch
+		$commit_res  = wp_remote_get(
+			sprintf( 'https://api.github.com/repos/%s/%s/commits/%s', $app['owner'], $app['repo'], $app['branch'] ),
+			array( 'timeout' => 12, 'headers' => $headers )
+		);
+		$commit_data = array();
+		if ( ! is_wp_error( $commit_res ) && 200 === wp_remote_retrieve_response_code( $commit_res ) ) {
+			$commit_data = json_decode( wp_remote_retrieve_body( $commit_res ), true ) ?: array();
+		}
+
+		// 3. Fetch Latest Release
+		$rel_res      = wp_remote_get(
+			sprintf( 'https://api.github.com/repos/%s/%s/releases/latest', $app['owner'], $app['repo'] ),
+			array( 'timeout' => 12, 'headers' => $headers )
+		);
+		$release_data = array();
+		if ( ! is_wp_error( $rel_res ) && 200 === wp_remote_retrieve_response_code( $rel_res ) ) {
+			$release_data = json_decode( wp_remote_retrieve_body( $rel_res ), true ) ?: array();
+		}
+
+		$rate_limit_remaining = wp_remote_retrieve_header( $commit_res, 'x-ratelimit-remaining' );
+		$is_authenticated     = ! empty( $token ) && (int) $rate_limit_remaining > 60;
+
+		$status = array(
+			'app_key'         => $app_key,
+			'name'            => $app['name'],
+			'tagline'         => $app['tagline'],
+			'icon'            => $app['icon'],
+			'badge'           => $app['badge'],
+			'type'            => $app['type'],
+			'owner'           => $app['owner'],
+			'repo'            => $app['repo'],
+			'branch'          => $app['branch'],
+			'github_url'      => $app['github_url'],
+			'portal_url'      => $app['portal_url'],
+			'apk_url'         => $app['apk_url'],
+			'web_pwa_url'     => $app['web_pwa_url'],
+			'is_private'      => ! empty( $repo_data['private'] ),
+			'stars'           => (int) ( $repo_data['stargazers_count'] ?? 0 ),
+			'open_issues'     => (int) ( $repo_data['open_issues_count'] ?? 0 ),
+			'last_commit'     => ! empty( $commit_data['sha'] ) ? array(
+				'sha'        => substr( $commit_data['sha'], 0, 7 ),
+				'full_sha'   => $commit_data['sha'],
+				'message'    => wp_trim_words( $commit_data['commit']['message'] ?? '', 16 ),
+				'author'     => $commit_data['commit']['author']['name'] ?? 'TripCosmos',
+				'date'       => ! empty( $commit_data['commit']['author']['date'] ) ? human_time_diff( strtotime( $commit_data['commit']['author']['date'] ) ) . ' ago' : '',
+				'commit_url' => $commit_data['html_url'] ?? '',
+			) : null,
+			'latest_release'  => ! empty( $release_data['tag_name'] ) ? array(
+				'tag'       => $release_data['tag_name'],
+				'version'   => self::tag_to_version( $release_data['tag_name'] ),
+				'name'      => $release_data['name'] ?? '',
+				'published' => ! empty( $release_data['published_at'] ) ? human_time_diff( strtotime( $release_data['published_at'] ) ) . ' ago' : '',
+				'html_url'  => $release_data['html_url'] ?? '',
+			) : null,
+			'authenticated'   => $is_authenticated,
+			'rate_limit_left' => $rate_limit_remaining ?: '5000',
+			'checked_at'      => current_time( 'mysql' ),
+		);
+
+		set_transient( $cache_key, $status, 15 * MINUTE_IN_SECONDS );
+		return $status;
+	}
+
+	/**
+	 * AJAX endpoint: Get all TripCosmos apps and their cached/live status.
+	 */
+	public static function ajax_get_tripcosmos_apps() {
+		check_ajax_referer( 'tc_agents_admin_nonce', 'nonce' );
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( array( 'message' => 'Unauthorized' ), 403 );
+		}
+		$apps = self::get_tripcosmos_apps();
+		$res  = array();
+		foreach ( array_keys( $apps ) as $key ) {
+			$res[ $key ] = self::get_app_status( $key, false );
+		}
+		wp_send_json_success( $res );
+	}
+
+	/**
+	 * AJAX endpoint: Refresh/check a specific TripCosmos app.
+	 */
+	public static function ajax_check_app() {
+		check_ajax_referer( 'tc_agents_admin_nonce', 'nonce' );
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( array( 'message' => 'Unauthorized' ), 403 );
+		}
+		$key    = sanitize_key( $_POST['app_key'] ?? 'x_agents' );
+		$status = self::get_app_status( $key, true );
+		if ( ! $status ) {
+			wp_send_json_error( array( 'message' => 'Invalid TripCosmos App or GitHub fetch failure.' ) );
+		}
+		wp_send_json_success( $status );
+	}
+}

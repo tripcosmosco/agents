@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 /**
  * Admin Settings View - Modernized High-End Experience.
  *
@@ -614,54 +614,118 @@ $qr_image_url = 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin
 			</div>
 		</div>
 
-		<!-- 6. GITHUB AUTO-SYNC & UPDATES -->
+		<!-- 6. TRIPCOSMOS GITHUB APPS & RELEASES ECOSYSTEM -->
+		<?php
+		$tc_github_apps = class_exists( 'TC_Agents_GitHub_Updater' ) ? TC_Agents_GitHub_Updater::get_tripcosmos_apps() : array();
+		$has_gh_token   = class_exists( 'TC_Agents_Vault' ) && TC_Agents_Vault::has( 'github_token' );
+		?>
 		<div class="tc-card-lux" id="tc-github-updater-card">
 			<div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 16px;">
 				<div>
 					<div class="tc-card-title">
-						<span>🚀</span>
-						Plugin Updates &amp; GitHub Synchronization
+						<span>ðŸ™</span>
+						TripCosmos GitHub Apps &amp; Releases Hub
+						<span class="tc-badge-gold" style="font-size: 10px;">@tripcosmosco</span>
 					</div>
 					<p class="tc-card-desc" style="margin: 0;">
-						Directly synchronize and update TripCosmos Agents from its official repository (<code>tripcosmosco/agents</code>).
+						Directly monitor, sync, and manage releases for strictly official TripCosmos mobile applications and backend repositories on GitHub.
 					</p>
 				</div>
 				<div style="display: flex; align-items: center; gap: 10px;">
-					<button type="button" id="tc-check-github-update-btn" class="button button-secondary" style="border-radius: 8px; font-weight: 600;">
-						<span class="dashicons dashicons-update" style="margin-top: 3px;"></span> Check for GitHub Updates
-					</button>
-					<button type="button" id="tc-perform-github-update-btn" class="button button-primary" style="display: none; border-radius: 8px; font-weight: 700; background: #16a34a; border-color: #15803d;">
-						<span class="dashicons dashicons-download" style="margin-top: 3px;"></span> Update Now
+					<button type="button" id="tc-check-all-github-apps-btn" class="button button-secondary" style="border-radius: 8px; font-weight: 600;">
+						<span class="dashicons dashicons-update" style="margin-top: 3px;"></span> Check All Apps Status
 					</button>
 				</div>
 			</div>
 
-			<div id="tc-github-update-status-box" style="display: none; padding: 14px 18px; border-radius: 8px; margin-bottom: 18px; font-size: 13px; line-height: 1.5;"></div>
+			<!-- Visual TripCosmos App Selector Cards -->
+			<div class="tc-gh-apps-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-bottom: 20px;">
+				<?php foreach ( $tc_github_apps as $ak => $app_meta ) : 
+					$app_status = class_exists( 'TC_Agents_GitHub_Updater' ) ? TC_Agents_GitHub_Updater::get_app_status( $ak, false ) : null;
+				?>
+					<div class="tc-gh-app-card <?php echo $ak === 'x_agents' ? 'is-active' : ''; ?>" data-app="<?php echo esc_attr( $ak ); ?>" style="background: rgba(15, 23, 42, 0.6); border: 2px solid <?php echo $ak === 'x_agents' ? '#f59e0b' : '#334155'; ?>; border-radius: 12px; padding: 16px; cursor: pointer; transition: all 0.2s ease;">
+						<div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
+							<div style="font-size: 26px; line-height: 1;"><?php echo esc_html( $app_meta['icon'] ); ?></div>
+							<span style="background: rgba(245, 158, 11, 0.15); color: #fbbf24; font-size: 10.5px; font-weight: 700; padding: 3px 8px; border-radius: 6px; text-transform: uppercase;">
+								<?php echo esc_html( $app_meta['badge'] ); ?>
+							</span>
+						</div>
+						<div style="font-size: 15px; font-weight: 700; color: #ffffff; margin-bottom: 4px;">
+							<?php echo esc_html( $app_meta['name'] ); ?>
+						</div>
+						<div style="font-size: 11.5px; color: #94a3b8; line-height: 1.4; margin-bottom: 12px; min-height: 32px;">
+							<?php echo esc_html( $app_meta['tagline'] ); ?>
+						</div>
+						<div style="font-size: 11px; font-family: monospace; color: #38bdf8; display: flex; align-items: center; justify-content: space-between; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.08);">
+							<span><?php echo esc_html( $app_meta['owner'] . '/' . $app_meta['repo'] ); ?></span>
+							<span style="color: #a855f7;">branch: <?php echo esc_html( $app_meta['branch'] ); ?></span>
+						</div>
+					</div>
+				<?php endforeach; ?>
+			</div>
 
+			<!-- Active App Detail Card -->
+			<div id="tc-gh-active-app-panel" style="background: #0b1329; border: 1px solid #1e293b; border-radius: 10px; padding: 20px; margin-bottom: 20px;">
+				<div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; border-bottom: 1px solid #1e293b; padding-bottom: 14px;">
+					<div>
+						<h3 id="tc-gh-panel-title" style="margin: 0; color: #f8fafc; font-size: 16px; display: flex; align-items: center; gap: 8px;">
+							<span>ðŸ“±</span> X-Agents Mobile &amp; Telephony
+						</h3>
+						<p id="tc-gh-panel-repo" style="margin: 4px 0 0; color: #94a3b8; font-size: 12.5px;">
+							Repository: <a id="tc-gh-panel-repo-link" href="https://github.com/tripcosmosco/agents-app" target="_blank" style="color: #38bdf8; text-decoration: none;">github.com/tripcosmosco/agents-app â†—</a>
+						</p>
+					</div>
+					<div style="display: flex; gap: 8px; align-items: center;">
+						<button type="button" id="tc-check-single-app-btn" class="button button-secondary" style="border-radius: 6px; font-weight: 600;">
+							<span class="dashicons dashicons-update" style="margin-top: 3px;"></span> Sync Live Info
+						</button>
+						<a id="tc-download-apk-btn" href="<?php echo esc_url( home_url( '/apps/x-agents-latest.apk' ) ); ?>" class="button button-primary" style="background: #f59e0b; border-color: #d97706; font-weight: 700; border-radius: 6px;">
+							<span>âš¡</span> Download Latest APK
+						</a>
+						<button type="button" id="tc-perform-github-update-btn" class="button button-primary" style="display: none; background: #16a34a; border-color: #15803d; font-weight: 700; border-radius: 6px;">
+							<span>ðŸš€</span> Update Plugin Now
+						</button>
+					</div>
+				</div>
+
+				<div id="tc-github-update-status-box" style="display: none; padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; font-size: 13px; line-height: 1.5;"></div>
+
+				<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px;">
+					<div style="background: #070d1e; padding: 12px 14px; border-radius: 8px; border: 1px solid #1e293b;">
+						<div style="color: #64748b; font-size: 11px; text-transform: uppercase; font-weight: 700; margin-bottom: 4px;">Latest Commit</div>
+						<div id="tc-gh-commit-sha" style="font-family: monospace; font-size: 12.5px; color: #38bdf8; font-weight: 700;">Loading...</div>
+						<div id="tc-gh-commit-msg" style="color: #cbd5e1; font-size: 11.5px; margin-top: 4px; line-height: 1.3;">Fetching recent commit...</div>
+					</div>
+
+					<div style="background: #070d1e; padding: 12px 14px; border-radius: 8px; border: 1px solid #1e293b;">
+						<div style="color: #64748b; font-size: 11px; text-transform: uppercase; font-weight: 700; margin-bottom: 4px;">Release Tag</div>
+						<div id="tc-gh-release-tag" style="font-size: 13px; color: #10b981; font-weight: 700;">Latest Main Build</div>
+						<div id="tc-gh-release-time" style="color: #94a3b8; font-size: 11.5px; margin-top: 4px;">Synced via GitHub Actions</div>
+					</div>
+
+					<div style="background: #070d1e; padding: 12px 14px; border-radius: 8px; border: 1px solid #1e293b;">
+						<div style="color: #64748b; font-size: 11px; text-transform: uppercase; font-weight: 700; margin-bottom: 4px;">Ecosystem Status</div>
+						<div style="display: flex; align-items: center; gap: 6px; margin-top: 2px;">
+							<span style="display: inline-block; width: 8px; height: 8px; background: #10b981; border-radius: 50%;"></span>
+							<span style="color: #10b981; font-weight: 700; font-size: 12.5px;">TripCosmos Verified</span>
+						</div>
+						<div style="color: #94a3b8; font-size: 11.5px; margin-top: 4px;">Strictly organization scoped</div>
+					</div>
+				</div>
+			</div>
+
+			<!-- GitHub Token Configuration -->
 			<table class="form-table" style="margin-top: 0;">
 				<tr>
-					<th scope="row">Installed Version</th>
+					<th scope="row"><label for="github_token">GitHub Access Token (PAT)</label></th>
 					<td>
-						<span style="background: #e0f2fe; color: #0369a1; font-weight: 700; font-size: 13px; padding: 4px 12px; border-radius: 12px; display: inline-flex; align-items: center; gap: 6px;">
-							<span style="display: inline-block; width: 8px; height: 8px; background: #0284c7; border-radius: 50%;"></span>
-							v<?php echo esc_html( TC_AGENTS_VERSION ); ?>
-						</span>
-						<span class="description" style="margin-left: 8px;">Active production build.</span>
-					</td>
-				</tr>
-				<tr>
-					<th scope="row">Repository</th>
-					<td>
-						<a href="https://github.com/tripcosmosco/agents" target="_blank" rel="noopener noreferrer" style="font-weight: 600; text-decoration: none; color: #2563eb;">
-							github.com/tripcosmosco/agents ↗
-						</a>
-					</td>
-				</tr>
-				<tr>
-					<th scope="row"><label for="github_token">GitHub Access Token (Optional)</label></th>
-					<td>
-						<input type="password" name="github_token" id="github_token" class="tc-input-lux" value="" placeholder="<?php echo esc_attr( TC_Agents_Vault::hint( 'github_token' ) ?: 'ghp_••••••••••••••••••••' ); ?>" autocomplete="new-password" />
-						<?php if ( TC_Agents_Vault::has( 'github_token' ) ) : ?><span class="dashicons dashicons-yes-alt" style="color:#10b981; vertical-align: middle;"></span> <small style="color:#10b981; font-weight: 600;">Vault Encrypted</small><?php endif; ?>
+						<input type="password" name="github_token" id="github_token" class="tc-input-lux" value="" placeholder="<?php echo esc_attr( TC_Agents_Vault::hint( 'github_token' ) ?: 'gho_â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢' ); ?>" autocomplete="new-password" />
+						<?php if ( $has_gh_token ) : ?>
+							<span class="dashicons dashicons-yes-alt" style="color:#10b981; vertical-align: middle; margin-left: 6px;"></span>
+							<small style="color:#10b981; font-weight: 700;">Vault Encrypted &bull; 5,000 req/hr Active</small>
+						<?php else : ?>
+							<span class="description" style="margin-left: 6px;">Used to authenticate against private repositories &amp; prevent API rate limits.</span>
+						<?php endif; ?>
 					</td>
 				</tr>
 			</table>
