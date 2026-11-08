@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
+  <title>Exploring Offline | TripCosmos Varanasi</title>
+  <meta name="theme-color" content="#0B0F19" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: #0B0F19;
+      color: #F8FAFC;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      text-align: center;
+    }
+    .tc-card {
+      background: linear-gradient(180deg, rgba(20, 27, 45, 0.95), rgba(11, 15, 25, 0.95));
+      border: 1px solid rgba(253, 70, 33, 0.35);
+      border-radius: 20px;
+      padding: 32px 24px;
+      max-width: 480px;
+      width: 100%;
+      box-shadow: 0 20px 45px rgba(0, 0, 0, 0.6), 0 0 30px rgba(253, 70, 33, 0.15);
+    }
+    .tc-logo-wrap {
+      width: 76px;
+      height: 76px;
+      margin: 0 auto 20px;
+      border-radius: 18px;
+      overflow: hidden;
+      box-shadow: 0 8px 24px rgba(253, 70, 33, 0.3);
+      border: 2px solid rgba(253, 70, 33, 0.6);
+    }
+    .tc-logo-wrap img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    h1 {
+      font-size: 22px;
+      font-weight: 800;
+      color: #FFFFFF;
+      letter-spacing: -0.3px;
+      margin-bottom: 8px;
+    }
+    .tc-subtitle {
+      font-size: 13px;
+      color: rgba(255, 255, 255, 0.7);
+      line-height: 1.5;
+      margin-bottom: 24px;
+    }
+    .tc-info-box {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+      padding: 16px;
+      text-align: left;
+      margin-bottom: 24px;
+      font-size: 13px;
+    }
+    .tc-info-box strong { color: #FD4621; display: block; margin-bottom: 6px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .tc-info-box p { color: rgba(255, 255, 255, 0.85); line-height: 1.4; margin-bottom: 6px; }
+    .tc-info-box p:last-child { margin-bottom: 0; }
+    .tc-btn-group { display: flex; flex-direction: column; gap: 12px; }
+    .tc-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 14px 20px;
+      border-radius: 30px;
+      text-decoration: none;
+      font-weight: 700;
+      font-size: 14px;
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s ease;
+    }
+    .tc-btn-primary {
+      background: linear-gradient(135deg, #FD4621, #E03513);
+      color: #FFFFFF;
+      box-shadow: 0 4px 16px rgba(253, 70, 33, 0.4);
+    }
+    .tc-btn-secondary {
+      background: rgba(255, 255, 255, 0.08);
+      color: #FFFFFF;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+    }
+    .tc-btn:hover { transform: translateY(-2px); }
+  </style>
+</head>
+<body>
+  <div class="tc-card">
+    <div class="tc-logo-wrap">
+      <img src="https://tripcosmos.co/wp-content/uploads/2026/07/cropped-tripcosmos-logo-180x180.jpg" alt="TripCosmos" />
+    </div>
+    <h1>You are Exploring Offline</h1>
+    <p class="tc-subtitle">Connection dropped along the Ghats or mid-Ganga river ride? Your essential emergency support numbers are saved right here:</p>
+
+    <div class="tc-info-box">
+      <strong>Varanasi Emergency &amp; Tour Desk</strong>
+      <p>📞 24x7 Hotline: <a href="tel:+919336116210" style="color:#FFF;text-decoration:underline;">+91 93361 16210</a></p>
+      <p>💬 WhatsApp: <a href="https://wa.me/919336116210" style="color:#FFF;text-decoration:underline;">Chat on WhatsApp</a></p>
+      <p>📍 Office: Garhwa Ghat Rd, Shivala Ghats, Varanasi</p>
+    </div>
+
+    <div class="tc-info-box">
+      <strong>Varanasi Aarti Schedule</strong>
+      <p>🌅 Morning Subah-e-Banaras (Assi Ghat): 5:00 AM</p>
+      <p>🪔 Evening Ganga Aarti (Dashashwamedh): 6:30 PM</p>
+    </div>
+
+    <div class="tc-btn-group">
+      <button class="tc-btn tc-btn-primary" onclick="window.location.reload();">🔄 Try Reconnecting</button>
+      <a class="tc-btn tc-btn-secondary" href="tel:+919336116210">📞 Call Tour Manager</a>
+    </div>
+  </div>
+</body>
+</html>

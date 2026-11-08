@@ -1,0 +1,111 @@
+{
+    "name": "TripCosmos - Luxury Tours & Spiritual Journeys Varanasi",
+    "short_name": "TripCosmos",
+    "description": "Book verified Varanasi tours, private Ganga sunrise boat rides, temple darshan, and North India luxury journeys with 24x7 local support.",
+    "start_url": "/?pwa=1",
+    "id": "/?pwa=1",
+    "scope": "/",
+    "display": "standalone",
+    "display_override": [
+        "window-controls-overlay",
+        "standalone",
+        "minimal-ui"
+    ],
+    "orientation": "any",
+    "background_color": "#0B0F19",
+    "theme_color": "#FD4621",
+    "lang": "en-IN",
+    "categories": [
+        "travel",
+        "lifestyle",
+        "navigation"
+    ],
+    "icons": [
+        {
+            "src": "https://tripcosmos.co/wp-content/uploads/2026/07/cropped-tripcosmos-logo-180x180.jpg",
+            "sizes": "180x180",
+            "type": "image/jpeg",
+            "purpose": "any"
+        },
+        {
+            "src": "https://tripcosmos.co/wp-content/uploads/2026/07/cropped-tripcosmos-logo-192x192.jpg",
+            "sizes": "192x192",
+            "type": "image/jpeg",
+            "purpose": "any"
+        },
+        {
+            "src": "https://tripcosmos.co/wp-content/uploads/2026/07/cropped-tripcosmos-logo-192x192.jpg",
+            "sizes": "192x192",
+            "type": "image/jpeg",
+            "purpose": "maskable"
+        },
+        {
+            "src": "https://tripcosmos.co/wp-content/uploads/2026/07/cropped-tripcosmos-logo-270x270.jpg",
+            "sizes": "270x270",
+            "type": "image/jpeg",
+            "purpose": "any"
+        },
+        {
+            "src": "https://tripcosmos.co/wp-content/uploads/2026/07/tripcosmos-logo.jpg",
+            "sizes": "512x512",
+            "type": "image/jpeg",
+            "purpose": "any"
+        },
+        {
+            "src": "https://tripcosmos.co/wp-content/uploads/2026/07/tripcosmos-logo.jpg",
+            "sizes": "512x512",
+            "type": "image/jpeg",
+            "purpose": "maskable"
+        }
+    ],
+    "shortcuts": [
+        {
+            "name": "Ganga Boat Rides",
+            "short_name": "Boat Rides",
+            "description": "Book private sunrise or evening Ganga Aarti boat rides in Varanasi",
+            "url": "/?s=boat#booking",
+            "icons": [
+                {
+                    "src": "https://tripcosmos.co/wp-content/uploads/2026/07/cropped-tripcosmos-logo-192x192.jpg",
+                    "sizes": "192x192"
+                }
+            ]
+        },
+        {
+            "name": "Temple Darshan Tours",
+            "short_name": "Temple Tours",
+            "description": "Guided Kashi Vishwanath, Ayodhya & Prayagraj pilgrimage tours",
+            "url": "/?s=temple",
+            "icons": [
+                {
+                    "src": "https://tripcosmos.co/wp-content/uploads/2026/07/cropped-tripcosmos-logo-192x192.jpg",
+                    "sizes": "192x192"
+                }
+            ]
+        },
+        {
+            "name": "24x7 Emergency Desk",
+            "short_name": "Emergency",
+            "description": "Direct WhatsApp hotline with Varanasi field manager",
+            "url": "https://wa.me/919336116210?text=Hello%20TripCosmos%2C%20I%20need%20emergency%20assistance%20in%20Varanasi",
+            "icons": [
+                {
+                    "src": "https://tripcosmos.co/wp-content/uploads/2026/07/cropped-tripcosmos-logo-192x192.jpg",
+                    "sizes": "192x192"
+                }
+            ]
+        },
+        {
+            "name": "My Account & Bookings",
+            "short_name": "My Bookings",
+            "description": "View itinerary, driver details, and vouchers",
+            "url": "/my-account/",
+            "icons": [
+                {
+                    "src": "https://tripcosmos.co/wp-content/uploads/2026/07/cropped-tripcosmos-logo-192x192.jpg",
+                    "sizes": "192x192"
+                }
+            ]
+        }
+    ]
+}
