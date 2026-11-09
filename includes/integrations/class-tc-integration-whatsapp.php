@@ -53,7 +53,7 @@ class TC_Integration_WhatsApp {
 			return new WP_REST_Response( 'Forbidden', 403 );
 		}
 
-		$provided_token = $request->get_header( 'x-webhook-secret' ) ?: $request->get_param( 'token' );
+		$provided_token = $request->get_header( 'x-webhook-secret' ) ?: $request->get_param( 'token' ) ?: $request->get_header( 'apikey' ) ?: $request->get_header( 'x-api-key' );
 
 		// Fail closed: with no secret configured anyone could post forged messages. Create one so it shows under Integrations > WhatsApp.
 		if ( empty( $secret_configured ) ) {
@@ -62,7 +62,11 @@ class TC_Integration_WhatsApp {
 			return new WP_REST_Response( array( 'error' => 'Unauthorized' ), 401 );
 		}
 
-		if ( ! hash_equals( (string) $secret_configured, (string) $provided_token ) ) {
+		$evolution_key = (string) get_option( 'tc_agents_evolution_api_key', '' );
+		$is_authorized = hash_equals( (string) $secret_configured, (string) $provided_token )
+			|| ( ! empty( $evolution_key ) && hash_equals( (string) $evolution_key, (string) $provided_token ) );
+
+		if ( ! $is_authorized ) {
 			TC_Agents_Logger::log( 'whatsapp_webhook_auth_failed', 'warning', array( 'ip' => $_SERVER['REMOTE_ADDR'] ?? '' ), '', 'whatsapp' );
 			return new WP_REST_Response( array( 'error' => 'Unauthorized' ), 401 );
 		}
@@ -71,6 +75,14 @@ class TC_Integration_WhatsApp {
 
 		if ( empty( $data ) ) {
 			$data = $request->get_params();
+		}
+
+		// Immediate FastCGI Ack: Flush HTTP 200 to Evolution API immediately so Axios never times out (499) or floods retry loops
+		if ( function_exists( 'fastcgi_finish_request' ) ) {
+			status_header( 200 );
+			header( 'Content-Type: application/json; charset=utf-8' );
+			echo wp_json_encode( array( 'status' => 'received' ) );
+			fastcgi_finish_request();
 		}
 
 		// Receipts, connection changes, our own echoes, the business phone and staff replies never reach the AI.
