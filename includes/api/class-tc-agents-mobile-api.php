@@ -1668,12 +1668,71 @@ class TC_Agents_Mobile_API {
 			if ( empty( $owner ) ) {
 				$owner = 'Nishkarsh AI';
 			}
-			$dest       = ! empty( $meta['destination'] ) ? (string) $meta['destination'] : ( $matched_agency ? '🏢 B2B DMC • ' . ( $matched_agency['city'] ?? 'India' ) : 'Varanasi Pilgrimage' );
+			$is_indian = ( strpos( $digits, '91' ) === 0 && strlen( $digits ) >= 12 ) || strlen( $digits ) === 10;
+			$country_flag = '🇮🇳';
+			$country_name = 'India';
+			if ( ! $is_indian ) {
+				if ( strpos( $digits, '27' ) === 0 ) {
+					$country_flag = '🇿🇦';
+					$country_name = 'South Africa';
+				} elseif ( strpos( $digits, '86' ) === 0 ) {
+					$country_flag = '🇨🇳';
+					$country_name = 'China';
+				} elseif ( strpos( $digits, '1' ) === 0 ) {
+					$country_flag = '🇺🇸';
+					$country_name = 'USA/Canada';
+				} elseif ( strpos( $digits, '44' ) === 0 ) {
+					$country_flag = '🇬🇧';
+					$country_name = 'UK';
+				} elseif ( strpos( $digits, '971' ) === 0 ) {
+					$country_flag = '🇦🇪';
+					$country_name = 'UAE';
+				} else {
+					$country_flag = '🌐';
+					$country_name = 'International';
+				}
+			}
+			$is_bot = ( ! $is_indian && ! $matched_contact && ! $matched_agency );
+
+			$dest = ! empty( $meta['destination'] ) ? (string) $meta['destination'] : '';
+			if ( empty( $dest ) || 'Varanasi Pilgrimage' === $dest ) {
+				$msg_lower = strtolower( (string) $chat['last_message'] );
+				if ( strpos( $msg_lower, 'ayodhya' ) !== false || strpos( $msg_lower, 'ram mandir' ) !== false ) {
+					$dest = 'Ayodhya Circuit';
+				} elseif ( strpos( $msg_lower, 'prayagraj' ) !== false || strpos( $msg_lower, 'sangam' ) !== false || strpos( $msg_lower, 'magh' ) !== false || strpos( $msg_lower, 'kumbh' ) !== false ) {
+					$dest = 'Prayagraj Circuit';
+				} elseif ( strpos( $msg_lower, 'bodhgaya' ) !== false || strpos( $msg_lower, 'gaya' ) !== false ) {
+					$dest = 'Bodhgaya Circuit';
+				} elseif ( strpos( $msg_lower, 'dev deepawali' ) !== false || strpos( $msg_lower, 'bajra' ) !== false ) {
+					$dest = 'Dev Deepawali 2026';
+				} elseif ( strpos( $msg_lower, 'kashi' ) !== false || strpos( $msg_lower, 'varanasi' ) !== false || strpos( $msg_lower, 'ghat' ) !== false || strpos( $msg_lower, 'ganga' ) !== false || strpos( $msg_lower, 'vishwanath' ) !== false ) {
+					$dest = 'Varanasi Pilgrimage';
+				} elseif ( $matched_agency ) {
+					$dest = '🏢 B2B DMC • ' . ( $matched_agency['city'] ?? 'India' );
+				} elseif ( $is_bot ) {
+					$dest = '⚠️ ' . $country_name . ' (Unverified Probe)';
+				} else {
+					$dest = 'New Inquiry';
+				}
+			}
 			$call_hist  = isset( $meta['call_history'] ) && is_array( $meta['call_history'] ) ? $meta['call_history'] : array();
 			$ai_active  = isset( $meta['is_ai_active'] ) ? (bool) $meta['is_ai_active'] : false;
 
-			$ts       = (int) ( $chat['timestamp'] ?? time() );
-			$time_ago = human_time_diff( $ts, time() ) . ' ago';
+			$ts = (int) ( $chat['timestamp'] ?? time() );
+			// If timestamp looks like milliseconds (13 digits), convert to seconds
+			if ( $ts > 10000000000 ) {
+				$ts = (int) round( $ts / 1000 );
+			}
+			$diff_sec = max( 0, time() - $ts );
+			if ( $diff_sec < 60 ) {
+				$time_ago = 'Just now';
+			} elseif ( $diff_sec < 3600 ) {
+				$time_ago = round( $diff_sec / 60 ) . 'm ago';
+			} elseif ( $diff_sec < 86400 ) {
+				$time_ago = round( $diff_sec / 3600 ) . 'h ago';
+			} else {
+				$time_ago = round( $diff_sec / 86400 ) . 'd ago';
+			}
 
 			$unified_threads[] = array(
 				'id'                   => $matched_contact ? (string) $matched_contact['id'] : ( 'wa_' . ( $suffix ?: md5( $chat['remote_jid'] ) ) ),
@@ -1689,6 +1748,7 @@ class TC_Agents_Mobile_API {
 				'sla_breached'         => ( empty( $chat['last_message_from_me'] ) && (int) ( $chat['unread_count'] ?? 0 ) > 0 && ( round( ( time() - $ts ) / 60 ) >= 5 ) ),
 				'sla_wait_minutes'     => max( 0, (int) round( ( time() - $ts ) / 60 ) ),
 				'time_ago'             => $time_ago,
+				'timestamp'            => gmdate( 'c', $ts ),
 				'updated_at'           => gmdate( 'c', $ts ),
 				'epoch'                => $ts,
 				'unread_count'         => (int) ( $chat['unread_count'] ?? 0 ),
@@ -1699,7 +1759,10 @@ class TC_Agents_Mobile_API {
 				'deal_value'           => $deal_value,
 				'assigned_manager'     => $owner,
 				'owner'                => $owner,
-				'lead_score'           => $matched_contact ? (int) ( $matched_contact['score'] ?? 70 ) : 75,
+				'lead_score'           => $matched_contact ? (int) ( $matched_contact['score'] ?? 70 ) : ( $is_bot ? 10 : ( $matched_agency ? 90 : 80 ) ),
+				'is_bot_flag'          => $is_bot,
+				'country_flag'         => $country_flag,
+				'country_name'         => $country_name,
 				'source_channel'       => $matched_agency ? 'b2b_agency' : ( $matched_contact && ! empty( $matched_contact['source_channel'] ) ? (string) $matched_contact['source_channel'] : 'whatsapp' ),
 				'has_whatsapp_chat'    => true,
 				'is_b2b'               => (bool) $matched_agency,
@@ -1752,9 +1815,23 @@ class TC_Agents_Mobile_API {
 				$last_msg = 'Lead captured via ' . ( ! empty( $c['source_channel'] ) ? $c['source_channel'] : 'CRM' );
 			}
 
-			$ts       = strtotime( $c['updated_at'] ?: $c['created_at'] ) ?: time();
-			$time_ago = human_time_diff( $ts, current_time( 'timestamp' ) ) . ' ago';
-			$dest     = ! empty( $meta['destination'] ) ? (string) $meta['destination'] : ( $matched_ag ? '🏢 B2B DMC • ' . ( $matched_ag['city'] ?? 'India' ) : 'Varanasi Pilgrimage' );
+			$ts = strtotime( $c['updated_at'] ?: $c['created_at'] ) ?: time();
+			$diff_sec = max( 0, time() - $ts );
+			if ( $diff_sec < 60 ) {
+				$time_ago = 'Just now';
+			} elseif ( $diff_sec < 3600 ) {
+				$time_ago = round( $diff_sec / 60 ) . 'm ago';
+			} elseif ( $diff_sec < 86400 ) {
+				$time_ago = round( $diff_sec / 3600 ) . 'h ago';
+			} else {
+				$time_ago = round( $diff_sec / 86400 ) . 'd ago';
+			}
+
+			$is_indian = ( strpos( $digits, '91' ) === 0 && strlen( $digits ) >= 12 ) || strlen( $digits ) === 10;
+			$country_flag = $is_indian ? '🇮🇳' : '🌐';
+			$country_name = $is_indian ? 'India' : 'International';
+
+			$dest     = ! empty( $meta['destination'] ) ? (string) $meta['destination'] : ( $matched_ag ? '🏢 B2B DMC • ' . ( $matched_ag['city'] ?? 'India' ) : 'New Inquiry' );
 			$call_hist = isset( $meta['call_history'] ) && is_array( $meta['call_history'] ) ? $meta['call_history'] : array();
 
 			$unified_threads[] = array(
@@ -1769,8 +1846,12 @@ class TC_Agents_Mobile_API {
 				'last_message_from_me' => false,
 				'last_message_status'  => 'read',
 				'time_ago'             => $time_ago,
+				'timestamp'            => gmdate( 'c', $ts ),
 				'updated_at'           => gmdate( 'c', $ts ),
 				'epoch'                => $ts,
+				'is_bot_flag'          => false,
+				'country_flag'         => $country_flag,
+				'country_name'         => $country_name,
 				'unread_count'         => (int) ( $meta['unread_count'] ?? 0 ),
 				'sla_breached'         => ( (int) ( $meta['unread_count'] ?? 0 ) > 0 && ( round( ( time() - $ts ) / 60 ) >= 5 ) ),
 				'sla_wait_minutes'     => max( 0, (int) round( ( time() - $ts ) / 60 ) ),
@@ -1781,7 +1862,7 @@ class TC_Agents_Mobile_API {
 				'deal_value'           => (float) $c['deal_value'],
 				'assigned_manager'     => $owner,
 				'owner'                => $owner,
-				'lead_score'           => (int) ( $c['score'] ?? 60 ),
+				'lead_score'           => (int) ( $c['score'] ?? 75 ),
 				'source_channel'       => $matched_ag ? 'b2b_agency' : ( ! empty( $c['source_channel'] ) ? (string) $c['source_channel'] : 'crm' ),
 				'has_whatsapp_chat'    => $has_real_chat,
 				'is_b2b'               => (bool) $matched_ag,
