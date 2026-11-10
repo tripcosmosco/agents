@@ -276,7 +276,7 @@
 		}
 
 		// Push initial authenticated user identity to dataLayer if logged in
-		if (getCfg().currentUser) {
+		if (getCfg().currentUser && getCfg().gtmEnabled !== false) {
 			window.dataLayer = window.dataLayer || [];
 			window.dataLayer.push({
 				event: 'tc_user_identified',
@@ -301,8 +301,10 @@
 			document.dispatchEvent(new CustomEvent('tc_agent_event', { detail: payload }));
 
 			// Google Tag Manager / DataLayer Integration
-			window.dataLayer = window.dataLayer || [];
-			window.dataLayer.push(payload);
+			if (getCfg().gtmEnabled !== false) {
+				window.dataLayer = window.dataLayer || [];
+				window.dataLayer.push(payload);
+			}
 
 			// Standard GA4 / Google Ads conversion events for Tag Manager
 			const isLeadEvent = (
@@ -326,8 +328,10 @@
 					conversion_channel: eventName === 'tc_agent_whatsapp_click' ? 'whatsapp' : (eventName === 'tc_agent_mobile_call_dispatched' ? 'phone_call' : 'web_chat'),
 					user_data: getUserDataForGtm(params)
 				};
-				window.dataLayer = window.dataLayer || [];
-				window.dataLayer.push(convPayload);
+				if (getCfg().gtmEnabled !== false) {
+					window.dataLayer = window.dataLayer || [];
+					window.dataLayer.push(convPayload);
+				}
 				document.dispatchEvent(new CustomEvent('tc_agent_conversion', { detail: convPayload }));
 
 				// Enhanced Conversions first-party user data for Google Ads & GTM
@@ -392,12 +396,14 @@
 				trackEvent('tc_agent_mobile_call_requested', { phone: href.replace('tel:', '') });
 
 				// Standard GA4 & GTM DataLayer phone_click event (GTM Tag 205 fires Google Ads conversion)
-				window.dataLayer = window.dataLayer || [];
-				window.dataLayer.push({
-					event: 'phone_click',
-					phone_number: href.replace('tel:', '').trim(),
-					click_url: href
-				});
+				if (getCfg().gtmEnabled !== false) {
+					window.dataLayer = window.dataLayer || [];
+					window.dataLayer.push({
+						event: 'phone_click',
+						phone_number: href.replace('tel:', '').trim(),
+						click_url: href
+					});
+				}
 			} else if (href.indexOf('/checkout') !== -1 || href.indexOf('pay') !== -1 || href.indexOf('booking-token') !== -1) {
 				trackEvent('begin_checkout', { url: href, currency: 'INR' });
 			}

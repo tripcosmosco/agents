@@ -48,7 +48,8 @@ class TC_Agents_Public {
 				'waLabel'       => 'MOptCICRn-caEOKzgN0_',
 				'phoneLabel'    => '7sk4CLrQst4aEOKzgN0_',
 				'purchaseLabel' => 'EEn8CIqNoOcaEOKzgN0_',
-				'leadValue'     => 1500,
+				'leadValue'     => (float) get_option( 'tc_agents_lead_conversion_value', 1500 ),
+				'gtmEnabled'    => '1' === (string) get_option( 'tc_agents_gtm_enabled', '1' ),
 			)
 		);
 		// Only enqueue if widget is enabled

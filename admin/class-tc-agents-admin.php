@@ -1051,6 +1051,14 @@ class TC_Agents_Admin {
 		}
 
 		// 7. Settings
+		if ( 'save_gtm_settings' === $action ) {
+			update_option( 'tc_agents_gtm_enabled', ! empty( $_POST['gtm_enabled'] ) ? '1' : '0' );
+			update_option( 'tc_agents_gtm_container_id', sanitize_text_field( trim( wp_unslash( $_POST['gtm_container_id'] ?? '' ) ) ) );
+			update_option( 'tc_agents_lead_conversion_value', (float) ( $_POST['lead_conversion_value'] ?? 1500 ) );
+			wp_safe_redirect( add_query_arg( array( 'page' => 'tc-agents-gtm', 'saved' => '1' ), admin_url( 'admin.php' ) ) );
+			exit;
+		}
+
 		if ( 'save_settings' === $action ) {
 			update_option( 'tc_agents_widget_enabled', ! empty( $_POST['widget_enabled'] ) ? '1' : '0' );
 			update_option( 'tc_agents_widget_title', sanitize_text_field( wp_unslash( $_POST['widget_title'] ?? 'TripCosmos Travel Desk' ) ) );

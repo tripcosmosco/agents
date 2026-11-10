@@ -35,45 +35,47 @@
 		firedConversions[dedupKey] = true;
 
 		// 1. GTM DataLayer Push
-		window.dataLayer = window.dataLayer || [];
-		
-		if (type === 'form_submit') {
-			var formId = (extraData && extraData.form_id) || 'unknown';
-			// Matches GTM Tag 217 & Tag 226 trigger: event === "FluentFormActivities" && eventAction === "FormSubmitted"
-			window.dataLayer.push({
-				event: 'FluentFormActivities',
-				eventCategory: 'FluentForm',
-				eventAction: 'FormSubmitted',
-				FluentFormID: formId,
-				value: value || LEAD_VALUE,
-				currency: 'INR'
-			});
+		if (cfg.gtmEnabled !== false) {
+			window.dataLayer = window.dataLayer || [];
+			
+			if (type === 'form_submit') {
+				var formId = (extraData && extraData.form_id) || 'unknown';
+				// Matches GTM Tag 217 & Tag 226 trigger: event === "FluentFormActivities" && eventAction === "FormSubmitted"
+				window.dataLayer.push({
+					event: 'FluentFormActivities',
+					eventCategory: 'FluentForm',
+					eventAction: 'FormSubmitted',
+					FluentFormID: formId,
+					value: value || LEAD_VALUE,
+					currency: 'INR'
+				});
 
-			// Matches standard GA4 & GTM Tag 243: event === "generate_lead"
-			window.dataLayer.push({
-				event: 'generate_lead',
-				form_id: formId,
-				lead_source: 'fluent_form',
-				value: value || LEAD_VALUE,
-				currency: 'INR'
-			});
-		} else if (type === 'whatsapp_click') {
-			// Matches GTM Tag 100: event === "whatsapp_click"
-			window.dataLayer.push({
-				event: 'whatsapp_click',
-				click_url: (extraData && extraData.url) || '',
-				value: value || CLICK_VALUE,
-				currency: 'INR'
-			});
-		} else if (type === 'phone_click') {
-			// Matches GTM Tag 182: event === "phone_click"
-			window.dataLayer.push({
-				event: 'phone_click',
-				phone_number: (extraData && extraData.phone) || '',
-				click_url: (extraData && extraData.url) || '',
-				value: value || CLICK_VALUE,
-				currency: 'INR'
-			});
+				// Matches standard GA4 & GTM Tag 243: event === "generate_lead"
+				window.dataLayer.push({
+					event: 'generate_lead',
+					form_id: formId,
+					lead_source: 'fluent_form',
+					value: value || LEAD_VALUE,
+					currency: 'INR'
+				});
+			} else if (type === 'whatsapp_click') {
+				// Matches GTM Tag 100: event === "whatsapp_click"
+				window.dataLayer.push({
+					event: 'whatsapp_click',
+					click_url: (extraData && extraData.url) || '',
+					value: value || CLICK_VALUE,
+					currency: 'INR'
+				});
+			} else if (type === 'phone_click') {
+				// Matches GTM Tag 182: event === "phone_click"
+				window.dataLayer.push({
+					event: 'phone_click',
+					phone_number: (extraData && extraData.phone) || '',
+					click_url: (extraData && extraData.url) || '',
+					value: value || CLICK_VALUE,
+					currency: 'INR'
+				});
+			}
 		}
 
 		// 2. Direct Google Ads gtag('event', 'conversion') execution (Universal Fallback)

@@ -148,14 +148,9 @@ $is_saved     = isset( $_GET['saved'] );
 		</div>
 	</div>
 
-	<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
-		<?php wp_nonce_field( 'tc_agents_admin_action', 'tc_agents_nonce' ); ?>
-		<input type="hidden" name="action" value="save_settings" />
-		<!-- Preserve existing options so other settings aren't reset -->
-		<input type="hidden" name="widget_enabled" value="<?php echo esc_attr( get_option( 'tc_agents_widget_enabled', '1' ) ); ?>" />
-		<input type="hidden" name="widget_title" value="<?php echo esc_attr( get_option( 'tc_agents_widget_title', 'TripCosmos Travel Desk' ) ); ?>" />
-		<input type="hidden" name="human_whatsapp_number" value="<?php echo esc_attr( get_option( 'tc_agents_human_whatsapp_number', '' ) ); ?>" />
-		<input type="hidden" name="redirect_to_gtm" value="1" />
+	<form method="post" action="<?php echo esc_url( admin_url( 'admin.php?page=tc-agents-gtm' ) ); ?>">
+		<?php wp_nonce_field( 'tc_agents_admin_save', 'tc_agents_nonce' ); ?>
+		<input type="hidden" name="tc_agents_action" value="save_gtm_settings" />
 
 		<!-- 1. GTM CONTAINER & DATALAYER CONTROLS -->
 		<div class="tc-card-lux">
