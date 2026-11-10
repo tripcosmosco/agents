@@ -422,7 +422,41 @@ class TC_Payments {
 			);
 			TC_Integration_WhatsApp::send_message( ltrim( $receipt_phone, '+' ), $msg );
 		}
+
+		// Autonomous Driver & Fleet Dispatch Notification upon confirmed payment
+		self::dispatch_driver_alert( $p, $b, $contact );
+
 		do_action( 'tc_agents_payment_received', $p, $b );
+	}
+
+	/**
+	 * Autonomous Driver & Fleet Dispatch Notification upon payment confirmation.
+	 */
+	public static function dispatch_driver_alert( array $p, array $b, $contact ) {
+		$dispatch_phone = (string) get_option( 'tc_agents_fleet_dispatch_phone', '919336116210' );
+		if ( empty( $dispatch_phone ) || ! class_exists( 'TC_Integration_WhatsApp' ) ) {
+			return;
+		}
+
+		$traveler_name  = ! empty( $contact['name'] ) ? $contact['name'] : 'Guest';
+		$traveler_phone = ! empty( $contact['phone_e164'] ) ? $contact['phone_e164'] : ( $contact['phone'] ?? '' );
+		$vehicle        = ! empty( $b['vehicle'] ) ? $b['vehicle'] : 'AC Sedan / Innova';
+		$start_date     = ! empty( $b['start_date'] ) ? $b['start_date'] : 'Immediate / TBD';
+		$pax            = ! empty( $b['pax'] ) ? (int) $b['pax'] : 1;
+
+		$msg = sprintf(
+			"🚕 *TRIPCOSMOS FLEET DISPATCH - CONFIRMED BOOKING* 🚕\n\nRef: *%s*\nTour: *%s*\nDates: *%s*\nVehicle: *%s* (Pax: %d)\nGuest: *%s* (%s)\nAdvance Received: *%s*\n\nStatus: *CONFIRMED & ADVANCE LOCKED*\n👉 Duty Slip & Driver Assignment active in X-Agents App.",
+			$b['ref'],
+			$b['title'] ?: 'Pilgrimage Circuit',
+			$start_date,
+			$vehicle,
+			$pax,
+			$traveler_name,
+			$traveler_phone,
+			TC_Quote_Service::money( $p['amount'] )
+		);
+
+		TC_Integration_WhatsApp::send_message( ltrim( $dispatch_phone, '+' ), $msg );
 	}
 
 	/**
