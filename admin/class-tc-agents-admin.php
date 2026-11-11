@@ -1073,9 +1073,11 @@ class TC_Agents_Admin {
 			update_option( 'tc_agents_starter_prompts', sanitize_textarea_field( wp_unslash( $_POST['starter_prompts'] ?? '' ) ) );
 			$wa_num = sanitize_text_field( wp_unslash( $_POST['human_whatsapp_number'] ?? '' ) );
 			update_option( 'tc_agents_human_whatsapp_number', $wa_num );
-			update_option( 'tc_agents_gtm_enabled', ! empty( $_POST['gtm_enabled'] ) ? '1' : '0' );
-			update_option( 'tc_agents_gtm_container_id', sanitize_text_field( trim( wp_unslash( $_POST['gtm_container_id'] ?? '' ) ) ) );
-			update_option( 'tc_agents_lead_conversion_value', (float) ( $_POST['lead_conversion_value'] ?? 1500 ) );
+			if ( isset( $_POST['gtm_container_id'] ) ) {
+				update_option( 'tc_agents_gtm_enabled', ! empty( $_POST['gtm_enabled'] ) ? '1' : '0' );
+				update_option( 'tc_agents_gtm_container_id', sanitize_text_field( trim( wp_unslash( $_POST['gtm_container_id'] ?? '' ) ) ) );
+				update_option( 'tc_agents_lead_conversion_value', (float) ( $_POST['lead_conversion_value'] ?? 1500 ) );
+			}
 			$retention = absint( $_POST['retention_days'] ?? 0 );
 			update_option( 'tc_agents_retention_days', ( $retention > 0 && $retention < 30 ) ? 30 : $retention );
 			update_option( 'tc_agents_human_notification_email', sanitize_email( $_POST['human_notification_email'] ?? '' ) );

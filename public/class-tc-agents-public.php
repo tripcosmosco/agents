@@ -43,8 +43,8 @@ class TC_Agents_Public {
 			'tc-gads-bridge-js',
 			'tcGadsConfig',
 			array(
-				'conversionId'  => 'AW-17106475490',
-				'formLabel'     => 'bLh-CM-swOoaEOKzgN0_',
+				'conversionId'  => get_option( 'tc_agents_gads_conversion_id', 'AW-17106475490' ) ?: 'AW-17106475490',
+				'formLabel'     => get_option( 'tc_agents_gads_conversion_label', 'bLh-CM-swOoaEOKzgN0_' ) ?: 'bLh-CM-swOoaEOKzgN0_',
 				'waLabel'       => 'MOptCICRn-caEOKzgN0_',
 				'phoneLabel'    => '7sk4CLrQst4aEOKzgN0_',
 				'purchaseLabel' => 'EEn8CIqNoOcaEOKzgN0_',

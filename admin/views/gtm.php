@@ -13,6 +13,10 @@ $gtm_enabled  = (string) get_option( 'tc_agents_gtm_enabled', '1' );
 $gtm_id       = (string) get_option( 'tc_agents_gtm_container_id', '' );
 $lead_value   = (float) get_option( 'tc_agents_lead_conversion_value', 1500 );
 $is_saved     = isset( $_GET['saved'] );
+
+$sitekit_gtm    = get_option( 'googlesitekit_tagmanager_settings' );
+$sitekit_active = is_array( $sitekit_gtm ) && ! empty( $sitekit_gtm['useSnippet'] ) && ! empty( $sitekit_gtm['containerID'] );
+$sitekit_cid    = $sitekit_active ? $sitekit_gtm['containerID'] : '';
 ?>
 
 <style>
@@ -115,6 +119,11 @@ $is_saved     = isset( $_GET['saved'] );
 	color: #15803d;
 	border: 1px solid #86efac;
 }
+.tc-badge-disabled {
+	background: #fee2e2;
+	color: #991b1b;
+	border: 1px solid #fca5a5;
+}
 .tc-code-pill {
 	background: #0f172a;
 	color: #38bdf8;
@@ -142,7 +151,7 @@ $is_saved     = isset( $_GET['saved'] );
 			</p>
 		</div>
 		<div>
-			<span class="tc-badge-status <?php echo ( '1' === $gtm_enabled ) ? 'tc-badge-online' : ''; ?>">
+			<span class="tc-badge-status <?php echo ( '1' === $gtm_enabled ) ? 'tc-badge-online' : 'tc-badge-disabled'; ?>">
 				<?php echo ( '1' === $gtm_enabled ) ? '● DataLayer Active' : '○ Disabled'; ?>
 			</span>
 		</div>
@@ -176,7 +185,13 @@ $is_saved     = isset( $_GET['saved'] );
 					<th scope="row"><label for="gtm_container_id">GTM Container ID</label></th>
 					<td>
 						<input type="text" name="gtm_container_id" id="gtm_container_id" class="tc-input-lux" placeholder="GTM-XXXXXXX" value="<?php echo esc_attr( $gtm_id ); ?>" />
-						<p class="description">Optional. If entered, the plugin automatically injects the official Google Tag Manager container snippet into <code>&lt;head&gt;</code> and <code>&lt;body&gt;</code>. If your theme already includes GTM, leave this blank.</p>
+						<?php if ( $sitekit_active ) : ?>
+							<p style="margin: 8px 0 0 0; font-size: 12.5px; color: #0284c7; background: #f0f9ff; padding: 6px 12px; border-radius: 6px; border: 1px solid #bae6fd; display: inline-block;">
+								✓ <strong>Google Site Kit Active:</strong> Container <code><?php echo esc_html( $sitekit_cid ); ?></code> is already being automatically injected into <code>&lt;head&gt;</code> and <code>&lt;body&gt;</code>. DataLayer lead tracing events will bridge into it automatically.
+							</p>
+						<?php else : ?>
+							<p class="description">Optional. If entered, the plugin automatically injects the official Google Tag Manager container snippet into <code>&lt;head&gt;</code> and <code>&lt;body&gt;</code>. If your theme already includes GTM, leave this blank.</p>
+						<?php endif; ?>
 					</td>
 				</tr>
 				<tr>
