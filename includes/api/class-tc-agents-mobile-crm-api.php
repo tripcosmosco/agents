@@ -2938,9 +2938,6 @@ class TC_Agents_Mobile_CRM_API {
 			}
 		}
 
-		$label = $user->display_name ?: $user->user_login;
-		$token_row = TC_Agents_Security::create_agent_token( $label, $user->ID );
-
 		$roles = (array) $user->roles;
 
 		// Auto-provision approved company / staff emails to tc_sales_agent if only default subscriber/customer role
@@ -2951,6 +2948,11 @@ class TC_Agents_Mobile_CRM_API {
 			'operations@tripcosmos.co',
 			'info@tripcosmos.co',
 			'tripcosmos.co@gmail.com',
+			'visualsstudiomarketing@gmail.com',
+			'webxprodigital@gmail.com',
+			'mananjayvaranasi@gmail.com',
+			'ankitarrawal@gmail.com',
+			'shubha.st25@gmail.com',
 		);
 		$custom_whitelist = (array) get_option( 'tc_agents_allowed_staff_emails', array() );
 		$all_allowed      = array_merge( $allowed_staff_emails, array_map( 'strtolower', array_filter( $custom_whitelist ) ) );
@@ -2959,6 +2961,31 @@ class TC_Agents_Mobile_CRM_API {
 			$user->set_role( 'tc_sales_agent' );
 			$roles = (array) $user->roles;
 		}
+
+		// STRICT ROLE BINDING: Only Administrator, Sales Manager, or Sales Agent can enter X-Agents
+		$allowed_app_roles = array(
+			'administrator',
+			'tc_sales_manager',
+			'tc_sales_agent',
+			'editor',
+		);
+		$has_access = false;
+		foreach ( $allowed_app_roles as $ar ) {
+			if ( in_array( $ar, $roles, true ) || user_can( $user, 'manage_options' ) ) {
+				$has_access = true;
+				break;
+			}
+		}
+
+		if ( ! $has_access ) {
+			if ( class_exists( 'TC_Agents_Logger' ) ) {
+				TC_Agents_Logger::log( 'unauthorized_app_access_blocked', 'warning', array( 'user_id' => $user->ID, 'roles' => $roles, 'email' => $user->user_email ), '', 'security' );
+			}
+			return self::fail( 'Access Denied: X-Agents is strictly reserved for TripCosmos Administrators and authorized Sales Personnel. Your account (' . esc_html( $user->user_email ) . ') does not have sales desk credentials.', 403 );
+		}
+
+		$label = $user->display_name ?: $user->user_login;
+		$token_row = TC_Agents_Security::create_agent_token( $label, $user->ID );
 
 		$role_hierarchy = array(
 			'administrator',

@@ -201,18 +201,23 @@ class TC_CRM_Notify {
 			}
 		}
 
-		// 2. First-response SLA: new leads with no human action within N minutes (checked for 24h).
+		// 2. First-response SLA: new customer leads with no human action within N minutes (checked for 24h).
+		// Excludes wholesale B2B partner records and catalog feeders from customer SLA alerts.
 		$sla = (int) get_option( 'tc_agents_crm_sla_minutes', 15 );
 		if ( self::enabled( 'sla' ) && $sla > 0 ) {
 			$late = $wpdb->get_results(
 				$wpdb->prepare(
 					"SELECT c.* FROM $t_c c
-					 WHERE c.created_at <= %s AND c.created_at >= %s AND c.stage NOT IN ('won','completed','lost')
+					 WHERE c.created_at <= %s AND c.created_at >= %s
+					   AND c.stage NOT IN ('won','completed','lost','b2b_partner','b2b_lead','b2b_test','dnd','unsubscribed')
+					   AND (c.source_channel IS NULL OR (c.source_channel NOT LIKE %s AND c.source_channel NOT LIKE %s))
 					   AND (c.meta_data IS NULL OR c.meta_data NOT LIKE %s)
 					   AND NOT EXISTS (SELECT 1 FROM $t_act a WHERE a.contact_id = c.id AND a.user_id > 0)
 					 LIMIT 20",
 					date( 'Y-m-d H:i:s', strtotime( $now ) - $sla * MINUTE_IN_SECONDS ),
 					date( 'Y-m-d H:i:s', strtotime( $now ) - DAY_IN_SECONDS ),
+					'%feeder%',
+					'%b2b%',
 					'%"sla_alerted"%'
 				),
 				ARRAY_A

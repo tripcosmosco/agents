@@ -157,7 +157,7 @@ class TC_Agent_Sequences {
 				array(
 					'delay_hours' => 1,
 					'subject'     => 'B2B Ground Handling & White-Label DMC Partnership - TripCosmos Varanasi',
-					'message'     => "Namaste {name} team! Greetings from TripCosmos (Varanasi).\n\nDo your clients travel to Varanasi, Ayodhya, Prayagraj, and Bodh Gaya? We operate as the premier on-ground DMC handling:\nâœ… Verified Commercial AC Cabs (Innova Crysta, Dzire, Ertiga, Tempo Travellers)\nâœ… Reserved Ganga Aarti Private Bajra Boats & VIP Sugam Darshan Escorts\nâœ… Net B2B Commission Rates & White-Label Placards with your agency branding.\n\nWould you like our 2026 B2B Net Rate Sheet?",
+					'message'     => "Namaste {name} team! Greetings from TripCosmos (Varanasi).\n\nDo your clients travel to Varanasi, Ayodhya, Prayagraj, and Bodh Gaya? We operate as the premier on-ground DMC handling:\n✅ Verified Commercial AC Cabs (Innova Crysta, Dzire, Ertiga, Tempo Travellers)\n✅ Reserved Ganga Aarti Private Bajra Boats & VIP Sugam Darshan Escorts\n✅ Net B2B Commission Rates & White-Label Placards with your agency branding.\n\nWould you like our 2026 B2B Net Rate Sheet?",
 				),
 				array(
 					'delay_hours' => 48,
@@ -186,12 +186,12 @@ class TC_Agent_Sequences {
 				array(
 					'delay_hours' => 48,
 					'subject'     => 'TripCosmos Dev Deepawali 2026 B2B Net Rates & Boat Slabs',
-					'message'     => "Namaste {name} team! 🙏 Following up on our Dev Deepawali 2026 Varanasi allocation.\n\nHere are our protected B2B Net Partner Slabs:\nðŸš¤ Private Bajra Boat Charter (80 Pax Deck): Net â‚¹45,000 (Retail â‚¹65k+ | Your Margin: â‚¹20,000+)\nðŸ›• Kashi Vishwanath Sugam Darshan Assistance: Net â‚¹1,100 / pass\nðŸš— Toyota Innova Crysta (6+1 AC): â‚¹19 / km (Varanasi â€“ Ayodhya â€“ Prayagraj)\nðŸš Force Urbania / Tempo Traveller: â‚¹32 / km\nðŸ¨ Riverside Hotel Blocks: 3-Star Deluxe & 4-Star Luxury allotments available.\n\nReply 'RATES' to lock your tentative allotment before festive bookings close.",
+					'message'     => "Namaste {name} team! 🙏 Following up on our Dev Deepawali 2026 Varanasi allocation.\n\nHere are our protected B2B Net Partner Slabs:\n🚤 Private Bajra Boat Charter (80 Pax Deck): Net ₹45,000 (Retail ₹65k+ | Your Margin: ₹20,000+)\n🛕 Kashi Vishwanath Sugam Darshan Assistance: Net ₹1,100 / pass\n🚗 Toyota Innova Crysta (6+1 AC): ₹19 / km (Varanasi – Ayodhya – Prayagraj)\nðŸš Force Urbania / Tempo Traveller: ₹32 / km\nðŸ¨ Riverside Hotel Blocks: 3-Star Deluxe & 4-Star Luxury allotments available.\n\nReply 'RATES' to lock your tentative allotment before festive bookings close.",
 				),
 				array(
 					'delay_hours' => 96,
 					'subject'     => 'Urgent Allotment Closing: Dev Deepawali 2026 Bajra Decks',
-					'message'     => "Namaste {name} team! âš¡ Urgent inventory update for Dev Deepawali 2026.\n\nOver 80% of our private Bajra boat decks and festival cab allocations are now contracted by partner agencies in Mumbai and Gujarat. We have only 1 Private Bajra Deck remaining in our B2B pool.\n\nIf you have any confirmed or tentative family/group inquiries for November, reply 'HOLD' to place a complimentary 48-hour block on this deck before we release it to retail channels.",
+					'message'     => "Namaste {name} team! ⚡ Urgent inventory update for Dev Deepawali 2026.\n\nOver 80% of our private Bajra boat decks and festival cab allocations are now contracted by partner agencies in Mumbai and Gujarat. We have only 1 Private Bajra Deck remaining in our B2B pool.\n\nIf you have any confirmed or tentative family/group inquiries for November, reply 'HOLD' to place a complimentary 48-hour block on this deck before we release it to retail channels.",
 				),
 			);
 

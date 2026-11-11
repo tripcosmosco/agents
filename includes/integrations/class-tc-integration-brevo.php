@@ -17,8 +17,8 @@ class TC_Integration_Brevo {
 	}
 	public static function is_configured() { return ! empty( self::get_api_key() ); }
 	public static function get_sender() {
-		$email = get_option( 'tc_agents_brevo_sender_email', get_option( 'admin_email' ) );
-		$name = get_option( 'tc_agents_brevo_sender_name', 'TripCosmos' );
+		$email = get_option( 'tc_agents_brevo_sender_email', 'sales@tripcosmos.co' );
+		$name  = get_option( 'tc_agents_brevo_sender_name', 'TripCosmos B2B Desk' );
 		return array( 'email' => $email, 'name' => $name );
 	}
 	public static function send_email( $to, $subject, $html, $text = '' ) {
@@ -54,6 +54,7 @@ class TC_Integration_Brevo {
 
 		return new WP_Error( 'email_dispatch_failed', __( 'Could not deliver email via Brevo or wp_mail.', 'tripcosmos-agents' ) );
 	}
+
 	/**
 	 * Send Transactional SMS via Brevo (Driver dispatch / OTP / Booking confirmation).
 	 */
@@ -109,129 +110,151 @@ class TC_Integration_Brevo {
 	 * Build responsive luxury B2B Wholesale Partnership Email HTML.
 	 */
 	public static function build_b2b_html( $agency ) {
-		$name      = ! empty( $agency['name'] ) ? esc_html( $agency['name'] ) : 'Partner';
-		$city      = ! empty( $agency['city'] ) ? esc_html( $agency['city'] ) : 'India';
-		$wa_raw    = '919336116210';
-		$wa_text   = rawurlencode( sprintf( 'Namaste TripCosmos DMC! We received your B2B proposal for %s (%s). Please share your net rate tariff sheet and wholesale commission slabs.', $name, $city ) );
-		$wa_url    = "https://wa.me/{$wa_raw}?text={$wa_text}";
-		$call_url  = 'tel:+919336116210';
-		$site_url  = esc_url( home_url( '/tour-packages/' ) );
+		$name          = ! empty( $agency['name'] ) ? esc_html( $agency['name'] ) : 'Partner';
+		$city          = ! empty( $agency['city'] ) ? esc_html( $agency['city'] ) : 'India';
+		$wa_raw        = '919336116210';
+		$wa_text       = rawurlencode( sprintf( 'Namaste TripCosmos DMC! We received your B2B proposal for %s (%s). Please share your net rate tariff sheet and wholesale commission slabs.', $name, $city ) );
+		$wa_url        = "https://wa.me/{$wa_raw}?text={$wa_text}";
+		$call_url      = 'tel:+919336116210';
+		$site_url      = esc_url( home_url( '/tour-packages/' ) );
+		$itinerary_url = esc_url( home_url( '/tour-packages/dev-deepawali-varanasi/' ) );
 
 		ob_start();
 		?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TripCosmos B2B Wholesale Partnership</title>
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<title>TripCosmos &bull; B2B Wholesale DMC Partnership</title>
+<!--[if mso]>
+<style type="text/css">
+body, table, td, a { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif !important; }
+</style>
+<![endif]-->
 <style>
-body { margin:0; padding:0; background-color:#f1f5f9; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color:#1e293b; -webkit-font-smoothing:antialiased; }
-table { border-collapse:collapse; }
-img { border:0; outline:none; text-decoration:none; }
-.wrapper { width:100%; max-width:640px; margin:24px auto; background:#ffffff; border-radius:16px; overflow:hidden; box-shadow:0 10px 25px -5px rgba(15,23,42,0.1); border:1px solid #e2e8f0; }
-.header { background:linear-gradient(135deg, #0f172a 0%, #1e1b4b 60%, #312e81 100%); padding:36px 32px; text-align:center; color:#ffffff; }
-.header .badge { display:inline-block; padding:5px 14px; background:rgba(245,158,11,0.22); border:1px solid rgba(245,158,11,0.5); border-radius:999px; font-size:12px; font-weight:700; color:#fbbf24; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:12px; }
-.header h1 { margin:0; font-size:24px; font-weight:800; line-height:1.25; color:#ffffff; }
-.header p { margin:8px 0 0 0; font-size:14px; color:#cbd5e1; }
-.body-content { padding:32px 32px 24px 32px; }
-.greeting { font-size:17px; font-weight:700; color:#0f172a; margin-bottom:16px; }
-.intro { font-size:15px; line-height:1.65; color:#334155; margin-bottom:24px; }
-.grid-table { width:100%; margin:20px 0; background:#f8fafc; border-radius:12px; border:1px solid #e2e8f0; overflow:hidden; }
-.grid-table td { padding:14px 16px; border-bottom:1px solid #e2e8f0; font-size:14px; vertical-align:top; }
+body { margin:0; padding:0; background-color:#0b0f19; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color:#334155; -webkit-font-smoothing:antialiased; }
+table { border-collapse:collapse; mso-table-lspace:0pt; mso-table-rspace:0pt; }
+img { border:0; outline:none; text-decoration:none; -ms-interpolation-mode:bicubic; }
+.wrapper { width:100%; max-width:640px; margin:28px auto; background:#ffffff; border-radius:18px; overflow:hidden; box-shadow:0 20px 45px rgba(0,0,0,0.45); border:1px solid #1e293b; }
+.header { background:linear-gradient(135deg, #090d16 0%, #151c2e 50%, #1e293b 100%); padding:40px 36px 32px 36px; text-align:center; color:#ffffff; border-bottom:3px solid #d4af37; }
+.brand-title { font-size:24px; font-weight:800; letter-spacing:0.02em; color:#ffffff; margin:0 0 6px 0; }
+.brand-title span { background:linear-gradient(135deg, #f59e0b 0%, #d4af37 100%); -webkit-background-clip:text; -webkit-text-fill-color:#f59e0b; }
+.badge { display:inline-block; padding:5px 14px; background:rgba(212,175,55,0.14); border:1px solid rgba(212,175,55,0.45); border-radius:999px; font-size:11px; font-weight:800; color:#fbbf24; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:14px; }
+.header h2 { margin:8px 0 0 0; font-size:20px; font-weight:700; color:#ffffff; line-height:1.3; }
+.header p { margin:8px 0 0 0; font-size:13.5px; color:#94a3b8; font-weight:400; line-height:1.5; }
+.body-content { padding:36px 36px 28px 36px; background:#ffffff; }
+.greeting { font-size:18px; font-weight:700; color:#0f172a; margin-bottom:14px; }
+.intro { font-size:14.5px; line-height:1.7; color:#334155; margin-bottom:24px; }
+.trust-banner { background:#f8fafc; border-left:4px solid #d4af37; padding:12px 18px; border-radius:0 10px 10px 0; margin-bottom:26px; font-size:13px; color:#475569; line-height:1.55; }
+.trust-banner strong { color:#0f172a; }
+.grid-table { width:100%; margin:24px 0; background:#f8fafc; border-radius:14px; border:1px solid #e2e8f0; overflow:hidden; }
+.grid-table td { padding:15px 18px; border-bottom:1px solid #e2e8f0; font-size:13.5px; vertical-align:top; }
 .grid-table tr:last-child td { border-bottom:none; }
 .grid-table .col-title { font-weight:700; color:#0f172a; width:34%; }
-.grid-table .col-desc { color:#475569; }
-.cta-box { background:linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%); border:1px solid #86efac; border-radius:14px; padding:24px; text-align:center; margin:28px 0; }
-.cta-box h3 { margin:0 0 8px 0; font-size:18px; font-weight:800; color:#065f46; }
-.cta-box p { margin:0 0 20px 0; font-size:14px; color:#047857; line-height:1.5; }
-.btn-wa { display:inline-block; background:linear-gradient(135deg, #22c55e 0%, #16a34a 100%); color:#ffffff !important; text-decoration:none; font-weight:800; font-size:16px; padding:15px 32px; border-radius:999px; box-shadow:0 6px 18px rgba(34,197,94,0.38); letter-spacing:-0.01em; }
+.grid-table .col-desc { color:#475569; line-height:1.55; }
+.cta-box { background:linear-gradient(135deg, #090d16 0%, #151c2e 100%); border:1px solid rgba(212,175,55,0.4); border-radius:16px; padding:28px 24px; text-align:center; margin:32px 0 24px 0; color:#ffffff; box-shadow:0 10px 25px rgba(0,0,0,0.25); }
+.cta-box h3 { margin:0 0 8px 0; font-size:19px; font-weight:800; color:#ffffff; letter-spacing:-0.01em; }
+.cta-box h3 span { color:#fbbf24; }
+.cta-box p { margin:0 0 22px 0; font-size:13.5px; color:#cbd5e1; line-height:1.5; }
+.btn-wa { display:inline-block; background:linear-gradient(135deg, #22c55e 0%, #16a34a 100%); color:#ffffff !important; text-decoration:none; font-weight:800; font-size:15px; padding:14px 34px; border-radius:999px; box-shadow:0 6px 20px rgba(34,197,94,0.45); letter-spacing:0.01em; }
 .btn-wa:hover { background:#15803d; }
-.btn-call { display:inline-block; margin-top:12px; font-size:13px; font-weight:600; color:#0284c7; text-decoration:none; }
+.btn-call { display:inline-block; margin-top:14px; font-size:12.5px; font-weight:700; color:#38bdf8; text-decoration:none; }
 .perks { margin:24px 0; padding:0; list-style:none; }
-.perks li { font-size:13.5px; color:#475569; margin-bottom:10px; padding-left:24px; position:relative; line-height:1.45; }
-.perks li::before { content:"✓"; position:absolute; left:0; color:#16a34a; font-weight:800; font-size:16px; top:-1px; }
-.footer { background:#f8fafc; border-top:1px solid #e2e8f0; padding:24px 32px; text-align:center; font-size:12px; color:#64748b; line-height:1.6; }
-.footer a { color:#ea580c; text-decoration:none; font-weight:600; }
+.perks li { font-size:13.5px; color:#475569; margin-bottom:10px; padding-left:26px; position:relative; line-height:1.5; }
+.perks li::before { content:"✓"; position:absolute; left:0; color:#16a34a; font-weight:900; font-size:15px; top:0; }
+.footer { background:#090d16; border-top:1px solid #1e293b; padding:28px 36px; text-align:center; font-size:12px; color:#94a3b8; line-height:1.65; }
+.footer a { color:#fbbf24; text-decoration:none; font-weight:600; }
+.footer strong { color:#ffffff; }
 @media only screen and (max-width: 480px) {
-  .header { padding:24px 20px; }
-  .body-content { padding:20px 18px; }
+  .header { padding:28px 20px 24px 20px; }
+  .body-content { padding:24px 18px; }
   .grid-table .col-title { width:100%; display:block; padding-bottom:4px; }
   .grid-table .col-desc { display:block; padding-top:0; }
-  .btn-wa { display:block; padding:14px 20px; font-size:15px; }
+  .btn-wa { display:block; padding:14px 20px; font-size:14.5px; }
+  .footer { padding:20px 18px; }
 }
 </style>
 </head>
 <body>
+<div style="display:none;font-size:1px;line-height:1px;max-height:0px;max-width:0px;opacity:0;overflow:hidden;mso-hide:all;">
+Exclusive B2B Ground Handling &amp; DMC Net Tariffs: Dev Deepawali Bajra Charters, Kashi VIP Sugam Passes &amp; AC Fleet for <?php echo $name; ?>.
+</div>
 <div class="wrapper">
   <!-- Header -->
   <div class="header">
-    <div class="badge">Verified On-Ground DMC • Varanasi</div>
-    <h1>B2B Wholesale Tour &amp; Cab Tariffs</h1>
-    <p>Exclusive Agency Slabs for Varanasi, Ayodhya, Prayagraj &amp; Gaya Circuits</p>
+    <div class="badge">Verified On-Ground DMC &bull; Varanasi &bull; Ayodhya &bull; Prayagraj</div>
+    <div class="brand-title"><span>TRIPCOSMOS</span> &bull; B2B PARTNER DESK</div>
+    <h2>Confidential Wholesale Tour &amp; Cab Tariffs</h2>
+    <p>Guaranteed Net Rates &amp; 100% White-Label Ground Handling for Travel Agencies</p>
   </div>
 
   <!-- Body Content -->
   <div class="body-content">
     <div class="greeting">Namaste <?php echo $name; ?> Team 🙏,</div>
     <div class="intro">
-      TripCosmos is Varanasi's premier on-ground Destination Management Company (DMC). We serve as your reliable <strong>100% white-label ground execution partner</strong> across Uttar Pradesh and Bihar sacred corridors, guaranteeing seamless guest experiences under your agency brand.
+      TripCosmos is Varanasi's premier on-ground Destination Management Company (DMC). We serve as your verified <strong>100% white-label ground execution partner</strong> across Uttar Pradesh and Bihar sacred corridors, guaranteeing seamless guest experiences delivered strictly under your own agency brand.
+    </div>
+
+    <div class="trust-banner">
+      <strong>Protected B2B Margins:</strong> All net tariffs include 15% to 25%+ protected retail margins for partner agencies. Airport placards, chauffeur greeting cards, and day-wise itineraries carry <strong>your agency name &amp; logo with zero TripCosmos branding</strong>.
     </div>
 
     <!-- Wholesale Slabs Table -->
     <table class="grid-table" cellpadding="0" cellspacing="0">
       <tr>
         <td class="col-title">🚗 Dedicated Fleet</td>
-        <td class="col-desc">Innova Crysta, Ertiga, Swift Dzire &amp; 17/26-Seater Luxury Force Urbania/Tempo Travellers. Verified commercial yellow plates &amp; disciplined drivers.</td>
+        <td class="col-desc">Toyota Innova Crysta, Swift Dzire, Ertiga &amp; 12/17/26-Seater Force Urbania &amp; Tempo Travellers. Verified yellow-plate commercial fleet with vetted, courteous chauffeurs.</td>
       </tr>
       <tr>
         <td class="col-title">🛕 Kashi VIP Darshan</td>
-        <td class="col-desc">Official Sugam Darshan passes, priority corridor queue assistance, and Rudrabhishek / Mangla Aarti coordination.</td>
+        <td class="col-desc">Official Sugam Darshan passes, priority sanctum corridor escort (bypassing 4-hour queues), and Vedic Shastri puja coordination.</td>
       </tr>
       <tr>
         <td class="col-title">⛵ Ganga Aarti Boats</td>
-        <td class="col-desc">Private 80-seat &amp; 30-seat Bajra barges, private motorboats, and Subah-e-Banaras sunrise cruise with live Shehnai.</td>
+        <td class="col-desc">Private 80-seat &amp; 30-seat Bajra barges, private wooden boats, and Subah-e-Banaras sunrise musical cruises at Dashashwamedh Ghat.</td>
       </tr>
       <tr>
         <td class="col-title">🪔 Dev Deepawali 2026</td>
-        <td class="col-desc">Exclusive pre-allotted Bajra boats and prime Dashashwamedh Ghat Aarti viewing decks for Kartik Poornima. <a href="https://tripcosmos.co/tour-packages/dev-deepawali-varanasi/" target="_blank" style="color:#d97706;font-weight:700;">View 2N3D Package &rarr;</a></td>
+        <td class="col-desc">Exclusive pre-allocated Bajra boats &amp; prime Dashashwamedh Aarti viewing decks for Kartik Poornima. <a href="<?php echo $itinerary_url; ?>" target="_blank" style="color:#d97706;font-weight:700;">View 2N3D Partner Package &rarr;</a></td>
       </tr>
       <tr>
         <td class="col-title">⛺ Magh Mela 2027</td>
-        <td class="col-desc">Luxury tentage and Triveni Sangam Snan boats at Prayagraj with full outstation transfer support.</td>
+        <td class="col-desc">Luxury riverside Swiss tentage and Triveni Sangam Snan boats at Prayagraj with full outstation cab transfer support.</td>
       </tr>
       <tr>
-        <td class="col-title">🏷️ White-Label Service</td>
+        <td class="col-title">🏷️ 100% White-Label</td>
         <td class="col-desc">Your agency placard at airport/station pickup, customized itineraries with your logo, and 24/7 dedicated guest helpline.</td>
       </tr>
     </table>
 
-    <!-- High-Converting WhatsApp CTA Box -->
+    <!-- High-Converting CTA Box -->
     <div class="cta-box">
-      <h3>Get Your Net Wholesale Tariff Sheet</h3>
-      <p>Instant activation on WhatsApp. Discuss commission slabs, contracting rates &amp; lock festive allotments with our B2B desk.</p>
+      <h3>Get Your <span>Confidential B2B Net Rate Card</span></h3>
+      <p>Instant activation on WhatsApp. Discuss commission slabs, contracting rates &amp; lock festive allocations directly with our B2B trade directors.</p>
       <a href="<?php echo esc_url( $wa_url ); ?>" target="_blank" rel="noopener" class="btn-wa">
-        💬 Chat on WhatsApp (+91 93361 16210)
+        💬 Connect on WhatsApp (+91 93361 16210)
       </a>
       <br>
       <a href="<?php echo esc_attr( $call_url ); ?>" class="btn-call">
-        📞 Or Call B2B Desk: +91 93361 16210
+        📞 Or Call B2B Desk Direct: +91 93361 16210
       </a>
     </div>
 
     <ul class="perks">
       <li><strong>Net B2B Rates:</strong> Protect your retail markups with transparent wholesale contractor pricing.</li>
       <li><strong>Instant Confirmations:</strong> 2-minute response SLA via WhatsApp for custom itineraries &amp; cab bookings.</li>
-      <li><strong>Zero Disruption Guarantee:</strong> 24x7 local Varanasi support team resolving any on-ground requirement.</li>
+      <li><strong>Zero Disruption Guarantee:</strong> 24x7 local Varanasi operations team resolving any on-ground requirement.</li>
     </ul>
   </div>
 
   <!-- Footer -->
   <div class="footer">
-    <strong>TripCosmos Destination Management Company</strong><br>
-    Sigra, Varanasi, Uttar Pradesh 221010, India<br>
+    <strong>TripCosmos Destination Management Company (DMC)</strong><br>
+    Sigra &bull; Shivala, Varanasi, Uttar Pradesh 221010, India<br>
     WhatsApp: <a href="https://wa.me/919336116210">+91 93361 16210</a> &bull; Web: <a href="<?php echo $site_url; ?>">tripcosmos.co</a><br>
-    <small style="color:#94a3b8; margin-top:8px; display:block;">You received this contracting brief because <?php echo $name; ?> is registered as a licensed travel agency or tour operator.</small>
+    <small style="color:#64748b; margin-top:10px; display:block;">You received this contracting brief because <?php echo $name; ?> is registered as a licensed travel agency or tour operator in India.</small>
   </div>
 </div>
 </body>
@@ -250,7 +273,7 @@ img { border:0; outline:none; text-decoration:none; }
 		$subject = sprintf( __( 'B2B Wholesale Tour & Cab Tariffs for %s — TripCosmos Varanasi DMC', 'tripcosmos-agents' ), $name );
 		$html = self::build_b2b_html( $agency );
 		$text = sprintf(
-			"Namaste %s Team 🙏,\n\nTripCosmos is Varanasi's premier on-ground Destination Management Company (DMC). We provide 100%% white-label execution for your guests across Varanasi, Ayodhya, Prayagraj and Gaya circuits.\n\nOur Wholesale Offerings:\n• Dedicated Fleet: Innova Crysta, Ertiga, Urbania & Luxury Tempo Travellers\n• Kashi Vishwanath VIP Sugam Darshan passes & protocol coordination\n• Private Ganga Aarti Bajra boats & Dev Deepawali 2026 allotments\n• Prayagraj Sangam boats & Magh Mela 2027 luxury tents\n\n📲 Chat on WhatsApp for Net B2B Tariffs: https://wa.me/919336116210\n📞 Direct Desk Call: +91 93361 16210\n\nTripCosmos B2B Desk, Sigra, Varanasi, UP 221010",
+			"Namaste %s Team 🙏,\n\nTripCosmos is Varanasi's premier on-ground Destination Management Company (DMC). We provide 100%% white-label ground execution for your guests across Varanasi, Ayodhya, Prayagraj and Gaya sacred corridors.\n\nOur Wholesale Offerings:\n• Dedicated Commercial Fleet: Innova Crysta, Swift Dzire, Force Urbania & Luxury Tempo Travellers\n• Kashi Vishwanath VIP Sugam Darshan passes & Vedic Shastri escorts\n• Private Ganga Aarti Bajra boats & Dev Deepawali 2026 pre-allocated decks\n• Prayagraj Sangam boats & Magh Mela 2027 luxury riverside tentage\n• 100%% White-Label execution under your agency branding\n\n💬 Connect on WhatsApp for Net B2B Tariffs: https://wa.me/919336116210\n📞 Direct Desk Call: +91 93361 16210\n\nTripCosmos B2B Partner Desk, Sigra, Varanasi, UP 221010",
 			$name
 		);
 		return self::send_email( $email, $subject, $html, $text );
