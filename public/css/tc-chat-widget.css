@@ -3171,7 +3171,7 @@
 	border-radius: 999px !important;
 	padding: 7px 14px 7px 11px !important;
 	box-shadow: 0 10px 25px -4px rgba(15, 23, 42, 0.14), 0 4px 10px rgba(234, 88, 12, 0.1) !important;
-	display: inline-flex !important;
+	display: none !important;
 	align-items: center !important;
 	gap: 8px !important;
 	cursor: pointer !important;
@@ -3180,6 +3180,12 @@
 	animation: tcPillFloat 3.5s ease-in-out infinite !important;
 	z-index: 15 !important;
 	user-select: none !important;
+}
+
+@media (min-width: 769px) {
+	#tc-agent-widget-root .tc-fab-callout {
+		display: inline-flex !important;
+	}
 }
 
 #tc-agent-widget-root.tc-window-open .tc-fab-callout,

@@ -462,7 +462,13 @@
 				badgeEl.style.setProperty('display', 'none', 'important');
 			}
 			const calloutPillEl = document.getElementById('tc-fab-callout');
-			if (calloutPillEl) calloutPillEl.style.setProperty('display', isOpen ? 'none' : 'inline-flex', 'important');
+			if (calloutPillEl) {
+				if (isOpen || window.innerWidth <= 768) {
+					calloutPillEl.style.setProperty('display', 'none', 'important');
+				} else {
+					calloutPillEl.style.setProperty('display', 'inline-flex', 'important');
+				}
+			}
 
 			if (teaserEl) teaserEl.style.display = 'none';
 			if (widgetRoot) widgetRoot.classList.remove('tc-teaser-open');
@@ -517,6 +523,9 @@
 
 		const calloutPill = document.getElementById('tc-fab-callout');
 		if (calloutPill) {
+			if (window.innerWidth <= 768) {
+				calloutPill.style.setProperty('display', 'none', 'important');
+			}
 			calloutPill.addEventListener('click', function(e) {
 				e.preventDefault();
 				e.stopPropagation();
@@ -617,8 +626,12 @@
 				badgeEl.style.setProperty('display', 'none', 'important');
 			}
 			const calloutPill = document.getElementById('tc-fab-callout');
-			if (calloutPill && !isOpen) {
-				calloutPill.style.setProperty('display', 'inline-flex', 'important');
+			if (calloutPill) {
+				if (!isOpen && window.innerWidth > 768) {
+					calloutPill.style.setProperty('display', 'inline-flex', 'important');
+				} else {
+					calloutPill.style.setProperty('display', 'none', 'important');
+				}
 			}
 		}
 

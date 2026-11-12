@@ -19,7 +19,8 @@ class TC_Agents_Link_Silo {
 	 * Register hooks for single posts and pages.
 	 */
 	public static function init() {
-		add_filter( 'the_content', array( __CLASS__, 'inject_silo_links' ), 25 );
+		// Run before in-post CTA injection (priority 20) so internal links never alter CTA card markup
+		add_filter( 'the_content', array( __CLASS__, 'inject_silo_links' ), 12 );
 	}
 
 	/**
@@ -114,10 +115,8 @@ class TC_Agents_Link_Silo {
 			$content = strtr( $content, $protected_blocks );
 		}
 
-		// 2. Append commercial callout ONLY if the article does not already have an in-post CTA
-		if ( false === strpos( $content, 'tc-in-post-cta' ) && false === strpos( $content, 'tc-cta-box' ) ) {
-			$content .= self::render_silo_callout();
-		}
+		// Single in-post CTA is handled authoritatively by TC_Agents_Public::inject_in_post_whatsapp_cta at priority 20.
+		// Avoid appending redundant bottom CTA boxes to prevent duplicate CTAs.
 
 		return $content;
 	}
