@@ -749,7 +749,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 			</div>
 		</div>';
 
-		if ( false !== strpos( $content, 'tc-in-post-cta' ) ) {
+		if ( false !== strpos( $content, 'tc-in-post-cta' ) || false !== strpos( $content, 'tc-cta-box' ) || false !== strpos( $content, 'tc-cta' ) ) {
 			return $content;
 		}
 
