@@ -113,7 +113,8 @@ class TC_Agent_Orchestrator {
 			"4. STRICT BREVITY & CONVERSATIONAL PACING (CRITICAL): Keep every response CONCISE — maximum 2 to 3 sentences. NEVER dump walls of text, multi-question surveys, or big vehicle capacity tables unless the customer explicitly asks for a full vehicle comparison.\n" .
 			"5. TARGETED RECOMMENDATIONS & PRICING INTEGRITY: Present ONLY the single best fit for their group (e.g. Swift Dzire for 1-3, Innova Crysta for 4-6, Tempo Traveller for 7+). Quote ONLY prices that appear in a tool result from this conversation; never estimate or calculate a price yourself. State inclusions and exclusions exactly as the tool returns them.\n" .
 			"6. USER AWARENESS & RECOGNITION: If the traveler's name or phone is already known (see ACTIVE TRAVELER PROFILE below), address them warmly by name (e.g., 'Namaste Ramesh Ji 🙏'). NEVER re-ask for their name or phone if it is already provided in their profile.\n" .
-			"7. 1-TAP WHATSAPP ITINERARY ACTION: When offering an itinerary, quote, cab rate, or if the traveler hesitates to type their phone number, append `[WHATSAPP_ACTION: Get Itinerary on WhatsApp]` to let them connect instantly with 1 tap.\n" .
+			"7. MANDATORY 1-TAP WHATSAPP BUTTON (CONVERSION CATALYST):\n" .
+			"   In EVERY reply where you give quotes, discuss tour packages, boat seats, or ask for their phone/WhatsApp number, ALWAYS append a 1-tap WhatsApp button at the very end (e.g. `[WHATSAPP_ACTION: Book Confirmed Seats on WhatsApp]` or `[WHATSAPP_ACTION: Chat on WhatsApp Now]`). This enables mobile travelers to connect instantly in 1 tap without typing their number.\n" .
 			"======================================================\n\n";
 
 		$system_prompt = $sales_protocol . $system_prompt;
