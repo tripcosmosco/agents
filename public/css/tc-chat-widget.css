@@ -3236,19 +3236,43 @@
 	50% { transform: translateY(-4px); }
 }
 
-@media (max-width: 640px) {
+@media (max-width: 768px) {
+	#tc-agent-widget-root {
+		bottom: 16px !important;
+		right: 16px !important;
+	}
 	#tc-agent-widget-root .tc-widget-fab {
 		width: 48px !important;
 		height: 48px !important;
 	}
+	/* Prevent floating text pill from obscuring mobile article text */
 	#tc-agent-widget-root .tc-fab-callout {
-		right: 56px !important;
-		bottom: 4px !important;
-		padding: 6px 12px 6px 9px !important;
+		display: none !important;
+		opacity: 0 !important;
+		visibility: hidden !important;
+		pointer-events: none !important;
 	}
-	#tc-agent-widget-root .tc-callout-text {
-		font-size: 11px !important;
-	}
+}
+
+/* ==========================================================================
+   Contextual Silo Links & Dark Card Link Visibility
+   ========================================================================== */
+a.tc-silo-link {
+	color: #ea580c !important;
+	text-decoration: underline !important;
+	text-underline-offset: 3px !important;
+	text-decoration-thickness: 1.5px !important;
+	font-weight: 600 !important;
+	transition: color 0.15s ease !important;
+}
+a.tc-silo-link:hover {
+	color: #c2410c !important;
+	text-decoration: underline !important;
+}
+.tc-in-post-cta a:not([style*="background"]):not([class*="tc-btn"]) {
+	color: #38bdf8 !important;
+	text-decoration: underline !important;
+	text-underline-offset: 3px !important;
 }
 
 /* ==========================================================================

@@ -70,6 +70,18 @@ class TC_Agents_Link_Silo {
 		$injected_count = 0;
 		$max_injections = 3; // Maximum 3 contextual links per article to preserve editorial naturalness
 
+		// Temporarily protect existing CTA cards, pre/code blocks, and tables from keyword replacement
+		$protected_blocks = array();
+		$content = preg_replace_callback(
+			'/<(div|section|aside|table|pre|code)[^>]*(?:tc-in-post-cta|tc-cta-box|tc-highlight-card|tc-table)[^>]*>.*?<\/\1>/is',
+			function( $matches ) use ( &$protected_blocks ) {
+				$key = '<!--TC_PROTECTED_BLOCK_' . count( $protected_blocks ) . '-->';
+				$protected_blocks[ $key ] = $matches[0];
+				return $key;
+			},
+			$content
+		);
+
 		foreach ( $silo_rules as $rule ) {
 			if ( $injected_count >= $max_injections ) {
 				break;
@@ -97,9 +109,17 @@ class TC_Agents_Link_Silo {
 			}
 		}
 
-		// 2. Append High-Converting Commercial Callout Card at end of post
-		$callout_html = self::render_silo_callout();
-		return $content . $callout_html;
+		// Restore protected blocks
+		if ( ! empty( $protected_blocks ) ) {
+			$content = strtr( $content, $protected_blocks );
+		}
+
+		// 2. Append commercial callout ONLY if the article does not already have an in-post CTA
+		if ( false === strpos( $content, 'tc-in-post-cta' ) && false === strpos( $content, 'tc-cta-box' ) ) {
+			$content .= self::render_silo_callout();
+		}
+
+		return $content;
 	}
 
 	/**
