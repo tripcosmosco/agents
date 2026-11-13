@@ -108,6 +108,19 @@ class TC_Agents_PWA {
 	 * Output Service Worker registration & lightweight Install App prompt in footer
 	 */
 	public static function output_footer_script() {
+		// Never interrupt ad visitors or tour package buyers with a PWA app prompt
+		if (
+			is_singular('togo_trip') ||
+			(function_exists('is_checkout') && is_checkout()) ||
+			(function_exists('is_cart') && is_cart()) ||
+			isset($_GET['gclid']) ||
+			isset($_GET['wbraid']) ||
+			isset($_GET['gbraid']) ||
+			isset($_GET['utm_source']) ||
+			isset($_GET['utm_campaign'])
+		) {
+			return;
+		}
 		?>
 		<!-- TripCosmos PWA Registration & Install Engine -->
 		<div id="tc-pwa-install-prompt" class="tc-pwa-prompt" style="display:none;" aria-live="polite">

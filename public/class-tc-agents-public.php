@@ -176,7 +176,8 @@ class TC_Agents_Public {
 		// Contextual Dev Diwali Detection
 		$is_dev_diwali = false;
 		$req_uri = isset( $_SERVER['REQUEST_URI'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REQUEST_URI'] ) ) : '';
-		if ( false !== stripos( $req_uri, 'dev-diwali' ) || false !== stripos( $req_uri, 'dev-deepawali' ) ) {
+		$utm_term = isset( $_GET['utm_term'] ) ? sanitize_text_field( wp_unslash( $_GET['utm_term'] ) ) : '';
+		if ( false !== stripos( $req_uri, 'dev-diwali' ) || false !== stripos( $req_uri, 'dev-deepawali' ) || false !== stripos( $utm_term, 'dev deepawali' ) || false !== stripos( $utm_term, 'dev diwali' ) ) {
 			$is_dev_diwali = true;
 		} elseif ( is_singular() ) {
 			$p_slug  = get_post_field( 'post_name', get_the_ID() );
@@ -191,9 +192,9 @@ class TC_Agents_Public {
 		$avatar_url    = get_option( 'tc_agents_bot_avatar', '' );
 		$avatar_emoji  = get_option( 'tc_agents_bot_avatar_emoji', '🛕' );
 		$default_greet = $is_dev_diwali
-			? "Namaste! 🙏 Planning your Dev Diwali 2026 trip in Varanasi?\n\nPrivate boat permits, Bajra seating & Ghat hotels sell out 90 days early. How can I assist you with boat booking, Aarti passes, or 2N/3D packages today?"
+			? "Namaste! 🙏 Dev Deepawali in Varanasi is on Tuesday, November 24, 2026.\n\nShared Motorboat (₹2,999/seat), Wooden Bajra (₹4,499/seat), and Luxury Cruise seats are filling fast. How many seats would you like to reserve for your group?"
 			: "Namaste! 🙏 Welcome to TripCosmos — Varanasi's premier pilgrimage & tour desk.\n\nLooking for Kashi Vishwanath VIP darshan, Ayodhya Ram Mandir packages, outstation cabs (Innova Crysta / Swift Dzire), hotel bookings, or private Ganga Aarti boat rides? How can I assist you today?";
-		$greeting      = get_option( 'tc_agents_widget_greeting', $default_greet );
+		$greeting      = $is_dev_diwali ? $default_greet : get_option( 'tc_agents_widget_greeting', $default_greet );
 		if ( is_user_logged_in() ) {
 			$u = wp_get_current_user();
 			$f_name = ! empty( $u->first_name ) ? $u->first_name : $u->display_name;
@@ -202,13 +203,13 @@ class TC_Agents_Public {
 			}
 			$salutation = ! empty( $f_name ) ? "Namaste, " . esc_html( $f_name ) . " Ji! 🙏" : "Namaste! 🙏";
 			if ( $is_dev_diwali ) {
-				$greeting = $salutation . " Planning your Dev Diwali 2026 trip in Varanasi?\n\nPrivate boat permits, Bajra seating & Ghat hotels sell out 90 days early. How can I assist you with boat booking, Aarti passes, or 2N/3D packages today?";
+				$greeting = $salutation . " Planning your Dev Diwali 2026 trip in Varanasi?\n\nPrivate boat permits, Bajra seating & Ghat hotels sell out early. How can I assist you with boat booking, Aarti passes, or 2N/3D packages today?";
 			} else {
 				$greeting = $salutation . " Welcome back to TripCosmos.\n\nAre you planning an upcoming pilgrimage or looking for verified cab fares, hotel stays, or VIP Darshan passes today?";
 			}
 		}
 		$teaser_text   = $is_dev_diwali
-			? 'Namaste! 🙏 Heading to Varanasi for Dev Diwali 2026? Ghat hotels & Aarti boats are booking up fast. Let me check live rates & availability for you!'
+			? '🔥 Dev Deepawali (Nov 24) boat seats are 85% booked. Tap to check remaining seats & rates!'
 			: get_option( 'tc_agents_launcher_teaser_text', 'Namaste! 🙏 Planning your trip to Varanasi or Ayodhya? I can check live cab fares, VIP Darshan passes & hotel availability for you right now.' );
 		$side          = get_option( 'tc_agents_widget_side', 'right' );
 		$primary_color = get_option( 'tc_agents_widget_primary_color', '#ea580c' );
@@ -221,13 +222,18 @@ class TC_Agents_Public {
 		$direct_wa     = "https://wa.me/{$wa_num}?text=" . rawurlencode( 'Hi TripCosmos, I am browsing your site and would like help planning a Varanasi tour or outstation cab.' );
 
 		// Custom Starter Prompts
-
 		$default_starters = "🛕 Kashi Ayodhya Tour | Tell me about Kashi Ayodhya Prayagraj 4 Days Tour Package\n🚗 Outstation Cabs | Book outstation cab Dzire or Innova Crysta for Varanasi to Ayodhya\n⛵ Ganga Aarti Boat | Book private boat for evening Ganga Aarti at Dashashwamedh Ghat\n🏨 Ghat Hotels | Best ghat-view hotels in Varanasi near Kashi Vishwanath";
 		if ( $is_dev_diwali ) {
-			$default_starters = "🪔 Dev Diwali Boat | Book private motorboat or Bajra for Dev Diwali 2026\n📋 2N/3D Tour Package | Check complete Dev Diwali 2026 itinerary and pricing\n🏨 Ghat View Hotels | Available hotels near Dashashwamedh Ghat for Dev Diwali\n🚗 Airport Cab | Pre-book AC Innova or Sedan for Dev Diwali arrival";
+			$starter_lines = [
+				"🪔 Shared Motorboat (₹2,999) | Book shared motorboat seats for Nov 24 Dev Deepawali",
+				"🪵 Wooden Bajra (₹4,499) | Reserve traditional wooden Bajra seats for Dev Deepawali",
+				"🚢 Luxury AC Cruise (₹13,499) | Check luxury cruise upper deck availability",
+				"🟢 WhatsApp Booking (+91 93361 16210) | Connect me directly with Varanasi booking desk on WhatsApp",
+			];
+		} else {
+			$raw_starters  = get_option( 'tc_agents_starter_prompts', $default_starters );
+			$starter_lines = array_filter( array_map( 'trim', explode( "\n", $raw_starters ) ) );
 		}
-		$raw_starters     = get_option( 'tc_agents_starter_prompts', $default_starters );
-		$starter_lines    = array_filter( array_map( 'trim', explode( "\n", $raw_starters ) ) );
 
 		$side_class = ( 'left' === $side ) ? ' tc-side-left' : '';
 		?>

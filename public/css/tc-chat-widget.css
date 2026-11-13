@@ -2209,14 +2209,14 @@
 }
 
 @media (max-width: 768px) {
-	/* Natural bottom positioning for FAB and teaser on mobile */
-	#tc-agent-widget-root {
-		bottom: 18px !important;
+	/* Natural bottom positioning for FAB and teaser on mobile - sits safely above sticky action bar */
+	#tc-agent-widget-root:not(.tc-window-open) {
+		bottom: calc(76px + env(safe-area-inset-bottom, 0px)) !important;
 		right: 14px !important;
 	}
 
 	#tc-agent-widget-root .tc-widget-teaser {
-		bottom: 74px !important;
+		bottom: calc(134px + env(safe-area-inset-bottom, 0px)) !important;
 		right: 0 !important;
 	}
 
@@ -3243,8 +3243,8 @@
 }
 
 @media (max-width: 768px) {
-	#tc-agent-widget-root {
-		bottom: 16px !important;
+	#tc-agent-widget-root:not(.tc-window-open) {
+		bottom: calc(76px + env(safe-area-inset-bottom, 0px)) !important;
 		right: 16px !important;
 	}
 	#tc-agent-widget-root .tc-widget-fab {
