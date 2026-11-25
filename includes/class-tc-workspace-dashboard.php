@@ -19,8 +19,12 @@ class TC_Workspace_Dashboard {
 
 	const PAPERCLIP_LOCAL_URL  = 'http://127.0.0.1:3300';
 	const PAPERCLIP_PUBLIC_URL = 'https://agents.vmstudio.digital';
-	const PAPERCLIP_BOARD_KEY  = 'pcp_board_5dde65f2d0d990fd0e186d1e8cdf997f4bb1199b978e9e6a';
 	const PAPERCLIP_COMPANY_ID = 'b66bdec2-ddf6-4199-9161-da5c6ee60ef8'; // TRI
+
+	/** Retrieve Paperclip orchestration board API key from option or wp-config constant */
+	public static function get_paperclip_board_key() {
+		return (string) get_option( 'tc_agents_paperclip_board_key', defined( 'TC_AGENTS_PAPERCLIP_BOARD_KEY' ) ? TC_AGENTS_PAPERCLIP_BOARD_KEY : '' );
+	}
 
 	public static function init() {
 		// 1. Shortcode registration
@@ -2556,7 +2560,7 @@ class TC_Workspace_Dashboard {
 		$url = self::PAPERCLIP_LOCAL_URL . '/api/companies/' . self::PAPERCLIP_COMPANY_ID . '/routines/' . $routine_id . '/trigger';
 		$res = wp_remote_post( $url, array(
 			'headers' => array(
-				'Authorization' => 'Bearer ' . self::PAPERCLIP_BOARD_KEY,
+				'Authorization' => 'Bearer ' . self::get_paperclip_board_key(),
 				'Content-Type'  => 'application/json',
 			),
 			'body'    => wp_json_encode( array( 'source' => 'tripcosmos_workspace' ) ),

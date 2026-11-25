@@ -36,6 +36,8 @@ class TC_Agents_Security {
 		$headers['X-Content-Type-Options'] = 'nosniff';
 		$headers['X-Frame-Options']        = 'SAMEORIGIN';
 		$headers['Referrer-Policy']        = 'strict-origin-when-cross-origin';
+		$headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains; preload';
+		$headers['Permissions-Policy']        = 'camera=(), microphone=(), geolocation=()';
 		return $headers;
 	}
 

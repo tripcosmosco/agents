@@ -657,6 +657,23 @@ class TC_Agent_Tools {
 		// Link contact_id to conversation record
 		if ( ! empty( $session_id ) && $contact_id > 0 ) {
 			$table_convo = $wpdb->prefix . 'tc_agent_conversations';
+			// Sync Live Radar transient immediately
+			if ( ! empty( $contact_data['phone'] ) ) {
+				$visitors = get_transient( 'tc_live_active_visitors' );
+				if ( is_array( $visitors ) ) {
+					foreach ( $visitors as $k => &$v ) {
+						if ( ( isset( $v['session_id'] ) && $v['session_id'] === $session_id ) || $k === $session_id ) {
+							$v['phone']         = $contact_data['phone'];
+							$v['visitor_phone'] = $contact_data['phone'];
+							if ( ! empty( $contact_data['name'] ) && 'Traveler' !== $contact_data['name'] ) {
+								$v['visitor_name'] = $contact_data['name'];
+							}
+						}
+					}
+					unset( $v );
+					set_transient( 'tc_live_active_visitors', $visitors, 2 * HOUR_IN_SECONDS );
+				}
+			}
 			$wpdb->update( $table_convo, array( 'contact_id' => $contact_id ), array( 'session_id' => $session_id ) );
 		}
 

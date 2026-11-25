@@ -43,16 +43,16 @@ class TC_Agents_Redirects {
 		// 1. Exact High-Value Keyword Mappings (Known 404 leaks from deleted duplicates)
 		$exact_map = array(
 			'tours'                              => home_url( '/tour-packages/' ),
-			'varanasi-boat-tour'                 => home_url( '/tour-packages/' ),
+			'varanasi-boat-tour'                 => home_url( '/tour-packages/varanasi-boat-ride-for-ganga-aarti-at-dashashwamedh-ghat/' ),
 			'lahartara-sarovar-lake'             => home_url( '/' ),
-			'budget-travel-tips-for-rajasthan'   => home_url( '/' ),
-			'varanasi-tour-package'              => home_url( '/tour-packages/' ),
-			'complete-varanasi-travel-plan'      => home_url( '/complete-varanasi-travel-plan-2/' ),
-			'best-time-to-visit-naimisharanya'   => home_url( '/best-time-to-visit-naimisharanya-2/' ),
+			'budget-travel-tips-for-rajasthan'   => home_url( '/tour-packages/' ),
+			'varanasi-tour-package'              => home_url( '/tour-packages/varanasi-tour-package/' ),
+			'complete-varanasi-travel-plan'      => home_url( '/tour-packages/varanasi-tour-package/' ),
+			'best-time-to-visit-naimisharanya'   => home_url( '/best-time-to-visit-naimisharanya/' ),
 			'premium-varanasi-experience'        => home_url( '/premium-varanasi-experience-2/' ),
-			'varanasi-to-ayodhya-cab-fare'       => home_url( '/' ),
-			'kashi-vishwanath-vip-darshan'       => home_url( '/tour-packages/' ),
-			'dev-deepawali-boat-booking'         => home_url( '/tour-packages/' ),
+			'varanasi-to-ayodhya-cab-fare'       => home_url( '/tour-packages/varanasi-ayodhya-tour-package/' ),
+			'kashi-vishwanath-vip-darshan'       => home_url( '/tour-packages/varanasi-tour-package/' ),
+			'dev-deepawali-boat-booking'         => home_url( '/tour-packages/dev-deepawali-varanasi/' ),
 		);
 
 		if ( isset( $exact_map[ $lower ] ) ) {
@@ -61,20 +61,22 @@ class TC_Agents_Redirects {
 
 		// 2. Pattern & Intent-Based Fallbacks for Deleted Clusters
 		if ( ! $target_url ) {
-			if ( strpos( $lower, 'boat' ) !== false || strpos( $lower, 'bajra' ) !== false || strpos( $lower, 'aarti' ) !== false ) {
-				$target_url = home_url( '/tours/' );
+			if ( strpos( $lower, 'dev-deepawali' ) !== false ) {
+				$target_url = home_url( '/tour-packages/dev-deepawali-varanasi/' );
+			} elseif ( strpos( $lower, 'boat' ) !== false || strpos( $lower, 'bajra' ) !== false || strpos( $lower, 'aarti' ) !== false ) {
+				$target_url = home_url( '/tour-packages/varanasi-boat-ride-for-ganga-aarti-at-dashashwamedh-ghat/' );
 			} elseif ( strpos( $lower, 'ayodhya' ) !== false || strpos( $lower, 'ram-mandir' ) !== false || strpos( $lower, 'janmabhoomi' ) !== false ) {
-				$target_url = home_url( '/tours/' );
-			} elseif ( strpos( $lower, 'kashi' ) !== false || strpos( $lower, 'vishwanath' ) !== false || strpos( $lower, 'darshan' ) !== false ) {
-				$target_url = home_url( '/tours/' );
+				$target_url = home_url( '/tour-packages/ayodhya-tour-package/' );
+			} elseif ( strpos( $lower, 'kashi' ) !== false || strpos( $lower, 'vishwanath' ) !== false || strpos( $lower, 'darshan' ) !== false || strpos( $lower, 'varanasi' ) !== false ) {
+				$target_url = home_url( '/tour-packages/varanasi-tour-package/' );
 			} elseif ( strpos( $lower, 'prayagraj' ) !== false || strpos( $lower, 'sangam' ) !== false || strpos( $lower, 'magh-mela' ) !== false ) {
-				$target_url = home_url( '/tours/' );
+				$target_url = home_url( '/tour-packages/varanasi-prayagraj-tour-package/' );
 			} elseif ( strpos( $lower, 'bodhgaya' ) !== false || strpos( $lower, 'gaya' ) !== false || strpos( $lower, 'pind-daan' ) !== false ) {
-				$target_url = home_url( '/tours/' );
+				$target_url = home_url( '/tour-packages/varanasi-bodhgaya-tour-package/' );
 			} elseif ( strpos( $lower, 'cab' ) !== false || strpos( $lower, 'taxi' ) !== false || strpos( $lower, 'innova' ) !== false || strpos( $lower, 'dzire' ) !== false || strpos( $lower, 'tempo' ) !== false ) {
 				$target_url = home_url( '/' );
 			} elseif ( 0 === strpos( $lower, 'tours/' ) || 0 === strpos( $lower, 'tour/' ) || 0 === strpos( $lower, 'package/' ) ) {
-				$target_url = home_url( '/tours/' );
+				$target_url = home_url( '/tour-packages/' );
 			}
 		}
 

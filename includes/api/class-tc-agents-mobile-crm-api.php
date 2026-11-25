@@ -2862,6 +2862,9 @@ class TC_Agents_Mobile_CRM_API {
 	}
 
 	public static function handle_auth_me( WP_REST_Request $request ) {
+		if ( class_exists( 'TC_Agents_Mobile_API' ) ) {
+			TC_Agents_Mobile_API::verify_token( $request );
+		}
 		$user_id = (int) $request->get_param( '_tc_user_id' );
 
 		// 1. Validate WordPress cookies across all schemes (logged_in and secure_auth)

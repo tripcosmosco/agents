@@ -377,6 +377,15 @@
 							language: currentLang || 'en',
 							currentUser: cfg.currentUser || null
 						})
+					}).then(function(res) {
+						if (res.ok) return res.json();
+					}).then(function(data) {
+						if (data && data.push_offer) {
+							displayPushOffer(data.push_offer);
+						}
+						if (data && data.proactive_ping && data.proactive_ping.message) {
+							appendAgentMessage(data.proactive_ping.message, data.proactive_ping.sender || 'Live Specialist');
+						}
 					}).catch(function() {});
 				} catch (e) {}
 			}
@@ -1112,6 +1121,7 @@
 				e.preventDefault();
 				const text = chatInput ? chatInput.value.trim() : '';
 				if (!text) return;
+				sendTypingPreview('');
 				sendMessage(text);
 				if (chatInput) chatInput.value = '';
 				if (starterChips) starterChips.style.display = 'none';
@@ -1124,6 +1134,7 @@
 				e.preventDefault();
 				const text = chatInput ? chatInput.value.trim() : '';
 				if (!text) return;
+				sendTypingPreview('');
 				sendMessage(text);
 				if (chatInput) chatInput.value = '';
 				if (starterChips) starterChips.style.display = 'none';
@@ -1131,11 +1142,15 @@
 		}
 
 		if (chatInput) {
+			chatInput.addEventListener('input', function() {
+				sendTypingPreview(chatInput.value);
+			});
 			chatInput.addEventListener('keydown', function(e) {
 				if (e.key === 'Enter' && !e.shiftKey) {
 					e.preventDefault();
 					const text = chatInput.value.trim();
 					if (!text) return;
+					sendTypingPreview('');
 					sendMessage(text);
 					chatInput.value = '';
 					if (starterChips) starterChips.style.display = 'none';
@@ -1344,6 +1359,144 @@
 		// 10. Send Message Flow with Streaming & Context
 		isSending = false;
 		const chatSubmitBtn = chatForm ? chatForm.querySelector('button[type="submit"]') : null;
+		let userMessageCount = 0;
+		let phoneCaptured = !!sessionStorage.getItem('tc_phone_captured');
+		let typingPreviewTimer = null;
+
+		function sendTypingPreview(text) {
+			clearTimeout(typingPreviewTimer);
+			typingPreviewTimer = setTimeout(function() {
+				try {
+					const cfg = getCfg();
+					const siteUrl = cfg.siteUrl ? cfg.siteUrl.replace(/\/$/, '') : (window.location.origin || '');
+					const trackUrl = siteUrl + '/wp-json/tc-agents/v1/track-visitor';
+					fetch(trackUrl, {
+						method: 'POST',
+						credentials: 'same-origin',
+						headers: {
+							'Content-Type': 'application/json',
+							'X-WP-Nonce': cfg.nonce || ''
+						},
+						body: JSON.stringify({
+							action: 'typing_preview',
+							typing_text: text || '',
+							session_id: sessionId,
+							page_url: window.location.href,
+							page_title: document.title,
+							language: currentLang || 'en'
+						})
+					}).then(function(res) {
+						if (res.ok) return res.json();
+					}).then(function(data) {
+						if (data && data.push_offer) {
+							displayPushOffer(data.push_offer);
+						}
+						if (data && data.proactive_ping && data.proactive_ping.message) {
+							appendAgentMessage(data.proactive_ping.message, data.proactive_ping.sender || 'Live Specialist');
+						}
+					}).catch(function() {});
+				} catch (e) {}
+			}, 350);
+		}
+
+		function renderInlineLeadCard() {
+			if (document.getElementById('tc-inline-lead-card') || phoneCaptured) return;
+			const card = document.createElement('div');
+			card.id = 'tc-inline-lead-card';
+			card.className = 'tc-inline-lead-card';
+			card.innerHTML = 
+				'<div class="tc-inline-lead-header">' +
+					'<span class="tc-inline-lead-pill">⚡ Instant WhatsApp Delivery</span>' +
+					'<div class="tc-inline-lead-title">Lock In Rate & Get Full Day-Wise Itinerary</div>' +
+					'<div class="tc-inline-lead-sub">Share your WhatsApp number to receive complete vehicle allocation, driver contact & day-wise tour itinerary breakdown.</div>' +
+				'</div>' +
+				'<div class="tc-inline-lead-form">' +
+					'<input type="text" id="tc-in-lead-name" class="tc-in-input" placeholder="Your Name" />' +
+					'<div class="tc-in-phone-row">' +
+						'<span class="tc-in-cc">+91</span>' +
+						'<input type="tel" id="tc-in-lead-phone" class="tc-in-input tc-in-phone" placeholder="WhatsApp Mobile Number" maxlength="15" />' +
+					'</div>' +
+					'<button type="button" id="tc-in-lead-btn" class="tc-in-submit-btn">🟢 Send Itinerary to My WhatsApp</button>' +
+				'</div>';
+			messagesContainer.appendChild(card);
+			scrollToBottom();
+
+			const btn = card.querySelector('#tc-in-lead-btn');
+			if (btn) {
+				btn.addEventListener('click', function() {
+					const nameInput = card.querySelector('#tc-in-lead-name');
+					const phoneInput = card.querySelector('#tc-in-lead-phone');
+					const nameVal = nameInput ? nameInput.value.trim() : '';
+					const phoneVal = phoneInput ? phoneInput.value.trim() : '';
+
+					if (!phoneVal || phoneVal.replace(/\D/g, '').length < 10) {
+						alert('Please enter a valid 10-digit WhatsApp number.');
+						return;
+					}
+
+					btn.disabled = true;
+					btn.textContent = '⏳ Dispatching Plan...';
+
+					const leadCapUrl = getCfg().leadCaptureUrl || '/wp-json/tc-agents/v1/lead-capture';
+					fetch(leadCapUrl, {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({
+							name: nameVal || 'Traveler',
+							phone: phoneVal,
+							session_id: sessionId,
+							page_url: window.location.href,
+							page_title: document.title,
+							utm_source: getAttribution().utm_source
+						})
+					}).then(function(res) {
+						return res.json();
+					}).then(function() {
+						phoneCaptured = true;
+						sessionStorage.setItem('tc_phone_captured', '1');
+						card.innerHTML = 
+							'<div class="tc-inline-lead-success">' +
+								'<span class="tc-in-check">✓</span>' +
+								'<div>' +
+									'<strong>Itinerary & Rate Locked!</strong>' +
+									'<div>We have received your request. Our tour specialist is sending the full plan to <b>' + escapeHtml(phoneVal) + '</b> on WhatsApp.</div>' +
+								'</div>' +
+							'</div>';
+						scrollToBottom();
+					}).catch(function() {
+						btn.disabled = false;
+						btn.textContent = '🟢 Send Itinerary to My WhatsApp';
+					});
+				});
+			}
+		}
+
+		function displayPushOffer(offer) {
+			if (!offer || !offer.text) return;
+			let toast = document.getElementById('tc-push-offer-toast');
+			if (!toast) {
+				toast = document.createElement('div');
+				toast.id = 'tc-push-offer-toast';
+				toast.className = 'tc-push-offer-toast';
+				const widgetBody = document.querySelector('.tc-chat-body') || messagesContainer;
+				if (widgetBody) {
+					widgetBody.insertBefore(toast, widgetBody.firstChild);
+				}
+			}
+			const waNum = getCfg().whatsappNumber || '919336116210';
+			const ref = typeof getTcRef === 'function' ? getTcRef() : 'Ref: Web';
+			const waUrl = 'https://wa.me/' + waNum + '?text=' + encodeURIComponent('Hi TripCosmos (' + ref + '), I want to claim live offer: ' + (offer.title || '') + ' - Code: ' + (offer.discount || ''));
+			toast.innerHTML = 
+				'<div class="tc-offer-top">' +
+					'<span class="tc-offer-badge">🔥 LIVE SPECIAL</span>' +
+					'<button type="button" class="tc-offer-close" onclick="this.closest(\'.tc-push-offer-toast\').remove()">&times;</button>' +
+				'</div>' +
+				'<div class="tc-offer-title">' + escapeHtml(offer.title || 'Exclusive Flash Deal') + '</div>' +
+				'<div class="tc-offer-text">' + escapeHtml(offer.text) + '</div>' +
+				(offer.discount ? '<div class="tc-offer-code">Use Code: <code>' + escapeHtml(offer.discount) + '</code></div>' : '') +
+				'<a href="' + waUrl + '" target="_blank" rel="noopener" class="tc-offer-btn">Claim on WhatsApp &rarr;</a>';
+			scrollToBottom();
+		}
 
 		function setSendingState(sending) {
 			isSending = sending;
@@ -1363,10 +1516,13 @@
 		function sendMessage(text) {
 			if (isSending) return;
 			setSendingState(true);
+			userMessageCount++;
 
 			// Auto-detect phone / email on client side for immediate tracking and 1-click call option
 			const phoneMatch = text.match(/(?:\+91|91|0)?[6-9]\d{9}|\+?[0-9]{8,15}/);
 			if (phoneMatch) {
+				phoneCaptured = true;
+				sessionStorage.setItem('tc_phone_captured', '1');
 				const detectedPhone = phoneMatch[0];
 				trackEvent('tc_agent_phone_detected', { phone: detectedPhone });
 				const leadCapUrl = getCfg().leadCaptureUrl || '/wp-json/tc-agents/v1/lead-capture';
@@ -1476,6 +1632,9 @@
 											setSendingState(false);
 											scrollToBottom(true);
 											resetInactivityTimer();
+											if (userMessageCount >= 2 && !phoneCaptured) {
+												setTimeout(renderInlineLeadCard, 600);
+											}
 											if (event.handoff && event.handoff.whatsapp_url) {
 												renderHandoffCta(event.handoff.whatsapp_url);
 											}
@@ -1514,6 +1673,9 @@
 					// Fallback to standard JSON
 					return response.json().then(function(data) {
 						setSendingState(false);
+						if (userMessageCount >= 2 && !phoneCaptured) {
+							setTimeout(renderInlineLeadCard, 600);
+						}
 						if (data.reply) {
 							textDiv.innerHTML = formatMarkdown(data.reply);
 							saveToHistory('bot', data.reply);
@@ -1923,6 +2085,27 @@
 						'<svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.582 2.128 2.182-.573c.978.58 1.911.928 3.145.929 3.178 0 5.767-2.587 5.768-5.766 0-3.187-2.59-5.771-5.764-5.771zm3.392 8.244c-.144.405-.837.774-1.17.824-.312.045-.694.072-2.18-.545-1.898-.787-3.13-2.73-3.224-2.855-.094-.127-.775-1.03-.775-1.965 0-.934.489-1.393.663-1.583.175-.19.38-.238.508-.238.127 0 .254.002.365.008.117.006.273-.044.428.328.16.383.548 1.339.596 1.436.048.098.08.212.015.339-.064.127-.095.207-.19.317-.095.111-.2.248-.286.333-.095.096-.195.2-.084.391.111.19.493.813 1.056 1.314.726.645 1.338.845 1.53.94.19.096.302.08.413-.048.111-.127.476-.556.603-.746.127-.19.254-.159.429-.095.174.064 1.111.524 1.302.619.19.096.317.143.365.223.048.079.048.461-.096.866z"/></svg>' +
 						'<span>' + label.trim() + '</span>' +
 						'<span class="tc-wa-arrow">&rarr;</span>' +
+					'</a>' +
+				'</div>';
+			});
+
+			// Interactive Vehicle Card: [VEHICLE_CARD: Name | Rate | Specs]
+			safe = safe.replace(/\[VEHICLE_CARD:\s*([^|\]]+)\|\s*([^|\]]+)\|\s*([^\]]+)\]/gi, function(match, name, rate, specs) {
+				const waNum = getCfg().whatsappNumber || '919336116210';
+				const ref = typeof getTcRef === 'function' ? getTcRef() : 'Ref: Web';
+				const waText = encodeURIComponent('Hi TripCosmos (' + ref + '), I would like to reserve the ' + name.trim() + ' (' + rate.trim() + ') for our upcoming trip: ' + specs.trim());
+				const waUrl = 'https://wa.me/' + waNum + '?text=' + waText;
+				return '<div class="tc-vehicle-card">' +
+					'<div class="tc-vehicle-card-top">' +
+						'<div class="tc-vehicle-icon">🚗</div>' +
+						'<div class="tc-vehicle-info">' +
+							'<div class="tc-vehicle-name">' + name.trim() + '</div>' +
+							'<div class="tc-vehicle-specs">' + specs.trim() + '</div>' +
+						'</div>' +
+						'<div class="tc-vehicle-rate">' + rate.trim() + '</div>' +
+					'</div>' +
+					'<a href="' + waUrl + '" target="_blank" rel="noopener" class="tc-vehicle-book-btn">' +
+						'Book ' + name.trim() + ' on WhatsApp &rarr;' +
 					'</a>' +
 				'</div>';
 			});

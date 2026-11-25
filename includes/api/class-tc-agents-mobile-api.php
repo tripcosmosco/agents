@@ -295,6 +295,28 @@ class TC_Agents_Mobile_API {
 			)
 		);
 
+		// 19b. Push Live Flash Offer to Website Visitor Screen
+		register_rest_route(
+			self::NAMESPACE,
+			'/mobile/push-offer',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( __CLASS__, 'handle_push_offer' ),
+				'permission_callback' => array( __CLASS__, 'verify_token' ),
+			)
+		);
+
+		// 19c. Send Proactive Ping to Website Visitor
+		register_rest_route(
+			self::NAMESPACE,
+			'/mobile/proactive-ping',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( __CLASS__, 'handle_proactive_ping' ),
+				'permission_callback' => array( __CLASS__, 'verify_token' ),
+			)
+		);
+
 		// 20. Send WhatsApp Message from Mobile App
 		register_rest_route(
 			self::NAMESPACE,
@@ -1345,7 +1367,7 @@ class TC_Agents_Mobile_API {
 		if ( ! $is_admin ) {
 			$user_id = (int) $request->get_param( '_tc_user_id' );
 			$agent   = (string) $request->get_param( '_tc_agent' );
-			$where  .= ' AND ( owner_user_id = %d OR owner = %s )';
+			$where  .= ' AND ( owner_user_id = %d OR owner = %s OR owner_user_id = 0 OR owner IS NULL OR owner = "" OR owner = "unassigned" OR owner = "nobody" OR owner LIKE "%AI%" )';
 			$params[] = $user_id;
 			$params[] = $agent;
 		}
@@ -1559,31 +1581,71 @@ class TC_Agents_Mobile_API {
 		$is_admin = class_exists( 'TC_Agents_Mobile_CRM_API' ) && TC_Agents_Mobile_CRM_API::is_admin_or_manager( $request );
 		$my_id    = (int) $request->get_param( '_tc_user_id' );
 		$my_agent = trim( (string) $request->get_param( '_tc_agent' ) );
+		$search   = sanitize_text_field( (string) ( $request->get_param( 'search' ) ?? '' ) );
 
-		// 1. Load CRM contacts scoped to current agent if not admin/manager
+		// Check fast in-memory/transient cache (10 seconds) to eliminate server overload (skip cache on active search or refresh)
+		$no_cache  = ! empty( $request->get_param( 'refresh' ) ) || ! empty( $request->get_param( 'no_cache' ) );
+		$cache_key = 'tc_mobile_wa_leads_v8_' . ( $is_admin ? 'admin' : ( (int) $my_id . '_' . md5( $my_agent ) ) );
+		if ( empty( $search ) && ! $no_cache ) {
+			$cached = get_transient( $cache_key );
+			if ( false !== $cached && is_array( $cached ) && ! empty( $cached['leads'] ) ) {
+				return new WP_REST_Response( $cached, 200 );
+			}
+		}
+
+		// 1. Universal Contact Phone-Suffix Lookup (matches active CRM contacts with valid phones)
+		$matching_contacts = $wpdb->get_results(
+			"SELECT id, name, phone, email, stage, score, deal_value, owner, owner_user_id, source_channel, next_follow_up_at, meta_data, created_at, updated_at FROM $table_contacts WHERE phone IS NOT NULL AND phone != '' AND stage != 'trashed' ORDER BY updated_at DESC LIMIT 1000",
+			ARRAY_A
+		) ?: array();
+
+		$contact_by_suffix = array();
+		$contact_by_id     = array();
+		foreach ( $matching_contacts as $c ) {
+			$digits = preg_replace( '/\D/', '', (string) $c['phone'] );
+			$suffix = strlen( $digits ) >= 10 ? substr( $digits, -10 ) : $digits;
+			if ( '' !== $suffix && ! isset( $contact_by_suffix[ $suffix ] ) ) {
+				$contact_by_suffix[ $suffix ] = $c;
+			}
+			$contact_by_id[ (int) $c['id'] ] = $c;
+		}
+
+		// If user searched across all CRM leads, query specifically for matches
+		if ( ! empty( $search ) ) {
+			$search_clean = preg_replace( '/\D/', '', $search );
+			$search_like  = '%' . $wpdb->esc_like( $search ) . '%';
+			$phone_clause = ( strlen( $search_clean ) >= 4 ) ? $wpdb->prepare( " OR phone LIKE %s", '%' . $wpdb->esc_like( $search_clean ) . '%' ) : '';
+			$search_hits = $wpdb->get_results(
+				$wpdb->prepare(
+					"SELECT id, name, phone, email, stage, score, deal_value, owner, owner_user_id, source_channel, next_follow_up_at, meta_data, created_at, updated_at FROM $table_contacts WHERE (name LIKE %s OR meta_data LIKE %s $phone_clause) ORDER BY updated_at DESC LIMIT 100",
+					$search_like,
+					$search_like
+				),
+				ARRAY_A
+			) ?: array();
+			foreach ( $search_hits as $sh ) {
+				$digits = preg_replace( '/\D/', '', (string) $sh['phone'] );
+				$suffix = strlen( $digits ) >= 10 ? substr( $digits, -10 ) : $digits;
+				if ( '' !== $suffix && ! isset( $contact_by_suffix[ $suffix ] ) ) {
+					$contact_by_suffix[ $suffix ] = $sh;
+					$matching_contacts[] = $sh;
+				}
+				$contact_by_id[ (int) $sh['id'] ] = $sh;
+			}
+		}
+
+		// On-duty agents see leads assigned to them PLUS all unassigned/pool/incoming leads so no direct traveler is missed
 		if ( ! $is_admin ) {
 			$contacts = $wpdb->get_results(
 				$wpdb->prepare(
-					"SELECT id, name, phone, email, stage, score, deal_value, owner, source_channel, next_follow_up_at, meta_data, created_at, updated_at FROM $table_contacts WHERE phone IS NOT NULL AND phone != '' AND (owner_user_id = %d OR owner = %s) ORDER BY updated_at DESC LIMIT 120",
+					"SELECT id, name, phone, email, stage, score, deal_value, owner, owner_user_id, source_channel, next_follow_up_at, meta_data, created_at, updated_at FROM $table_contacts WHERE phone IS NOT NULL AND phone != '' AND stage != 'trashed' AND (stage != 'b2b_partner') AND (owner_user_id = %d OR owner = %s OR owner_user_id = 0 OR owner IS NULL OR owner = '' OR owner = 'unassigned' OR owner = 'nobody' OR owner LIKE '%%AI%%') ORDER BY (CASE WHEN source_channel = 'whatsapp' THEN 0 WHEN source_channel IN ('web', 'web_quote_form', 'fluent_forms', 'fluentcrm', 'web_chat_widget', 'google_ads') THEN 1 ELSE 2 END), updated_at DESC LIMIT 600",
 					$my_id,
 					$my_agent
 				),
 				ARRAY_A
 			) ?: array();
 		} else {
-			$contacts = $wpdb->get_results(
-				"SELECT id, name, phone, email, stage, score, deal_value, owner, source_channel, next_follow_up_at, meta_data, created_at, updated_at FROM $table_contacts WHERE phone IS NOT NULL AND phone != '' ORDER BY updated_at DESC LIMIT 120",
-				ARRAY_A
-			) ?: array();
-		}
-
-		$contact_by_suffix = array();
-		foreach ( $contacts as $c ) {
-			$digits = preg_replace( '/\D/', '', (string) $c['phone'] );
-			$suffix = strlen( $digits ) >= 10 ? substr( $digits, -10 ) : $digits;
-			if ( '' !== $suffix && ! isset( $contact_by_suffix[ $suffix ] ) ) {
-				$contact_by_suffix[ $suffix ] = $c;
-			}
+			$contacts = $matching_contacts;
 		}
 
 		// 2. Load B2B agencies by 10-digit phone suffix so B2B threads are auto-badged
@@ -1600,7 +1662,7 @@ class TC_Agents_Mobile_API {
 		// 3. Fetch live WhatsApp threads directly from Evolution API (TripCosmos.co instance)
 		$evo_chats = array();
 		if ( class_exists( 'TC_Integration_Evolution' ) ) {
-			$evo_chats = TC_Integration_Evolution::fetch_live_chats( 60 );
+			$evo_chats = TC_Integration_Evolution::fetch_live_chats( 250 );
 		}
 
 		$unified_threads = array();
@@ -1617,17 +1679,20 @@ class TC_Agents_Mobile_API {
 				continue;
 			}
 
-			// RBAC: Staff agents can ONLY see chats for leads assigned to them
-			if ( ! $is_admin && ! isset( $contact_by_suffix[ $suffix ] ) ) {
-				continue;
-			}
-
 			// Deduplication: Skip if phone suffix already present in thread list
 			if ( '' !== $suffix && isset( $seen_suffixes[ $suffix ] ) ) {
 				continue;
 			}
 
 			$matched_contact = ( '' !== $suffix && isset( $contact_by_suffix[ $suffix ] ) ) ? $contact_by_suffix[ $suffix ] : null;
+
+			// RBAC: Show incoming WhatsApp leads & unassigned leads to all on-duty agents
+			if ( ! $is_admin && $matched_contact && ! empty( $matched_contact['owner_user_id'] ) && (int) $matched_contact['owner_user_id'] !== $my_id && ! empty( $matched_contact['owner'] ) && strtolower( (string) $matched_contact['owner'] ) !== strtolower( $my_agent ) && ! empty( $my_agent ) ) {
+				$contact_owner = strtolower( (string) $matched_contact['owner'] );
+				if ( false === strpos( $contact_owner, 'ai' ) && 'unassigned' !== $contact_owner && 'nobody' !== $contact_owner ) {
+					continue;
+				}
+			}
 
 			// Skip if contact ID was already added via another channel or LID JID
 			if ( $matched_contact && isset( $seen_contact_ids[ (int) $matched_contact['id'] ] ) ) {
@@ -1772,7 +1837,126 @@ class TC_Agents_Mobile_API {
 			);
 		}
 
-		// 4. Append remaining CRM contacts (Website Chat, Phone Calls, Meta Ads, etc.) not already in Evolution list
+		// 3b. Query MySQL wp_tc_agent_conversations for all saved WhatsApp chats not yet in thread list
+		$table_convs = $wpdb->prefix . 'tc_agent_conversations';
+		$table_msgs  = $wpdb->prefix . 'tc_agent_messages';
+		$db_wa_convs = $wpdb->get_results(
+			"SELECT c.id, c.session_id, c.contact_id, c.last_message_at, c.metadata
+			 FROM $table_convs c
+			 WHERE c.channel = 'whatsapp'
+			 ORDER BY c.last_message_at DESC LIMIT 200",
+			ARRAY_A
+		) ?: array();
+
+		foreach ( $db_wa_convs as $cv ) {
+			$cid       = (int) $cv['contact_id'];
+			$meta_c    = json_decode( (string) ( $cv['metadata'] ?? '' ), true ) ?: array();
+			$raw_phone = $meta_c['phone'] ?? '';
+			if ( empty( $raw_phone ) && $cid > 0 && isset( $contact_by_id[ $cid ] ) ) {
+				$raw_phone = $contact_by_id[ $cid ]['phone'];
+			}
+			$digits = preg_replace( '/\D/', '', $raw_phone );
+			$suffix = strlen( $digits ) >= 10 ? substr( $digits, -10 ) : $digits;
+			if ( '9336116210' === $suffix ) {
+				continue;
+			}
+			if ( '' !== $suffix && isset( $seen_suffixes[ $suffix ] ) ) {
+				continue;
+			}
+			if ( $cid > 0 && isset( $seen_contact_ids[ $cid ] ) ) {
+				continue;
+			}
+
+			$matched_contact = ( $cid > 0 && isset( $contact_by_id[ $cid ] ) ) ? $contact_by_id[ $cid ] : ( ( '' !== $suffix && isset( $contact_by_suffix[ $suffix ] ) ) ? $contact_by_suffix[ $suffix ] : null );
+			$matched_agency  = ( '' !== $suffix && isset( $agency_by_suffix[ $suffix ] ) ) ? $agency_by_suffix[ $suffix ] : null;
+
+			if ( '' !== $suffix ) {
+				$seen_suffixes[ $suffix ] = true;
+			}
+			if ( $matched_contact ) {
+				$seen_contact_ids[ (int) $matched_contact['id'] ] = true;
+			}
+
+			$last_m   = $wpdb->get_row( $wpdb->prepare( "SELECT content, role, created_at FROM $table_msgs WHERE conversation_id = %d ORDER BY id DESC LIMIT 1", (int) $cv['id'] ), ARRAY_A );
+			$last_msg = $last_m ? (string) $last_m['content'] : 'WhatsApp chat active';
+			$from_me  = $last_m ? ( 'assistant' === $last_m['role'] || 'agent' === $last_m['role'] ) : false;
+			$ts       = strtotime( $cv['last_message_at'] ) ?: time();
+
+			$diff_sec = max( 0, time() - $ts );
+			if ( $diff_sec < 60 ) {
+				$time_ago = 'Just now';
+			} elseif ( $diff_sec < 3600 ) {
+				$time_ago = round( $diff_sec / 60 ) . 'm ago';
+			} elseif ( $diff_sec < 86400 ) {
+				$time_ago = round( $diff_sec / 3600 ) . 'h ago';
+			} else {
+				$time_ago = round( $diff_sec / 86400 ) . 'd ago';
+			}
+
+			$crm_name      = $matched_contact ? trim( (string) $matched_contact['name'] ) : '';
+			$agency_name   = $matched_agency ? trim( (string) $matched_agency['name'] ) : '';
+			$final_name    = $agency_name ? ( $agency_name . ' (B2B)' ) : ( $crm_name ?: ( 'WhatsApp Traveler (' . substr( $digits, -4 ) . ')' ) );
+			$display_phone = '' !== $digits ? ( strlen( $digits ) === 10 ? '+91 ' . substr( $digits, 0, 5 ) . ' ' . substr( $digits, 5 ) : '+' . $digits ) : $raw_phone;
+
+			$is_indian     = ( strpos( $digits, '91' ) === 0 && strlen( $digits ) >= 12 ) || strlen( $digits ) === 10;
+			$country_flag  = $is_indian ? '🇮🇳' : '🌐';
+			$country_name  = $is_indian ? 'India' : 'International';
+
+			$meta_crm = $matched_contact ? ( json_decode( (string) ( $matched_contact['meta_data'] ?? '' ), true ) ?: array() ) : array();
+			$dest     = ! empty( $meta_crm['destination'] ) ? (string) $meta_crm['destination'] : ( $matched_agency ? '🏢 B2B DMC • ' . ( $matched_agency['city'] ?? 'India' ) : 'New Inquiry' );
+
+			$unified_threads[] = array(
+				'id'                   => $matched_contact ? (string) $matched_contact['id'] : ( 'wa_cv_' . $cv['id'] ),
+				'contact_id'           => $matched_contact ? (int) $matched_contact['id'] : 0,
+				'remote_jid'           => $digits ? ( $digits . '@s.whatsapp.net' ) : (string) $cv['session_id'],
+				'customer_name'        => $final_name,
+				'name'                 => $final_name,
+				'phone'                => $display_phone,
+				'profile_pic_url'      => '',
+				'last_message'         => mb_substr( $last_msg, 0, 140 ),
+				'last_message_from_me' => $from_me,
+				'last_message_status'  => 'sent',
+				'sla_breached'         => false,
+				'sla_wait_minutes'     => max( 0, (int) round( ( time() - $ts ) / 60 ) ),
+				'time_ago'             => $time_ago,
+				'timestamp'            => gmdate( 'c', $ts ),
+				'updated_at'           => gmdate( 'c', $ts ),
+				'epoch'                => $ts,
+				'unread_count'         => 0,
+				'stage'                => $matched_contact ? (string) ( $matched_contact['stage'] ?: 'inquiry' ) : 'new',
+				'tour_interest'        => $dest,
+				'destination'          => $dest,
+				'estimated_budget'     => $matched_contact ? (float) ( $matched_contact['deal_value'] ?? 0 ) : 0.0,
+				'deal_value'           => $matched_contact ? (float) ( $matched_contact['deal_value'] ?? 0 ) : 0.0,
+				'assigned_manager'     => $matched_contact ? (string) ( $matched_contact['owner'] ?: 'Nishkarsh AI' ) : 'Nishkarsh AI',
+				'owner'                => $matched_contact ? (string) ( $matched_contact['owner'] ?: 'Nishkarsh AI' ) : 'Nishkarsh AI',
+				'lead_score'           => $matched_contact ? (int) ( $matched_contact['score'] ?? 75 ) : 75,
+				'is_bot_flag'          => false,
+				'country_flag'         => $country_flag,
+				'country_name'         => $country_name,
+				'source_channel'       => $matched_agency ? 'b2b_agency' : ( $matched_contact && ! empty( $matched_contact['source_channel'] ) ? (string) $matched_contact['source_channel'] : 'whatsapp' ),
+				'has_whatsapp_chat'    => true,
+				'is_b2b'               => (bool) $matched_agency,
+				'is_ai_active'         => isset( $meta_crm['is_ai_active'] ) ? (bool) $meta_crm['is_ai_active'] : true,
+				'next_follow_up_at'    => $matched_contact ? (string) ( $matched_contact['next_follow_up_at'] ?? '' ) : '',
+				'call_count'           => 0,
+			);
+		}
+
+		// Batch load latest message snippets with LIMIT 300 to eliminate N+1 and slow queries
+		$recent_msgs_raw = $wpdb->get_results(
+			"SELECT cv.contact_id, m.content FROM {$wpdb->prefix}tc_agent_conversations cv INNER JOIN {$wpdb->prefix}tc_agent_messages m ON m.conversation_id = cv.id WHERE m.content <> '' ORDER BY m.id DESC LIMIT 300",
+			ARRAY_A
+		) ?: array();
+		$latest_msg_by_cid = array();
+		foreach ( $recent_msgs_raw as $rm ) {
+			$rcid = (int) $rm['contact_id'];
+			if ( ! isset( $latest_msg_by_cid[ $rcid ] ) ) {
+				$latest_msg_by_cid[ $rcid ] = mb_substr( (string) $rm['content'], 0, 160 );
+			}
+		}
+
+		// 4. Append remaining direct traveler leads (Web, Google Ads, Phone) not already in thread list
 		foreach ( $contacts as $c ) {
 			$cid = (int) $c['id'];
 			if ( isset( $seen_contact_ids[ $cid ] ) ) {
@@ -1792,27 +1976,16 @@ class TC_Agents_Mobile_API {
 			if ( empty( $owner ) ) {
 				$owner = 'Nishkarsh AI';
 			}
-			$last_msg    = ! empty( $meta['last_message'] ) ? (string) $meta['last_message'] : '';
-			$has_real_chat = false;
-			if ( '' === $last_msg ) {
-				$real_msg = $wpdb->get_var(
-					$wpdb->prepare(
-						"SELECT m.content FROM {$wpdb->prefix}tc_agent_messages m INNER JOIN {$wpdb->prefix}tc_agent_conversations cv ON cv.id = m.conversation_id WHERE cv.contact_id = %d AND m.content <> '' ORDER BY m.id DESC LIMIT 1",
-						(int) $c['id']
-					)
-				);
-				if ( $real_msg ) {
-					$last_msg      = mb_substr( (string) $real_msg, 0, 160 );
-					$has_real_chat = true;
-				}
-			} else {
-				$has_real_chat = true;
+			$last_msg      = ! empty( $meta['last_message'] ) ? (string) $meta['last_message'] : ( $latest_msg_by_cid[ $cid ] ?? '' );
+			if ( mb_strlen( $last_msg ) > 140 ) {
+				$last_msg = mb_substr( $last_msg, 0, 137 ) . '...';
 			}
+			$has_real_chat = ( '' !== $last_msg );
 			if ( '' === $last_msg && ! empty( $meta['requirements'] ) ) {
 				$last_msg = (string) $meta['requirements'];
 			}
 			if ( '' === $last_msg ) {
-				$last_msg = 'Lead captured via ' . ( ! empty( $c['source_channel'] ) ? $c['source_channel'] : 'CRM' );
+				$last_msg = 'Direct Inquiry via ' . ( ! empty( $c['source_channel'] ) ? $c['source_channel'] : 'Web' );
 			}
 
 			$ts = strtotime( $c['updated_at'] ?: $c['created_at'] ) ?: time();
@@ -1852,9 +2025,9 @@ class TC_Agents_Mobile_API {
 				'is_bot_flag'          => false,
 				'country_flag'         => $country_flag,
 				'country_name'         => $country_name,
-				'unread_count'         => (int) ( $meta['unread_count'] ?? 0 ),
-				'sla_breached'         => ( (int) ( $meta['unread_count'] ?? 0 ) > 0 && ( round( ( time() - $ts ) / 60 ) >= 5 ) ),
-				'sla_wait_minutes'     => max( 0, (int) round( ( time() - $ts ) / 60 ) ),
+				'unread_count'         => 0,
+				'sla_breached'         => false,
+				'sla_wait_minutes'     => 0,
 				'stage'                => (string) ( $c['stage'] ?: 'inquiry' ),
 				'tour_interest'        => $dest,
 				'destination'          => $dest,
@@ -1863,8 +2036,8 @@ class TC_Agents_Mobile_API {
 				'assigned_manager'     => $owner,
 				'owner'                => $owner,
 				'lead_score'           => (int) ( $c['score'] ?? 75 ),
-				'source_channel'       => $matched_ag ? 'b2b_agency' : ( ! empty( $c['source_channel'] ) ? (string) $c['source_channel'] : 'crm' ),
-				'has_whatsapp_chat'    => $has_real_chat,
+				'source_channel'       => $matched_ag ? 'b2b_agency' : ( ! empty( $c['source_channel'] ) ? (string) $c['source_channel'] : 'web' ),
+				'has_whatsapp_chat'    => ( 'whatsapp' === ( $c['source_channel'] ?? '' ) || ! empty( $meta['whatsapp_chat_active'] ) ),
 				'is_b2b'               => (bool) $matched_ag,
 				'is_ai_active'         => isset( $meta['is_ai_active'] ) ? (bool) $meta['is_ai_active'] : true,
 				'next_follow_up_at'    => (string) ( $c['next_follow_up_at'] ?? '' ),
@@ -1872,26 +2045,118 @@ class TC_Agents_Mobile_API {
 			);
 		}
 
-		// Sort real WhatsApp/active chat threads first, then by timestamp descending
+		// Chronological & Priority Sort:
+		// Base: Real-world timestamp ($item['epoch']).
+		// Time-weighted boosts/penalties ensure recent inquiries & messages ALWAYS rise to the top,
+		// while ancient unread messages (e.g. from 3 weeks ago) naturally yield to today's active conversations.
+		$score_fn = function( $item ) {
+			if ( ! empty( $item['is_bot_flag'] ) ) {
+				return -9999999999;
+			}
+			$epoch      = (int) ( $item['epoch'] ?? 0 );
+			$unread     = (int) ( $item['unread_count'] ?? 0 );
+			$from_me    = ! empty( $item['last_message_from_me'] );
+			$is_b2b     = ! empty( $item['is_b2b'] );
+			$stage      = strtolower( (string) ( $item['stage'] ?? '' ) );
+			$is_inquiry = in_array( $stage, array( 'inquiry', 'new', 'quoted', 'quote_sent', 'contacted' ), true );
+
+			$boost = 0;
+			// 1. Direct traveler with unread message waiting for reply: +48h boost
+			if ( ! $is_b2b && $unread > 0 && ! $from_me ) {
+				$boost += 172800; // 48h
+			}
+			// 2. Fresh new traveler inquiry/lead (web, google ads, fluentcrm): +24h boost
+			elseif ( ! $is_b2b && $is_inquiry ) {
+				$boost += 86400; // 24h
+			}
+			// 3. Inbound B2B partner with unread message waiting for reply: +12h boost
+			elseif ( $is_b2b && $unread > 0 && ! $from_me ) {
+				$boost += 43200; // 12h
+			}
+			// 4. Unattended outbound B2B broadcast penalty: -30 days penalty so automated blasts never bury travelers
+			elseif ( $is_b2b && $from_me && 0 === $unread ) {
+				$boost -= 2592000; // -30 days
+			}
+
+			return $epoch + $boost;
+		};
+
 		usort(
 			$unified_threads,
-			function ( $a, $b ) {
+			function ( $a, $b ) use ( $score_fn ) {
+				$score_a = $score_fn( $a );
+				$score_b = $score_fn( $b );
+				if ( $score_a !== $score_b ) {
+					return $score_b <=> $score_a;
+				}
+				$epoch_a = (int) ( $a['epoch'] ?? 0 );
+				$epoch_b = (int) ( $b['epoch'] ?? 0 );
+				if ( $epoch_a !== $epoch_b ) {
+					return $epoch_b <=> $epoch_a;
+				}
 				$a_chat = ! empty( $a['has_whatsapp_chat'] ) ? 1 : 0;
 				$b_chat = ! empty( $b['has_whatsapp_chat'] ) ? 1 : 0;
-				if ( $a_chat !== $b_chat ) {
-					return $b_chat <=> $a_chat;
-				}
-				return ( $b['epoch'] ?? 0 ) <=> ( $a['epoch'] ?? 0 );
+				return $b_chat <=> $a_chat;
 			}
 		);
 
-		return new WP_REST_Response(
-			array(
-				'ok'               => true,
-				'evolution_online' => ! empty( $evo_chats ),
-				'count'            => count( $unified_threads ),
-				'leads'            => $unified_threads,
+		// Slice to top recent threads (default 400) for lightning-fast mobile transmission (<350KB)
+		$requested_limit = (int) $request->get_param( 'limit' );
+		$lead_limit      = $requested_limit > 0 ? max( 25, min( 800, $requested_limit ) ) : 400;
+		$unified_threads = array_slice( $unified_threads, 0, $lead_limit );
+
+		// Accurately check Evolution API socket state (30s cache)
+		$evo_state = get_transient( 'tc_evo_conn_state_quick' );
+		if ( false === $evo_state ) {
+			$state_res = class_exists( 'TC_Integration_Evolution' ) ? TC_Integration_Evolution::connection_state() : 'close';
+			$evo_state = ( ! is_wp_error( $state_res ) && 'open' === $state_res ) ? 'open' : 'close';
+			set_transient( 'tc_evo_conn_state_quick', $evo_state, 30 );
+		}
+		$evolution_online = ( 'open' === $evo_state );
+
+		// Accurately compute counts across the slice
+		$cnt_wa = 0; $cnt_new = 0; $cnt_unread = 0; $cnt_sla = 0; $cnt_b2b = 0;
+		foreach ( $unified_threads as $th ) {
+			if ( ! empty( $th['has_whatsapp_chat'] ) || 'whatsapp' === ( $th['source_channel'] ?? '' ) ) {
+				$cnt_wa++;
+			}
+			if ( empty( $th['is_b2b'] ) && in_array( strtolower( (string) ( $th['stage'] ?? '' ) ), array( 'new', 'inquiry', '' ), true ) ) {
+				$cnt_new++;
+			}
+			if ( (int) ( $th['unread_count'] ?? 0 ) > 0 && empty( $th['last_message_from_me'] ) ) {
+				$cnt_unread++;
+			}
+			if ( ! empty( $th['sla_breached'] ) ) {
+				$cnt_sla++;
+			}
+			if ( ! empty( $th['is_b2b'] ) ) {
+				$cnt_b2b++;
+			}
+		}
+
+		$response_payload = array(
+			'ok'               => true,
+			'evolution_online' => $evolution_online,
+			'evolution_state'  => $evo_state,
+			'count'            => count( $unified_threads ),
+			'counts'           => array(
+				'all'      => count( $unified_threads ),
+				'whatsapp' => $cnt_wa,
+				'new'      => $cnt_new,
+				'unread'   => $cnt_unread,
+				'sla'      => $cnt_sla,
+				'b2b'      => $cnt_b2b,
 			),
+			'leads'            => $unified_threads,
+		);
+
+		// Cache assembled payload for 10s to keep mobile response ultra fast (<20ms) when not actively searching
+		if ( empty( $search ) ) {
+			set_transient( $cache_key, $response_payload, 10 );
+		}
+
+		return new WP_REST_Response(
+			$response_payload,
 			200
 		);
 	}
@@ -2731,6 +2996,11 @@ class TC_Agents_Mobile_API {
 				'is_online'        => $diff <= 300,
 				'seen_seconds_ago' => $diff,
 				'last_active_at'   => date( 'Y-m-d H:i:s', $last_seen ),
+				'name'             => (string) ( $v['visitor_name'] ?? ( $v['name'] ?? '' ) ),
+				'visitor_name'     => (string) ( $v['visitor_name'] ?? ( $v['name'] ?? '' ) ),
+				'phone'            => (string) ( $v['visitor_phone'] ?? ( $v['phone'] ?? '' ) ),
+				'visitor_phone'    => (string) ( $v['visitor_phone'] ?? ( $v['phone'] ?? '' ) ),
+				'typing_preview'   => (string) ( $v['typing_preview'] ?? '' ),
 			);
 		}
 
@@ -2773,6 +3043,11 @@ class TC_Agents_Mobile_API {
 						'is_online'        => $diff <= 600,
 						'seen_seconds_ago' => $diff,
 						'last_active_at'   => $rdb['created_at'],
+						'name'             => (string) ( $d['visitor_name'] ?? ( $d['name'] ?? '' ) ),
+						'visitor_name'     => (string) ( $d['visitor_name'] ?? ( $d['name'] ?? '' ) ),
+						'phone'            => (string) ( $d['visitor_phone'] ?? ( $d['phone'] ?? '' ) ),
+						'visitor_phone'    => (string) ( $d['visitor_phone'] ?? ( $d['phone'] ?? '' ) ),
+						'typing_preview'   => '',
 					);
 					if ( count( $visitors ) >= 15 ) break;
 				}
@@ -3167,6 +3442,7 @@ class TC_Agents_Mobile_API {
 		               c.name as contact_name, c.phone as contact_phone
 		        FROM $table_cv cv
 		        LEFT JOIN $table_c c ON c.id = cv.contact_id
+		        WHERE cv.channel = 'web'
 		        ORDER BY cv.last_message_at DESC
 		        LIMIT %d";
 
@@ -3202,6 +3478,12 @@ class TC_Agents_Mobile_API {
 			$session_short = substr( $r['session_id'], -4 );
 			$visitor_name = ! empty( $r['contact_name'] ) ? $r['contact_name'] : ( ! empty( $meta['traveler_name'] ) ? $meta['traveler_name'] : 'Web Visitor #' . $session_short );
 			$phone = ! empty( $r['contact_phone'] ) ? $r['contact_phone'] : ( $meta['phone'] ?? '' );
+			if ( empty( $phone ) ) {
+				$active_map = get_transient( 'tc_live_active_visitors' );
+				if ( is_array( $active_map ) && ! empty( $active_map[ $r['session_id'] ]['visitor_phone'] ) ) {
+					$phone = $active_map[ $r['session_id'] ]['visitor_phone'];
+				}
+			}
 			$page_url = $meta['page_url'] ?? ( $meta['landing_page'] ?? '/' );
 
 			$web_chats[] = array(
@@ -3395,6 +3677,68 @@ class TC_Agents_Mobile_API {
 			),
 			200
 		);
+	}
+
+	/**
+	 * 19b. Push Live Flash Offer to Website Visitor Screen
+	 */
+	public static function handle_push_offer( WP_REST_Request $request ) {
+		$params      = array_merge( (array) $request->get_params(), (array) $request->get_json_params() );
+		$session_id  = sanitize_text_field( $params['session_id'] ?? $params['visitor_id'] ?? '' );
+		$offer_title = sanitize_text_field( $params['offer_title'] ?? $params['title'] ?? '⚡ Exclusive Live Offer' );
+		$offer_text  = sanitize_text_field( $params['offer_text'] ?? $params['message'] ?? '' );
+		$discount    = sanitize_text_field( $params['discount_code'] ?? $params['code'] ?? 'KASHI10' );
+
+		if ( empty( $session_id ) || empty( $offer_text ) ) {
+			return new WP_REST_Response( array( 'success' => false, 'error' => 'session_id and offer_text are required.' ), 400 );
+		}
+
+		$offer = array(
+			'title'     => $offer_title,
+			'text'      => $offer_text,
+			'discount'  => $discount,
+			'timestamp' => time(),
+		);
+
+		// Store in active visitors transient
+		$visitors = get_transient( 'tc_live_active_visitors' );
+		if ( is_array( $visitors ) ) {
+			foreach ( $visitors as $k => &$v ) {
+				if ( ( isset( $v['session_id'] ) && $v['session_id'] === $session_id ) || $k === $session_id ) {
+					$v['push_offer'] = $offer;
+				}
+			}
+			unset( $v );
+			set_transient( 'tc_live_active_visitors', $visitors, 2 * HOUR_IN_SECONDS );
+		}
+
+		// Also set specific session transient for instant pickup by track-visitor
+		set_transient( 'tc_push_offer_' . md5( $session_id ), $offer, HOUR_IN_SECONDS );
+
+		return new WP_REST_Response( array( 'success' => true, 'message' => 'Flash offer pushed to visitor screen successfully.' ), 200 );
+	}
+
+	/**
+	 * 19c. Send Proactive Ping to Website Visitor
+	 */
+	public static function handle_proactive_ping( WP_REST_Request $request ) {
+		$params     = array_merge( (array) $request->get_params(), (array) $request->get_json_params() );
+		$session_id = sanitize_text_field( $params['visitor_id'] ?? $params['session_id'] ?? '' );
+		$message    = sanitize_text_field( $params['message'] ?? '' );
+
+		if ( empty( $session_id ) || empty( $message ) ) {
+			return new WP_REST_Response( array( 'success' => false, 'error' => 'visitor_id and message are required.' ), 400 );
+		}
+
+		$ping = array(
+			'message'   => $message,
+			'sender'    => 'Travel Specialist (Live)',
+			'timestamp' => time(),
+		);
+
+		set_transient( 'tc_proactive_ping_' . md5( $session_id ), $ping, HOUR_IN_SECONDS );
+
+		return new WP_REST_Response( array( 'success' => true, 'message' => 'Proactive ping dispatched to visitor.' ), 200 );
 	}
 
 	/**

@@ -44,7 +44,7 @@ class TC_Integration_WhatsApp {
 		$hub_challenge = $request->get_param( 'hub_challenge' ) ?: $request->get_param( 'hub.challenge' );
 
 		if ( 'subscribe' === $hub_mode ) {
-			if ( empty( $secret_configured ) || $hub_token === $secret_configured ) {
+			if ( ! empty( $secret_configured ) && hash_equals( (string) $secret_configured, (string) $hub_token ) ) {
 				status_header( 200 );
 				header( 'Content-Type: text/plain; charset=utf-8' );
 				echo sanitize_text_field( (string) $hub_challenge );

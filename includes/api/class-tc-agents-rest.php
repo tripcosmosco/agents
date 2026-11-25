@@ -100,6 +100,17 @@ class TC_Agents_REST {
 			)
 		);
 
+		// Real-time Operator Translation Endpoint
+		register_rest_route(
+			self::NAMESPACE,
+			'/translate',
+			array(
+				'methods'             => array( 'POST', 'OPTIONS' ),
+				'callback'            => array( __CLASS__, 'handle_translate' ),
+				'permission_callback' => '__return_true',
+			)
+		);
+
 		// 3. Health Check Endpoint
 		register_rest_route(
 			self::NAMESPACE,
@@ -719,6 +730,33 @@ class TC_Agents_REST {
 			)
 		);
 
+		if ( ! empty( $session_id ) && ! empty( $result['contact_id'] ) ) {
+			global $wpdb;
+			$table_conv = $wpdb->prefix . 'tc_agent_conversations';
+			$wpdb->update(
+				$table_conv,
+				array( 'contact_id' => (int) $result['contact_id'] ),
+				array( 'session_id' => $session_id )
+			);
+
+			// Also update live transient if exists so Live Radar immediately shows the phone & name!
+			$visitors = get_transient( 'tc_live_active_visitors' );
+			if ( is_array( $visitors ) ) {
+				foreach ( $visitors as $k => &$v ) {
+					if ( ( isset( $v['session_id'] ) && $v['session_id'] === $session_id ) || $k === $session_id ) {
+						$v['phone']         = $phone;
+						$v['visitor_phone'] = $phone;
+						if ( ! empty( $name ) ) {
+							$v['name']         = $name;
+							$v['visitor_name'] = $name;
+						}
+					}
+				}
+				unset( $v );
+				set_transient( 'tc_live_active_visitors', $visitors, 2 * HOUR_IN_SECONDS );
+			}
+		}
+
 		return new WP_REST_Response(
 			array(
 				'success' => true,
@@ -744,8 +782,8 @@ class TC_Agents_REST {
 			return new WP_REST_Response( array( 'success' => false, 'error' => __( 'A valid 10-digit mobile number is required.', 'tripcosmos-agents' ) ), 400 );
 		}
 
-		// Security Rate Limit per IP/Identifier
-		$identifier = sanitize_text_field( $_SERVER['REMOTE_ADDR'] ?? '' );
+		// Security Rate Limit per IP/Identifier (honoring Cloudflare/reverse proxy client IP)
+		$identifier = TC_Agents_Security::client_ip();
 		$guard      = TC_Agents_Guardrails::check_permission( 'voice', $identifier );
 		if ( is_wp_error( $guard ) ) {
 			return new WP_REST_Response( array( 'success' => false, 'error' => $guard->get_error_message() ), 429 );
@@ -889,22 +927,23 @@ class TC_Agents_REST {
 		}
 
 		$event_details = array(
-			'action'        => $action,
-			'page_url'      => $page_url,
-			'page_title'    => $page_title,
-			'session_id'    => $session_id,
-			'ip'            => $ip,
-			'country'       => $country,
-			'city'          => $city,
-			'device'        => $device_label,
-			'referrer'      => $referrer,
-			'utm_source'    => $utm_source,
-			'language'      => $lang,
-			'visitor_name'  => $visitor_name,
-			'visitor_phone' => $visitor_phone,
-			'user_agent'    => sanitize_text_field( substr( $raw_ua, 0, 150 ) ),
-			'last_seen_ts'  => time(),
-			'last_seen_at'  => current_time( 'mysql' ),
+			'action'         => $action,
+			'page_url'       => $page_url,
+			'page_title'     => $page_title,
+			'session_id'     => $session_id,
+			'ip'             => $ip,
+			'country'        => $country,
+			'city'           => $city,
+			'device'         => $device_label,
+			'referrer'       => $referrer,
+			'utm_source'     => $utm_source,
+			'language'       => $lang,
+			'visitor_name'   => $visitor_name,
+			'visitor_phone'  => $visitor_phone,
+			'user_agent'     => sanitize_text_field( substr( $raw_ua, 0, 150 ) ),
+			'last_seen_ts'   => time(),
+			'last_seen_at'   => current_time( 'mysql' ),
+			'typing_preview' => ! empty( $params['typing_text'] ) ? sanitize_text_field( $params['typing_text'] ) : '',
 		);
 
 		// Update live active visitor presence map (15-minute sliding window)
@@ -921,13 +960,40 @@ class TC_Agents_REST {
 		}
 		$prev_views = isset( $active_map[ $visitor_key ]['page_views'] ) ? (int) $active_map[ $visitor_key ]['page_views'] : 0;
 		$first_seen = isset( $active_map[ $visitor_key ]['first_seen_ts'] ) ? (int) $active_map[ $visitor_key ]['first_seen_ts'] : $now_ts;
-		$event_details['page_views']    = ( 'heartbeat' === $action ) ? max( 1, $prev_views ) : ( $prev_views + 1 );
+		$event_details['page_views']    = ( 'heartbeat' === $action || 'typing_preview' === $action ) ? max( 1, $prev_views ) : ( $prev_views + 1 );
 		$event_details['first_seen_ts'] = $first_seen;
-		$active_map[ $visitor_key ]     = $event_details;
+
+		// Carry over previous phone/name if not provided in this specific heartbeat
+		if ( empty( $event_details['visitor_phone'] ) && ! empty( $active_map[ $visitor_key ]['visitor_phone'] ) ) {
+			$event_details['visitor_phone'] = $active_map[ $visitor_key ]['visitor_phone'];
+		}
+		if ( empty( $event_details['visitor_name'] ) && ! empty( $active_map[ $visitor_key ]['visitor_name'] ) ) {
+			$event_details['visitor_name'] = $active_map[ $visitor_key ]['visitor_name'];
+		}
+		if ( empty( $event_details['typing_preview'] ) && ! empty( $active_map[ $visitor_key ]['typing_preview'] ) && 'typing_preview' !== $action ) {
+			$event_details['typing_preview'] = $active_map[ $visitor_key ]['typing_preview'];
+		}
+
+		$push_offer = $active_map[ $visitor_key ]['push_offer'] ?? null;
+
+		// Check for dynamic targeted push offer or proactive message for this session
+		$session_hash = md5( $session_id ?: $visitor_key );
+		$targeted_offer = get_transient( 'tc_push_offer_' . $session_hash );
+		if ( $targeted_offer ) {
+			delete_transient( 'tc_push_offer_' . $session_hash );
+			$push_offer = $targeted_offer;
+		}
+
+		$proactive_ping = get_transient( 'tc_proactive_ping_' . $session_hash );
+		if ( $proactive_ping ) {
+			delete_transient( 'tc_proactive_ping_' . $session_hash );
+		}
+
+		$active_map[ $visitor_key ] = $event_details;
 		set_transient( 'tc_live_active_visitors', $active_map, 30 * MINUTE_IN_SECONDS );
 
-		// Only write to audit log on page view or chat open (skip silent heartbeats so DB stays clean)
-		if ( 'heartbeat' !== $action && class_exists( 'TC_Agents_Logger' ) ) {
+		// Only write to audit log on page view or chat open (skip silent heartbeats and typing so DB stays clean)
+		if ( 'heartbeat' !== $action && 'typing_preview' !== $action && class_exists( 'TC_Agents_Logger' ) ) {
 			TC_Agents_Logger::log(
 				'visitor_landing',
 				'info',
@@ -937,7 +1003,15 @@ class TC_Agents_REST {
 			);
 		}
 
-		return new WP_REST_Response( array( 'ok' => true, 'active_visitors' => count( $active_map ) ), 200 );
+		return new WP_REST_Response(
+			array(
+				'ok'              => true,
+				'active_visitors' => count( $active_map ),
+				'push_offer'      => $push_offer,
+				'proactive_ping'  => $proactive_ping,
+			),
+			200
+		);
 	}
 
 	/**
@@ -1125,6 +1199,63 @@ class TC_Agents_REST {
 				'success'     => true,
 				'kill_switch' => $enabled,
 				'message'     => $enabled ? __( 'Emergency Kill Switch is now ENGAGED. All outbound agent activities are stopped.', 'tripcosmos-agents' ) : __( 'Kill Switch DISENGAGED. Agent operations resumed.', 'tripcosmos-agents' ),
+			),
+			200
+		);
+	}
+
+	/**
+	 * Real-time Concierge Translation for Operators & Mobile App
+	 */
+	public static function handle_translate( WP_REST_Request $request ) {
+		if ( 'OPTIONS' === $request->get_method() ) {
+			return new WP_REST_Response( array( 'status' => 'ok' ), 200 );
+		}
+		$params      = array_merge( (array) $request->get_params(), (array) $request->get_json_params() );
+		$text        = sanitize_text_field( $params['text'] ?? '' );
+		$target_lang = sanitize_text_field( $params['target_lang'] ?? 'ru' );
+
+		if ( empty( $text ) ) {
+			return new WP_REST_Response( array( 'error' => 'Text cannot be empty.' ), 400 );
+		}
+
+		$lang_names = array(
+			'ru' => 'Russian',
+			'en' => 'English',
+			'hi' => 'Hindi',
+			'es' => 'Spanish',
+			'fr' => 'French',
+			'de' => 'German',
+			'it' => 'Italian',
+		);
+		$target_name = $lang_names[ $target_lang ] ?? $target_lang;
+
+		$messages = array(
+			array(
+				'role'    => 'system',
+				'content' => "You are an expert real-time travel concierge translator for TripCosmos.co. Translate the following text into natural, polite, culturally accurate {$target_name}. Return ONLY the direct translation text. Do not add quotes, brackets, or explanations.",
+			),
+			array(
+				'role'    => 'user',
+				'content' => $text,
+			),
+		);
+
+		$res = class_exists( 'TC_AI_Router' ) ? TC_AI_Router::get_instance()->chat( $messages, array( 'temperature' => 0.2 ) ) : null;
+		if ( is_wp_error( $res ) || empty( $res['content'] ) ) {
+			return new WP_REST_Response( array( 'error' => is_wp_error( $res ) ? $res->get_error_message() : 'Translation unavailable' ), 500 );
+		}
+
+		$translated = trim( (string) $res['content'] );
+		$translated = trim( $translated, " \t\n\r}
+\x0B\"'" );
+
+		return new WP_REST_Response(
+			array(
+				'success'         => true,
+				'original_text'   => $text,
+				'target_lang'     => $target_lang,
+				'translated_text' => $translated,
 			),
 			200
 		);
